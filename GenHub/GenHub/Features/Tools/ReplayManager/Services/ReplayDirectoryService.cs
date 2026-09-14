@@ -2140,52 +2140,6 @@ public sealed class ReplayDirectoryService(
         return (targetClient, workingDir);
     }
 
-    private static bool IsBuildDateMatching(string buildDate, string buildTime)
-    {
-        var parts = buildDate.Split('-');
-        if (parts.Length != 3)
-        {
-            return false;
-        }
-
-        var year = parts[0];
-        var monthNum = parts[1];
-        var dayNum = parts[2].TrimStart('0');
-
-        string monthName = monthNum switch
-        {
-            "01" => "Jan",
-            "02" => "Feb",
-            "03" => "Mar",
-            "04" => "Apr",
-            "05" => "May",
-            "06" => "Jun",
-            "07" => "Jul",
-            "08" => "Aug",
-            "09" => "Sep",
-            "10" => "Oct",
-            "11" => "Nov",
-            "12" => "Dec",
-            _ => string.Empty,
-        };
-
-        if (string.IsNullOrEmpty(monthName))
-        {
-            return false;
-        }
-
-        if (!buildTime.Contains(year, StringComparison.OrdinalIgnoreCase) ||
-            !buildTime.Contains(monthName, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return Regex.IsMatch(
-            buildTime,
-            $@"\b0?{Regex.Escape(dayNum)}\b",
-            RegexOptions.CultureInvariant,
-            ReplayFileNameRegexTimeout);
-    }
 
     private static bool IsVanillaZeroHourIni(string normalizedIni)
     {

@@ -94,11 +94,34 @@ public class CommunityOutpostUpdateService(
     /// <inheritdoc/>
     public override async Task<ContentUpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken)
     {
+        if (_isDisposed)
+        {
+            return ContentUpdateCheckResult.CreateNoUpdateAvailable();
+        }
+
         EnsureMessengerRegistered();
 
-        await _checkLock.WaitAsync(cancellationToken);
+        if (_isDisposed)
+        {
+            return ContentUpdateCheckResult.CreateNoUpdateAvailable();
+        }
+
         try
         {
+            await _checkLock.WaitAsync(cancellationToken);
+        }
+        catch (ObjectDisposedException)
+        {
+            return ContentUpdateCheckResult.CreateNoUpdateAvailable();
+        }
+
+        try
+        {
+            if (_isDisposed)
+            {
+                return ContentUpdateCheckResult.CreateNoUpdateAvailable();
+            }
+
             var startGeneration = Volatile.Read(ref _cacheGeneration);
             var now = DateTimeOffset.UtcNow;
             lock (_cacheLock)
@@ -126,15 +149,32 @@ public class CommunityOutpostUpdateService(
         }
         finally
         {
-            _checkLock.Release();
+            try
+            {
+                _checkLock.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Disposed concurrently
+            }
         }
     }
 
     /// <inheritdoc/>
     public override void Dispose()
     {
-        _isDisposed = true;
-        WeakReferenceMessenger.Default.UnregisterAll(this);
+        lock (_messengerLock)
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _isDisposed = true;
+            WeakReferenceMessenger.Default.UnregisterAll(this);
+            _messengerRegistered = false;
+        }
+
         _checkLock.Dispose();
         base.Dispose();
         GC.SuppressFinalize(this);
@@ -145,13 +185,6 @@ public class CommunityOutpostUpdateService(
 
     /// <inheritdoc/>
     protected override TimeSpan UpdateCheckInterval => TimeSpan.FromDays(1);
-
-    /// <inheritdoc/>
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        EnsureMessengerRegistered();
-        await base.ExecuteAsync(stoppingToken);
-    }
 
     private void EnsureMessengerRegistered()
     {

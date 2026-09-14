@@ -359,12 +359,12 @@ public class DependencyResolver(
     }
 
     private static bool Is60HzIdentifier(string name) =>
-        name.Contains("60hz", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("60fps", StringComparison.OrdinalIgnoreCase) ||
-        name.EndsWith("-60", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("-60-", StringComparison.OrdinalIgnoreCase) ||
-        name.EndsWith("_60", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("_60_", StringComparison.OrdinalIgnoreCase);
+        name.Contains(ManifestConstants.SixtyHzKeyword, StringComparison.OrdinalIgnoreCase) ||
+        name.Contains(ManifestConstants.SixtyFpsKeyword, StringComparison.OrdinalIgnoreCase) ||
+        name.EndsWith(ManifestConstants.SixtyHzHyphenSuffix, StringComparison.OrdinalIgnoreCase) ||
+        name.Contains(ManifestConstants.SixtyHzHyphenSegment, StringComparison.OrdinalIgnoreCase) ||
+        name.EndsWith(ManifestConstants.SixtyHzUnderscoreSuffix, StringComparison.OrdinalIgnoreCase) ||
+        name.Contains(ManifestConstants.SixtyHzUnderscoreSegment, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsPatchOrGameDataName(string name) =>
         name.Equals(ManifestConstants.ZeroHourContentName, StringComparison.OrdinalIgnoreCase) ||

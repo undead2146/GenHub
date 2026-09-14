@@ -319,11 +319,6 @@ public static class ReplayManagerConstants
     public const string RetailGeneralsClientName = "Retail 1.0";
 
     /// <summary>
-    /// Identifier segment for TheSuperHackers game clients.
-    /// </summary>
-    public const string TheSuperHackersGameClientSegment = ".thesuperhackers.gameclient.";
-
-    /// <summary>
     /// Identifier segment for Zero Hour manifests.
     /// </summary>
     public const string ZeroHourManifestSegment = ".10zh.";

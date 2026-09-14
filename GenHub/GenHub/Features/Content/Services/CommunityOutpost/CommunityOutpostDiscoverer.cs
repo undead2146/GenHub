@@ -182,6 +182,10 @@ public partial class CommunityOutpostDiscoverer(
                     logger.LogWarning("Failed to parse catalog: {Error}", parseResult.FirstError);
                 }
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to fetch/parse GenPatcher catalog, returning Community Patch only");

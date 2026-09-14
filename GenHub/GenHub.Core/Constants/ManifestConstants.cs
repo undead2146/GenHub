@@ -139,7 +139,7 @@ public static class ManifestConstants
     /// - contentName: Content identifier (e.g., "generals", "zerohour", "communitymaps")
     /// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps".
     /// </summary>
-    public const string PublisherContentRegexPattern = @"^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|gamedata|datapatch|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$";
+    public const string PublisherContentRegexPattern = @"^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$";
 
     /// <summary>
     /// Timeout for manifest validation operations in milliseconds.
@@ -302,6 +302,21 @@ public static class ManifestConstants
 
     /// <summary>Content keyword for 60Hz variant segment.</summary>
     public const string SixtyHzKeyword = "60hz";
+
+    /// <summary>Content keyword for 60fps variant segment.</summary>
+    public const string SixtyFpsKeyword = "60fps";
+
+    /// <summary>Content suffix for 60Hz hyphen variant segment.</summary>
+    public const string SixtyHzHyphenSuffix = "-60";
+
+    /// <summary>Content segment for 60Hz hyphen delimited variant.</summary>
+    public const string SixtyHzHyphenSegment = "-60-";
+
+    /// <summary>Content suffix for 60Hz underscore variant segment.</summary>
+    public const string SixtyHzUnderscoreSuffix = "_60";
+
+    /// <summary>Content segment for 60Hz underscore delimited variant.</summary>
+    public const string SixtyHzUnderscoreSegment = "_60_";
 
     /// <summary>Content display title keyword for Game Data.</summary>
     public const string GameDataDisplayKeyword = "Game Data";
