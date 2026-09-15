@@ -157,4 +157,81 @@ public class ReplayCrcMatchingHelperTests
             }
         }
     }
+
+    /// <summary>
+    /// Verifies that PreloadProfileCrcsAsync handles null or empty arguments gracefully.
+    /// </summary>
+    [Fact]
+    public async Task PreloadProfileCrcsAsync_WhenProfilesOrCalculatorNull_CompletesWithoutError()
+    {
+        var mockCalculator = new Mock<IGameCrcCalculatorService>();
+
+        await ReplayCrcMatchingHelper.PreloadProfileCrcsAsync(null!, mockCalculator.Object);
+        await ReplayCrcMatchingHelper.PreloadProfileCrcsAsync([], null!);
+        await ReplayCrcMatchingHelper.PreloadProfileCrcsAsync([], mockCalculator.Object);
+
+        mockCalculator.VerifyNoOtherCalls();
+    }
+
+    /// <summary>
+    /// Verifies that PreloadProfileCrcsAsync calculates CRCs for valid profile game clients.
+    /// </summary>
+    [Fact]
+    public async Task PreloadProfileCrcsAsync_WhenValidProfilesProvided_PreloadsCrcs()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var exePath = Path.Combine(tempDir, "generals.exe");
+        File.WriteAllText(exePath, "dummy binary");
+
+        try
+        {
+            var mockCalculator = new Mock<IGameCrcCalculatorService>();
+            mockCalculator
+                .Setup(c => c.CalculateExeCrcAsync(exePath, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(OperationResult<string>.CreateSuccess("0x12345678"));
+            mockCalculator
+                .Setup(c => c.CalculateIniCrcAsync(
+                    tempDir,
+                    GameType.ZeroHour,
+                    It.IsAny<IReadOnlyList<string>?>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(OperationResult<string>.CreateSuccess("0x87654321"));
+
+            var profile = new GameProfile
+            {
+                Id = "test-profile",
+                Name = "Test Profile",
+                GameClient = new GameClient
+                {
+                    Id = "client-1",
+                    Name = "ZH Client",
+                    ExecutablePath = exePath,
+                    GameType = GameType.ZeroHour,
+                },
+            };
+
+            await ReplayCrcMatchingHelper.PreloadProfileCrcsAsync([profile], mockCalculator.Object);
+
+            mockCalculator.Verify(
+                c => c.CalculateExeCrcAsync(exePath, It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+                Times.Once);
+            mockCalculator.Verify(
+                c => c.CalculateIniCrcAsync(
+                    tempDir,
+                    GameType.ZeroHour,
+                    It.IsAny<IReadOnlyList<string>?>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
 }

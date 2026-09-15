@@ -3708,6 +3708,58 @@ public sealed class ReplayDirectoryServiceTests
     }
 
     /// <summary>
+    /// Verifies that IsClientManifestInstalled recognizes acquired Generals segment as satisfying client installation.
+    /// </summary>
+    [Fact]
+    public void IsClientManifestInstalled_WhenGenerals108ReplayAndGeneralsSegmentAcquired_ReturnsTrue()
+    {
+        var match = new CrcMappingEntry
+        {
+            Publisher = "retail",
+            ManifestId = "1.108.retail.gameclient.generals",
+            Version = "1.08",
+        };
+
+        var acquiredIds = new HashSet<string>
+        {
+            "1.10gn.ea.gameinstallation.generals",
+        };
+
+        var isInstalled = ReplayDirectoryService.IsClientManifestInstalled(
+            match,
+            GameType.Generals,
+            acquiredIds);
+
+        Assert.True(isInstalled);
+    }
+
+    /// <summary>
+    /// Verifies that IsClientManifestInstalled recognizes acquired Zero Hour segment as satisfying client installation.
+    /// </summary>
+    [Fact]
+    public void IsClientManifestInstalled_WhenZh104ReplayAndZeroHourSegmentAcquired_ReturnsTrue()
+    {
+        var match = new CrcMappingEntry
+        {
+            Publisher = "retail",
+            ManifestId = "1.104.retail.gameclient.zerohour",
+            Version = "1.04",
+        };
+
+        var acquiredIds = new HashSet<string>
+        {
+            "1.10zh.ea.gameinstallation.zerohour",
+        };
+
+        var isInstalled = ReplayDirectoryService.IsClientManifestInstalled(
+            match,
+            GameType.ZeroHour,
+            acquiredIds);
+
+        Assert.True(isInstalled);
+    }
+
+    /// <summary>
     /// Verifies that CreateProfileForReplayAsync throws OperationCanceledException when cancellation is requested.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>

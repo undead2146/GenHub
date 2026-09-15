@@ -8,6 +8,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -350,27 +351,27 @@ public static class ReplayCrcMatchingHelper
         ILogger? logger = null,
         CancellationToken ct = default)
     {
-        if (crcCalculator == null)
+        if (crcCalculator == null || profiles == null)
         {
             return;
         }
 
-        foreach (var profile in profiles)
+        foreach (var gameClient in profiles.Select(profile => profile.GameClient))
         {
             if (ct.IsCancellationRequested)
             {
                 break;
             }
 
-            var exePath = ResolveProfileFullExePath(profile.GameClient);
+            var exePath = ResolveProfileFullExePath(gameClient);
             if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
             {
                 await GetOrCalculateProfileExeCrcAsync(exePath, crcCalculator, logger, ct);
 
                 var gameRoot = Path.GetDirectoryName(exePath);
-                if (!string.IsNullOrEmpty(gameRoot) && Directory.Exists(gameRoot) && profile.GameClient != null)
+                if (!string.IsNullOrEmpty(gameRoot) && Directory.Exists(gameRoot) && gameClient != null)
                 {
-                    await GetOrCalculateProfileIniCrcAsync(gameRoot, profile.GameClient.GameType, crcCalculator, logger, ct);
+                    await GetOrCalculateProfileIniCrcAsync(gameRoot, gameClient.GameType, crcCalculator, logger, ct);
                 }
             }
         }

@@ -1459,7 +1459,9 @@ public sealed class ReplayDirectoryService(
             return ReplayManagerConstants.DefaultGameClientTitle;
         }
 
-        return replay.GameVersion == GameType.ZeroHour ? "Zero Hour" : "Generals";
+        return replay.GameVersion == GameType.ZeroHour
+            ? ReplayManagerConstants.ZeroHourGameClientTitle
+            : ReplayManagerConstants.GeneralsGameClientTitle;
     }
 
     private static CreateProfileRequest BuildReplayProfileRequest(
@@ -1526,8 +1528,8 @@ public sealed class ReplayDirectoryService(
         }
 
         return IsRetailClient(customGameClient.PublisherType, customClientManifestId) ||
-               customClientManifestId?.Contains(".retail.gameclient.", StringComparison.OrdinalIgnoreCase) == true ||
-               customGameClient.Id?.Contains(".retail.gameclient.", StringComparison.OrdinalIgnoreCase) == true ||
+               customClientManifestId?.Contains(ReplayManagerConstants.RetailGameClientSegment, StringComparison.OrdinalIgnoreCase) == true ||
+               customGameClient.Id?.Contains(ReplayManagerConstants.RetailGameClientSegment, StringComparison.OrdinalIgnoreCase) == true ||
                string.IsNullOrEmpty(customClientManifestId);
     }
 
@@ -1583,14 +1585,14 @@ public sealed class ReplayDirectoryService(
         if (gameVersion == GameType.ZeroHour)
         {
             return acquiredIds.Any(id =>
-                id.Contains("community-patch", StringComparison.OrdinalIgnoreCase) ||
-                id.Contains("communitypatch", StringComparison.OrdinalIgnoreCase) ||
-                id.Contains(".10zh.", StringComparison.OrdinalIgnoreCase));
+                id.Contains(ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase) ||
+                id.Contains(ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                id.Contains(ReplayManagerConstants.ZeroHourManifestSegment, StringComparison.OrdinalIgnoreCase));
         }
 
         if (gameVersion == GameType.Generals)
         {
-            return acquiredIds.Any(id => id.Contains(".10gn.", StringComparison.OrdinalIgnoreCase));
+            return acquiredIds.Any(id => id.Contains(ReplayManagerConstants.GeneralsManifestSegment, StringComparison.OrdinalIgnoreCase));
         }
 
         return false;

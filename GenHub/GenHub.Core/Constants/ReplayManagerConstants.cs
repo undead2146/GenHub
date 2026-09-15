@@ -269,6 +269,11 @@ public static class ReplayManagerConstants
     public const string RetailBaseClientKey = "retail-base-client";
 
     /// <summary>
+    /// Identifier segment for retail game client manifests.
+    /// </summary>
+    public const string RetailGameClientSegment = ".retail.gameclient.";
+
+    /// <summary>
     /// Publisher name for Catalog manifests.
     /// </summary>
     public const string CatalogPublisher = "Catalog";
@@ -342,6 +347,16 @@ public static class ReplayManagerConstants
     /// Fallback title for generic game client.
     /// </summary>
     public const string DefaultGameClientTitle = "Game";
+
+    /// <summary>
+    /// Fallback title for Zero Hour game client.
+    /// </summary>
+    public const string ZeroHourGameClientTitle = GameClientConstants.ZeroHourShortName;
+
+    /// <summary>
+    /// Fallback title for Generals game client.
+    /// </summary>
+    public const string GeneralsGameClientTitle = GameClientConstants.GeneralsShortName;
 
     /// <summary>
     /// Display name for retail client fallback.
