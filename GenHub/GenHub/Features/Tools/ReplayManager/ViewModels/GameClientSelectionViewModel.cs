@@ -303,7 +303,8 @@ public sealed partial class GameClientSelectionViewModel(
             var basePath = ResolveInstallationCandidatePath(installation, client, fullExePath);
             if (!string.IsNullOrEmpty(basePath) && Directory.Exists(basePath))
             {
-                var candidate = FindExistingExecutable(basePath, client.GameType);
+                var gameType = client.GameType != GameType.Unknown ? client.GameType : installation.GameType;
+                var candidate = FindExistingExecutable(basePath, gameType);
                 if (candidate != null)
                 {
                     return candidate;
@@ -504,7 +505,7 @@ public sealed partial class GameClientSelectionViewModel(
 
         if (matchedClient.ManifestId.Contains(ReplayManagerConstants.RetailKeyword, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(matchedClient.Publisher, ReplayManagerConstants.RetailKeyword, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(matchedClient.Publisher, "ea", StringComparison.OrdinalIgnoreCase))
+            string.Equals(matchedClient.Publisher, PublisherTypeConstants.Ea, StringComparison.OrdinalIgnoreCase))
         {
             discoveredKeys.Add(ReplayManagerConstants.RetailBaseClientKey);
         }
@@ -518,7 +519,7 @@ public sealed partial class GameClientSelectionViewModel(
         }
 
         return _allClients.Any(c => c.IsCrcMatch && (c.Publisher.Contains(ReplayManagerConstants.RetailKeyword, StringComparison.OrdinalIgnoreCase) ||
-                                                     c.Publisher.Contains("EA", StringComparison.OrdinalIgnoreCase) ||
+                                                     c.Publisher.Contains(PublisherTypeConstants.Ea, StringComparison.OrdinalIgnoreCase) ||
                                                      c.Name.Contains(ReplayManagerConstants.RetailKeyword, StringComparison.OrdinalIgnoreCase)));
     }
 

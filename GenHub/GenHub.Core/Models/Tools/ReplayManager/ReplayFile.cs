@@ -1,7 +1,7 @@
-using System;
-using System.IO;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Models.Enums;
+using System;
+using System.IO;
 
 namespace GenHub.Core.Models.Tools.ReplayManager;
 
@@ -97,9 +97,6 @@ public sealed class ReplayFile : IExportableFile
     /// </summary>
     public bool IsOrphaned => CompatibilityStatus == ReplayCompatibilityStatus.Orphaned;
 
-    /// <summary>
-    /// Gets the user-facing display text for the game client and data patch version.
-    /// </summary>
     /// <summary>
     /// Gets or sets the recognized data patch or INI configuration name (e.g., "Vanilla 1.04 INI", "CommunityPatch Core INI (81FB5632)").
     /// </summary>

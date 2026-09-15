@@ -202,12 +202,12 @@ public sealed partial class ProfileSelectionViewModel(
     /// <summary>
     /// Filters profiles by compatibility with target game and optional explicit compatible profile IDs.
     /// </summary>
-    /// <param name=targetGame>The target game type for compatibility.</param>
-    /// <param name=contentManifestId>The optional content manifest ID to be added.</param>
-    /// <param name=contentName>The optional content name for display.</param>
-    /// <param name=additionalManifestIds>Additional acquired manifest IDs to enable with the primary item (bundle members).</param>
-    /// <param name=compatibleProfileIds>Optional explicit set of compatible profile IDs.</param>
-    /// <param name=ct>The cancellation token.</param>
+    /// <param name="targetGame">The target game type for compatibility.</param>
+    /// <param name="contentManifestId">The optional content manifest ID to be added.</param>
+    /// <param name="contentName">The optional content name for display.</param>
+    /// <param name="additionalManifestIds">Additional acquired manifest IDs to enable with the primary item (bundle members).</param>
+    /// <param name="compatibleProfileIds">Optional explicit set of compatible profile IDs.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task LoadProfilesAsync(
         GameType targetGame,

@@ -3808,19 +3808,6 @@ public sealed class ReplayDirectoryServiceTests
             service.GetReplaysAsync(GameType.ZeroHour, cts.Token));
     }
 
-    private static ReplayFile CreateTestReplayForPathResolution(string publisher) => new()
-    {
-        FileName = "Test.rep",
-        FullPath = "/replays/Test.rep",
-        SizeInBytes = 2048,
-        LastModified = DateTime.UtcNow,
-        GameVersion = GameType.ZeroHour,
-        MatchedClient = new CrcMappingEntry
-        {
-            Publisher = publisher,
-        },
-    };
-
     /// <summary>
     /// Verifies that ReplayFile.ClientAndPatchDisplay displays the friendly INI patch name when the replay is unmapped but INI CRC is known.
     /// </summary>
@@ -4106,4 +4093,16 @@ public sealed class ReplayDirectoryServiceTests
         Assert.Equal("truncated-profile-id", match.Id);
     }
 
+    private static ReplayFile CreateTestReplayForPathResolution(string publisher) => new()
+    {
+        FileName = "Test.rep",
+        FullPath = "/replays/Test.rep",
+        SizeInBytes = 2048,
+        LastModified = DateTime.UtcNow,
+        GameVersion = GameType.ZeroHour,
+        MatchedClient = new CrcMappingEntry
+        {
+            Publisher = publisher,
+        },
+    };
 }

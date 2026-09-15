@@ -22,7 +22,6 @@ public static class ReplayCrcMatchingHelper
 {
     private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
 
-
     /// <summary>
     /// Normalizes a hexadecimal CRC string by trimming whitespace and optional '0x' prefix, converting to uppercase.
     /// </summary>

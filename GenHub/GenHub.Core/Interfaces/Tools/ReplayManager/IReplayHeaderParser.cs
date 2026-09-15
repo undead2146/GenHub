@@ -1,8 +1,8 @@
+using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Tools.ReplayManager;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using GenHub.Core.Models.Results;
-using GenHub.Core.Models.Tools.ReplayManager;
 
 namespace GenHub.Core.Interfaces.Tools.ReplayManager;
 

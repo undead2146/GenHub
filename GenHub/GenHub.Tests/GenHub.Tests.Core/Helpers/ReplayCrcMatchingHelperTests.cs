@@ -7,8 +7,8 @@ using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Services.Tools.Checksum;
-using System;
 using Moq;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -113,6 +113,7 @@ public class ReplayCrcMatchingHelperTests
     /// <summary>
     /// Verifies that GetOrCalculateProfileIniCrcAsync delegates to the CRC calculator.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task GetOrCalculateProfileIniCrcAsync_DelegatesToCalculator()
     {
@@ -158,6 +159,7 @@ public class ReplayCrcMatchingHelperTests
     /// Regression test verifying that modifying a nested INI file returns an updated CRC
     /// through the helper by delegating freshness checks to the calculator.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task GetOrCalculateProfileIniCrcAsync_WhenNestedIniFileEdited_ReturnsUpdatedCrcAsync()
     {
@@ -214,6 +216,7 @@ public class ReplayCrcMatchingHelperTests
     /// <summary>
     /// Verifies that PreloadProfileCrcsAsync handles null or empty arguments gracefully.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task PreloadProfileCrcsAsync_WhenProfilesOrCalculatorNull_CompletesWithoutError()
     {
@@ -229,6 +232,7 @@ public class ReplayCrcMatchingHelperTests
     /// <summary>
     /// Verifies that PreloadProfileCrcsAsync calculates CRCs for valid profile game clients.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task PreloadProfileCrcsAsync_WhenValidProfilesProvided_PreloadsCrcs()
     {
