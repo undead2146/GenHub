@@ -26,6 +26,11 @@ public static class SageChecksumConstants
     public const string IniFileExtension = ".ini";
 
     /// <summary>
+    /// Relative path to the Data/INI directory.
+    /// </summary>
+    public static readonly string DataIniRelativePath = Path.Combine("Data", "INI");
+
+    /// <summary>
     /// Relative path substring for Zero Hour INIZH big archive.
     /// </summary>
     public const string IniZhBigRelativePath = @"data\ini\inizh.big";

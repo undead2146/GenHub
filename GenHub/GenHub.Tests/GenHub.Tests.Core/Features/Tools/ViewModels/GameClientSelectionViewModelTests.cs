@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
+using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Tools.ReplayManager;
 using GenHub.Features.Tools.ReplayManager.ViewModels;
@@ -250,5 +254,75 @@ public sealed class GameClientSelectionViewModelTests
         Assert.Equal(2, vm.CompatibleCount);
         Assert.Contains(vm.FilteredClients, c => c.Name == "Community Patch (TheSuperHackers Build)" && c.IsCrcMatch && c.Category == "CRC Compatible");
         Assert.Contains(vm.FilteredClients, c => c.Name == "Retail 1.04" && c.IsCrcMatch && c.Category == "CRC Compatible");
+    }
+
+    /// <summary>
+    /// Verifies that ResolveInstallationExePath falls back to probing Zero Hour executables
+    /// when the client game type is Unknown.
+    /// </summary>
+    [Fact]
+    public void ResolveInstallationExePath_WhenClientGameTypeIsUnknown_FallsBackToZeroHourExecutable()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "GenHubTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var zhExePath = Path.Combine(tempDir, GameClientConstants.ZeroHourExecutable);
+            File.WriteAllText(zhExePath, string.Empty);
+
+            var installation = new GameInstallation(tempDir, GameInstallationType.Custom);
+
+            var client = new GameClient
+            {
+                GameType = GameType.Unknown,
+                ExecutablePath = string.Empty,
+            };
+
+            var resolved = GameClientSelectionViewModel.ResolveInstallationExePath(installation, client);
+
+            Assert.Equal(zhExePath, resolved);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies that ResolveInstallationExePath probes Generals executables
+    /// when the client game type is Generals.
+    /// </summary>
+    [Fact]
+    public void ResolveInstallationExePath_WhenClientGameTypeIsGenerals_FindsGeneralsExecutable()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "GenHubTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var genExePath = Path.Combine(tempDir, GameClientConstants.GeneralsExecutable);
+            File.WriteAllText(genExePath, string.Empty);
+
+            var installation = new GameInstallation(tempDir, GameInstallationType.Custom);
+
+            var client = new GameClient
+            {
+                GameType = GameType.Generals,
+                ExecutablePath = string.Empty,
+            };
+
+            var resolved = GameClientSelectionViewModel.ResolveInstallationExePath(installation, client);
+
+            Assert.Equal(genExePath, resolved);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
     }
 }

@@ -3899,9 +3899,6 @@ public sealed class ReplayDirectoryServiceTests
             .Setup(r => r.TryGetEntry("0x12345678", "0xFEAAE3F3", out nullEntry))
             .Returns(false);
         _mockCrcRegistry
-            .Setup(r => r.TryGetEntryByExeCrc("0x12345678", out nullEntry))
-            .Returns(false);
-        _mockCrcRegistry
             .Setup(r => r.TryGetEntryByIniCrc("0xFEAAE3F3", out outIni))
             .Returns(true);
 

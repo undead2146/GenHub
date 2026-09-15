@@ -289,7 +289,7 @@ public sealed partial class GameClientSelectionViewModel(
         return null;
     }
 
-    private static string ResolveInstallationExePath(GameInstallation installation, GameClient client)
+    internal static string ResolveInstallationExePath(GameInstallation installation, GameClient client)
     {
         var exePath = client.ExecutablePath ?? string.Empty;
         var fullExePath = exePath;
@@ -419,9 +419,6 @@ public sealed partial class GameClientSelectionViewModel(
     }
 
     private static bool IsMatchingOrRetailCrc(string? actualCrc, string? targetCrc, GameType targetGame) =>
-        ReplayCrcMatchingHelper.AreExeCrcsEquivalent(actualCrc, targetCrc, targetGame);
-
-    private static bool AreExeCrcsEquivalent(string? actualCrc, string? targetCrc, GameType targetGame) =>
         ReplayCrcMatchingHelper.AreExeCrcsEquivalent(actualCrc, targetCrc, targetGame);
 
     [RelayCommand]
@@ -782,6 +779,11 @@ public sealed partial class GameClientSelectionViewModel(
             return;
         }
 
+        if (!string.IsNullOrEmpty(client.Id) && !discoveredKeys.Add(client.Id))
+        {
+            return;
+        }
+
         var clientName = !string.IsNullOrWhiteSpace(client.Name)
             ? client.Name
             : profile.Name;
@@ -794,7 +796,7 @@ public sealed partial class GameClientSelectionViewModel(
             return;
         }
 
-        var isCrcMatch = await IsProfileClientCrcMatchAsync(client, matchedClient, ct);
+        var isCrcMatch = await IsProfileClientCrcMatchAsync(client, exePath, matchedClient, ct);
         if (isCrcMatch && IsRetailProfileClient(client))
         {
             discoveredKeys.Add(ReplayManagerConstants.RetailBaseClientKey);
@@ -808,7 +810,7 @@ public sealed partial class GameClientSelectionViewModel(
             Client: client,
             ManifestId: client.Id,
             Name: clientName,
-            Version: client.Version ?? ReplayManagerConstants.CustomPublisher,
+            Version: client.Version ?? ReplayManagerConstants.DefaultManifestVersion,
             Publisher: client.PublisherType ?? ReplayManagerConstants.LocalProfileCategory,
             Category: isCrcMatch ? ReplayManagerConstants.CrcCompatibleCategory : ReplayManagerConstants.LocalProfileCategory,
             ExecutablePath: exePath,
@@ -817,7 +819,7 @@ public sealed partial class GameClientSelectionViewModel(
             IsCrcMatch: isCrcMatch)));
     }
 
-    private async Task<bool> IsProfileClientCrcMatchAsync(GameClient client, CrcMappingEntry? matchedClient, CancellationToken ct)
+    private async Task<bool> IsProfileClientCrcMatchAsync(GameClient client, string exePath, CrcMappingEntry? matchedClient, CancellationToken ct)
     {
         if (matchedClient != null &&
             !string.IsNullOrEmpty(client.Id) &&
@@ -826,8 +828,8 @@ public sealed partial class GameClientSelectionViewModel(
             return true;
         }
 
-        if (!string.IsNullOrEmpty(client.ExecutablePath) &&
-            await CheckExeCrcMatchAsync(client.ExecutablePath, client.WorkingDirectory, ct))
+        if (!string.IsNullOrEmpty(exePath) &&
+            await CheckExeCrcMatchAsync(exePath, client.WorkingDirectory, ct))
         {
             return true;
         }

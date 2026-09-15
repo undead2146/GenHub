@@ -239,8 +239,8 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
         int? minor,
         GameType? gameType = null)
     {
-        int detectedMajor;
-        int detectedMinor;
+        int detectedMajor = 1;
+        int detectedMinor = 4;
         if (PeVersionExtractor.TryExtract(exeBytes, out int extractedMajor, out int extractedMinor) ||
             PeVersionExtractor.TryExtractFromVersionInfo(executablePath, out extractedMajor, out extractedMinor))
         {
@@ -381,26 +381,40 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
 
     private static void UpdateFreshnessFromBigFiles(FreshnessAccumulator accumulator, DirectoryInfo directoryInfo)
     {
-        foreach (var file in directoryInfo.EnumerateFiles(SageChecksumConstants.BigFileSearchPattern, SearchOption.AllDirectories))
+        try
         {
-            accumulator.AddFile(file);
+            foreach (var file in directoryInfo.EnumerateFiles(SageChecksumConstants.BigFileSearchPattern, SearchOption.AllDirectories))
+            {
+                accumulator.AddFile(file);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Tolerate transient I/O issues during freshness calculation
         }
     }
 
     private static void UpdateFreshnessFromDataIni(FreshnessAccumulator accumulator, string directoryPath)
     {
-        var dataIniPath = Path.Combine(directoryPath, "Data", "INI");
+        var dataIniPath = Path.Combine(directoryPath, SageChecksumConstants.DataIniRelativePath);
         if (!Directory.Exists(dataIniPath))
         {
             return;
         }
 
-        var dataIniInfo = new DirectoryInfo(dataIniPath);
-        accumulator.ObserveTicks(dataIniInfo.LastWriteTimeUtc.Ticks);
-
-        foreach (var file in dataIniInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+        try
         {
-            accumulator.AddFile(file);
+            var dataIniInfo = new DirectoryInfo(dataIniPath);
+            accumulator.ObserveTicks(dataIniInfo.LastWriteTimeUtc.Ticks);
+
+            foreach (var file in dataIniInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+            {
+                accumulator.AddFile(file);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Tolerate transient I/O issues during freshness calculation
         }
     }
 

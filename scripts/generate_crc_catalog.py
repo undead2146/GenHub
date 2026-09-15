@@ -553,7 +553,10 @@ def build_generalsonline_entry(cand: tuple[str, str, str, str], inspect_binaries
         c_exe, c_sha, c_ini = inspect_archive_binary(url, ["generalsonlinezh_60.exe", "generalsonlinezh.exe"])
         if not c_exe:
             return None
-        if version_str not in known_sage_crcs:
+        if version_str in known_sage_crcs:
+            if normalize_hex(c_exe) != normalize_hex(exe_crc):
+                print(f"[Warning] Inspected exe CRC {c_exe} diverges from known SAGE CRC {exe_crc} for {version_str}")
+        else:
             exe_crc = c_exe
         sha256 = c_sha
         if c_ini:
@@ -868,10 +871,13 @@ def _merge_base_mappings(existing: list[dict], base_mappings: list[dict]) -> lis
         pair_key = (base.get("manifestId"), normalize_hex(base.get("iniCrc", "")))
         if pair_key in existing_map:
             existing_entry = existing_map[pair_key]
-            existing_entry["exeCrc"] = base.get("exeCrc")
-            if base.get("sha256"):
+            if base.get("exeCrc") and not existing_entry.get("exeCrc"):
+                existing_entry["exeCrc"] = base.get("exeCrc")
+            elif base.get("exeCrc") and normalize_hex(base.get("exeCrc", "")) != normalize_hex(existing_entry.get("exeCrc", "")):
+                print(f"[Warning] Base mapping exeCrc {base.get('exeCrc')} diverges from existing {existing_entry.get('exeCrc')} for {base.get('manifestId')}")
+            if base.get("sha256") and not existing_entry.get("sha256"):
                 existing_entry["sha256"] = base.get("sha256")
-            if base.get("dataPatchName"):
+            if base.get("dataPatchName") and not existing_entry.get("dataPatchName"):
                 existing_entry["dataPatchName"] = base.get("dataPatchName")
         elif base_key not in existing_keys:
             existing.append(dict(base))
