@@ -188,7 +188,7 @@ public class ReplayCrcMatchingHelperTests
         {
             var mockCalculator = new Mock<IGameCrcCalculatorService>();
             mockCalculator
-                .Setup(c => c.CalculateExeCrcAsync(exePath, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .Setup(c => c.CalculateExeCrcAsync(exePath, It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(OperationResult<string>.CreateSuccess("0x12345678"));
             mockCalculator
                 .Setup(c => c.CalculateIniCrcAsync(
@@ -215,7 +215,7 @@ public class ReplayCrcMatchingHelperTests
             await ReplayCrcMatchingHelper.PreloadProfileCrcsAsync([profile], mockCalculator.Object);
 
             mockCalculator.Verify(
-                c => c.CalculateExeCrcAsync(exePath, It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+                c => c.CalculateExeCrcAsync(exePath, It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
                 Times.Once);
             mockCalculator.Verify(
                 c => c.CalculateIniCrcAsync(
