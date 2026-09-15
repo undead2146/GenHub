@@ -83,7 +83,8 @@ public sealed partial class ContentStateService(
     /// <param name="contentId">The ID of the content that changed.</param>
     /// <param name="newState">The new state of the content.</param>
     /// <param name="manifestId">The manifest ID if available.</param>
-    public void NotifyStateChanged(string contentId, ContentState newState, string? manifestId = null)
+    /// <param name="moddbId">The stable ModDB ID if available.</param>
+    public void NotifyStateChanged(string contentId, ContentState newState, string? manifestId = null, string? moddbId = null)
     {
         if (newState == ContentState.Downloaded &&
             !string.IsNullOrEmpty(contentId) &&
@@ -106,7 +107,7 @@ public sealed partial class ContentStateService(
         }
 
         logger.LogDebug("Content state changed: {ContentId} -> {State}", contentId, newState);
-        ContentStateChanged?.Invoke(this, new ContentStateChangedEventArgs(contentId, newState, manifestId));
+        ContentStateChanged?.Invoke(this, new ContentStateChangedEventArgs(contentId, newState, manifestId, moddbId));
     }
 
     /// <inheritdoc/>

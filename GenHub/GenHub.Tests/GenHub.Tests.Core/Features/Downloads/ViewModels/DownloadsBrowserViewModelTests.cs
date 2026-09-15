@@ -78,6 +78,49 @@ public class DownloadsBrowserViewModelTests
     }
 
     /// <summary>
+    /// Verifies that the ModDB browse experience exposes search and filters.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SelectPublisher_ModDB_ExposesSearchAndFiltersAsync()
+    {
+        // Arrange
+        using var viewModel = CreateViewModel();
+        await viewModel.InitializeAsync();
+
+        // Act
+        viewModel.SelectedPublisher = viewModel.Publishers.Single(
+            p => p.PublisherId == ModDBConstants.PublisherType);
+
+        // Assert
+        Assert.True(viewModel.CanSearch);
+        Assert.True(viewModel.CanShowFilters);
+    }
+
+    /// <summary>
+    /// Verifies that searching a direct ModDB URL auto-switches to the ModDB publisher.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SearchAsync_DirectModDBUrl_SwitchesToModDBPublisherAsync()
+    {
+        // Arrange
+        using var viewModel = CreateViewModel();
+        await viewModel.InitializeAsync();
+
+        viewModel.SelectedPublisher = viewModel.Publishers.Single(
+            p => p.PublisherId == GitHubTopicsConstants.PublisherType);
+
+        viewModel.SearchTerm = "https://www.moddb.com/mods/rise-of-the-reds";
+
+        // Act
+        await viewModel.SearchCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(ModDBConstants.PublisherType, viewModel.SelectedPublisher?.PublisherId);
+    }
+
+    /// <summary>
     /// Verifies that switching publishers while discovery is in-flight cancels the previous
     /// publisher's load and prevents its items from bleeding into the newly selected publisher's grid.
     /// </summary>
