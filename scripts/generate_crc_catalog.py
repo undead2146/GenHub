@@ -852,6 +852,20 @@ def validate_catalog(catalog: dict) -> bool:
     return valid
 
 
+def _update_existing_entry(existing_entry: dict, base: dict) -> None:
+    """Updates missing fields on an existing entry from base mapping."""
+    base_exe = base.get("exeCrc")
+    if base_exe:
+        if not existing_entry.get("exeCrc"):
+            existing_entry["exeCrc"] = base_exe
+        elif normalize_hex(base_exe) != normalize_hex(existing_entry.get("exeCrc", "")):
+            print(f"[Warning] Base mapping exeCrc {base_exe} diverges from existing {existing_entry.get('exeCrc')} for {base.get('manifestId')}")
+    if base.get("sha256") and not existing_entry.get("sha256"):
+        existing_entry["sha256"] = base.get("sha256")
+    if base.get("dataPatchName") and not existing_entry.get("dataPatchName"):
+        existing_entry["dataPatchName"] = base.get("dataPatchName")
+
+
 def _merge_base_mappings(existing: list[dict], base_mappings: list[dict]) -> list[dict]:
     """Merges base mappings into an existing mapping list."""
     existing_keys = {
@@ -870,15 +884,7 @@ def _merge_base_mappings(existing: list[dict], base_mappings: list[dict]) -> lis
         )
         pair_key = (base.get("manifestId"), normalize_hex(base.get("iniCrc", "")))
         if pair_key in existing_map:
-            existing_entry = existing_map[pair_key]
-            if base.get("exeCrc") and not existing_entry.get("exeCrc"):
-                existing_entry["exeCrc"] = base.get("exeCrc")
-            elif base.get("exeCrc") and normalize_hex(base.get("exeCrc", "")) != normalize_hex(existing_entry.get("exeCrc", "")):
-                print(f"[Warning] Base mapping exeCrc {base.get('exeCrc')} diverges from existing {existing_entry.get('exeCrc')} for {base.get('manifestId')}")
-            if base.get("sha256") and not existing_entry.get("sha256"):
-                existing_entry["sha256"] = base.get("sha256")
-            if base.get("dataPatchName") and not existing_entry.get("dataPatchName"):
-                existing_entry["dataPatchName"] = base.get("dataPatchName")
+            _update_existing_entry(existing_map[pair_key], base)
         elif base_key not in existing_keys:
             existing.append(dict(base))
             existing_keys.add(base_key)

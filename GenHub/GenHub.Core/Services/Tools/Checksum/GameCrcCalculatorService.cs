@@ -239,8 +239,8 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
         int? minor,
         GameType? gameType = null)
     {
-        int detectedMajor = 1;
-        int detectedMinor = 4;
+        int detectedMajor;
+        int detectedMinor;
         if (PeVersionExtractor.TryExtract(exeBytes, out int extractedMajor, out int extractedMinor) ||
             PeVersionExtractor.TryExtractFromVersionInfo(executablePath, out extractedMajor, out extractedMinor))
         {

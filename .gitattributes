@@ -4,20 +4,5 @@ GenHub/GenHub/Assets/Covers/gla-cover.png export-ignore
 GenHub/GenHub/Assets/Covers/usa-cover.png export-ignore
 .gitattributes export-ignore
 
-# Set default behavior to automatically normalize text files to LF in git repository
-* text=auto eol=lf
-
-# Explicitly enforce LF line endings
-*.cs text eol=lf
-*.axaml text eol=lf
-*.xaml text eol=lf
-*.json text eol=lf
-*.xml text eol=lf
-*.md text eol=lf
-*.props text eol=lf
-*.targets text eol=lf
-*.csproj text eol=lf
+# Ensure CSV files retain LF line endings across all platforms
 *.csv text eol=lf
-
-# Visual Studio solution files require CRLF
-*.sln text eol=crlf
