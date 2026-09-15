@@ -6,6 +6,8 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Services.Tools.Checksum;
+using System;
 using Moq;
 using System.Collections.Generic;
 using System.IO;
@@ -109,10 +111,10 @@ public class ReplayCrcMatchingHelperTests
     }
 
     /// <summary>
-    /// Verifies that GetOrCalculateProfileIniCrcAsync caches the calculated INI CRC per directory.
+    /// Verifies that GetOrCalculateProfileIniCrcAsync delegates to the CRC calculator.
     /// </summary>
     [Fact]
-    public async Task GetOrCalculateProfileIniCrcAsync_CachesResultPerDirectory()
+    public async Task GetOrCalculateProfileIniCrcAsync_DelegatesToCalculator()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ReplayCrcHelperTest_" + Path.GetRandomFileName());
         Directory.CreateDirectory(tempDir);
@@ -128,18 +130,12 @@ public class ReplayCrcMatchingHelperTests
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(OperationResult<string>.CreateSuccess("0xCAFEBABE"));
 
-            var firstResult = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
+            var result = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
                 tempDir,
                 GameType.ZeroHour,
                 mockCalculator.Object);
 
-            var secondResult = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
-                tempDir,
-                GameType.ZeroHour,
-                mockCalculator.Object);
-
-            Assert.Equal("0xCAFEBABE", firstResult);
-            Assert.Equal("0xCAFEBABE", secondResult);
+            Assert.Equal("0xCAFEBABE", result);
             mockCalculator.Verify(
                 c => c.CalculateIniCrcAsync(
                     tempDir,
@@ -151,6 +147,63 @@ public class ReplayCrcMatchingHelperTests
         }
         finally
         {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Regression test verifying that modifying a nested INI file returns an updated CRC
+    /// through the helper by delegating freshness checks to the calculator.
+    /// </summary>
+    [Fact]
+    public async Task GetOrCalculateProfileIniCrcAsync_WhenNestedIniFileEdited_ReturnsUpdatedCrcAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "GenHub_IniFreshnessTest_" + Guid.NewGuid().ToString("N"));
+        var iniDir = Path.Combine(tempDir, "Data", "INI");
+        Directory.CreateDirectory(iniDir);
+
+        try
+        {
+            ReplayCrcMatchingHelper.ClearCrcCaches();
+            var calculator = new GameCrcCalculatorService();
+            var iniPath = Path.Combine(iniDir, "GameData.ini");
+
+            await File.WriteAllTextAsync(iniPath, "GameData\r\n  Windowed = Yes\r\nEnd\r\n");
+            File.SetLastWriteTimeUtc(iniPath, DateTime.UtcNow.AddMinutes(-10));
+
+            var firstCrc = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
+                tempDir,
+                GameType.ZeroHour,
+                calculator);
+
+            Assert.NotNull(firstCrc);
+
+            // Second call with untouched files returns cached result from calculator
+            var secondCrc = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
+                tempDir,
+                GameType.ZeroHour,
+                calculator);
+
+            Assert.Equal(firstCrc, secondCrc);
+
+            // Modify nested GameData.ini and update timestamp (root directory timestamp remains unchanged)
+            await File.WriteAllTextAsync(iniPath, "GameData\r\n  Windowed = No\r\n  MaxFPS = 144\r\nEnd\r\n");
+            File.SetLastWriteTimeUtc(iniPath, DateTime.UtcNow);
+
+            var updatedCrc = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
+                tempDir,
+                GameType.ZeroHour,
+                calculator);
+
+            Assert.NotNull(updatedCrc);
+            Assert.NotEqual(firstCrc, updatedCrc);
+        }
+        finally
+        {
+            ReplayCrcMatchingHelper.ClearCrcCaches();
             if (Directory.Exists(tempDir))
             {
                 Directory.Delete(tempDir, true);

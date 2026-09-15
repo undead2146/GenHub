@@ -3,6 +3,7 @@ using GenHub.Core.Interfaces.Tools.Checksum;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameProfile;
+using GenHub.Core.Services.Tools.Checksum;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
@@ -21,7 +22,6 @@ public static class ReplayCrcMatchingHelper
 {
     private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, string Crc)> IniCrcCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Normalizes a hexadecimal CRC string by trimming whitespace and optional '0x' prefix, converting to uppercase.
@@ -223,30 +223,6 @@ public static class ReplayCrcMatchingHelper
     }
 
     /// <summary>
-    /// Retrieves a cached INI CRC if available and fresh.
-    /// </summary>
-    /// <param name="gameRoot">Path to the game installation root.</param>
-    /// <param name="gameType">The game type.</param>
-    /// <returns>The cached CRC string, or <c>null</c> if missing or stale.</returns>
-    public static string? GetCachedIniCrc(string gameRoot, GameType gameType)
-    {
-        var dirInfo = new DirectoryInfo(gameRoot);
-        if (!dirInfo.Exists)
-        {
-            return null;
-        }
-
-        var lastWrite = dirInfo.LastWriteTimeUtc;
-        var cacheKey = $"{gameRoot}|{gameType}";
-        if (IniCrcCache.TryGetValue(cacheKey, out var cached) && cached.LastWriteTimeUtc == lastWrite)
-        {
-            return cached.Crc;
-        }
-
-        return null;
-    }
-
-    /// <summary>
     /// Computes or retrieves from cache the executable CRC for a given game client executable.
     /// </summary>
     /// <param name="exePath">Path to the game client executable.</param>
@@ -291,7 +267,8 @@ public static class ReplayCrcMatchingHelper
     }
 
     /// <summary>
-    /// Computes or retrieves from cache the INI CRC for a given game installation root.
+    /// Computes or retrieves from cache the INI CRC for a given game installation root,
+    /// delegating caching and file freshness checks to the CRC calculator.
     /// </summary>
     /// <param name="gameRoot">Path to the game installation root.</param>
     /// <param name="gameType">The game type.</param>
@@ -309,23 +286,14 @@ public static class ReplayCrcMatchingHelper
         ArgumentNullException.ThrowIfNull(crcCalculator);
         try
         {
-            var dirInfo = new DirectoryInfo(gameRoot);
-            if (!dirInfo.Exists)
+            if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
             {
                 return null;
-            }
-
-            var lastWrite = dirInfo.LastWriteTimeUtc;
-            var cacheKey = $"{gameRoot}|{gameType}";
-            if (IniCrcCache.TryGetValue(cacheKey, out var cached) && cached.LastWriteTimeUtc == lastWrite)
-            {
-                return cached.Crc;
             }
 
             var iniResult = await crcCalculator.CalculateIniCrcAsync(gameRoot, gameType, ct: ct);
             if (iniResult.Success && !string.IsNullOrEmpty(iniResult.Data))
             {
-                IniCrcCache[cacheKey] = (lastWrite, iniResult.Data);
                 return iniResult.Data;
             }
         }
@@ -383,6 +351,6 @@ public static class ReplayCrcMatchingHelper
     public static void ClearCrcCaches()
     {
         ExeCrcCache.Clear();
-        IniCrcCache.Clear();
+        GameCrcCalculatorService.ClearCache();
     }
 }
