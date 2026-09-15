@@ -303,8 +303,12 @@ public sealed partial class GameClientSelectionViewModel(
             var basePath = ResolveInstallationCandidatePath(installation, client, fullExePath);
             if (!string.IsNullOrEmpty(basePath) && Directory.Exists(basePath))
             {
-                var gameType = client.GameType != GameType.Unknown ? client.GameType : installation.GameType;
-                var candidate = FindExistingExecutable(basePath, gameType);
+                var candidate = FindExistingExecutable(basePath, client.GameType);
+                if (candidate == null && client.GameType == GameType.Unknown)
+                {
+                    candidate = FindExistingExecutable(basePath, GameType.ZeroHour);
+                }
+
                 if (candidate != null)
                 {
                     return candidate;
