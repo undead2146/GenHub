@@ -14455,4 +14455,212 @@ How do you want to apply this update?</value>
   <data name="Settings.Profiles.DeletedMessage" xml:space="preserve">
     <value>Deleted {0} profile(s) successfully.</value>
   </data>
+  <data name="Tools.Plugin.texture-editor.Name" xml:space="preserve">
+    <value>Texture Editor</value>
+  </data>
+  <data name="Tools.Plugin.texture-editor.Description" xml:space="preserve">
+    <value>Slice texture atlases, edit MappedImages visually, and pack loose icons into SAGE sheets.</value>
+  </data>
+  <data name="TextureEditor.Header.NoAtlas" xml:space="preserve">
+    <value>No atlas open</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ZoomOut" xml:space="preserve">
+    <value>Zoom out</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ZoomIn" xml:space="preserve">
+    <value>Zoom in</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ResetZoom" xml:space="preserve">
+    <value>Reset zoom to 100%</value>
+  </data>
+  <data name="TextureEditor.Tooltip.OpenAtlas" xml:space="preserve">
+    <value>Open a texture atlas (TGA, DDS, PNG)</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ScanRegistry" xml:space="preserve">
+    <value>Scan a folder for MappedImages INI files</value>
+  </data>
+  <data name="TextureEditor.Tooltip.AutoPack" xml:space="preserve">
+    <value>Pack a folder of loose images into a new atlas</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ExportIni" xml:space="preserve">
+    <value>Export slices to a MappedImages INI file</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ExportSheet" xml:space="preserve">
+    <value>Export the texture sheet (TGA or PNG)</value>
+  </data>
+  <data name="TextureEditor.Tooltip.AddSlice" xml:space="preserve">
+    <value>Add a new slice at the atlas center</value>
+  </data>
+  <data name="TextureEditor.Tooltip.DeleteSlice" xml:space="preserve">
+    <value>Delete the selected slice</value>
+  </data>
+  <data name="TextureEditor.Tooltip.PresetLarge" xml:space="preserve">
+    <value>Resize slice to 64x64 large cameo</value>
+  </data>
+  <data name="TextureEditor.Tooltip.PresetSmall" xml:space="preserve">
+    <value>Resize slice to 60x48 small cameo</value>
+  </data>
+  <data name="TextureEditor.Tooltip.PresetHud" xml:space="preserve">
+    <value>Resize slice to 32x32 HUD button</value>
+  </data>
+  <data name="TextureEditor.Button.Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="TextureEditor.Button.Scan" xml:space="preserve">
+    <value>Scan</value>
+  </data>
+  <data name="TextureEditor.Button.AutoPack" xml:space="preserve">
+    <value>Auto-pack</value>
+  </data>
+  <data name="TextureEditor.Button.ExportIni" xml:space="preserve">
+    <value>Export INI</value>
+  </data>
+  <data name="TextureEditor.Button.ExportSheet" xml:space="preserve">
+    <value>Sheet</value>
+  </data>
+  <data name="TextureEditor.Button.Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="TextureEditor.Button.OpenAtlas" xml:space="preserve">
+    <value>Open atlas</value>
+  </data>
+  <data name="TextureEditor.Label.Slices" xml:space="preserve">
+    <value>Mapped Slices</value>
+  </data>
+  <data name="TextureEditor.Label.Inspector" xml:space="preserve">
+    <value>Selected Slice</value>
+  </data>
+  <data name="TextureEditor.Label.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="TextureEditor.Label.Left" xml:space="preserve">
+    <value>Left</value>
+  </data>
+  <data name="TextureEditor.Label.Top" xml:space="preserve">
+    <value>Top</value>
+  </data>
+  <data name="TextureEditor.Label.Right" xml:space="preserve">
+    <value>Right</value>
+  </data>
+  <data name="TextureEditor.Label.Bottom" xml:space="preserve">
+    <value>Bottom</value>
+  </data>
+  <data name="TextureEditor.Label.Size" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="TextureEditor.Label.WithinBounds" xml:space="preserve">
+    <value>Coordinates inside texture bounds</value>
+  </data>
+  <data name="TextureEditor.Label.OutOfBounds" xml:space="preserve">
+    <value>Coordinates outside texture bounds</value>
+  </data>
+  <data name="TextureEditor.Label.GuardOk" xml:space="preserve">
+    <value>1px alpha guard border OK</value>
+  </data>
+  <data name="TextureEditor.Label.Presets" xml:space="preserve">
+    <value>Size presets</value>
+  </data>
+  <data name="TextureEditor.Label.Working" xml:space="preserve">
+    <value>Working...</value>
+  </data>
+  <data name="TextureEditor.Tab.Slices" xml:space="preserve">
+    <value>Slices</value>
+  </data>
+  <data name="TextureEditor.Tab.Library" xml:space="preserve">
+    <value>Library</value>
+  </data>
+  <data name="TextureEditor.Empty.Title" xml:space="preserve">
+    <value>No texture atlas open</value>
+  </data>
+  <data name="TextureEditor.Empty.Description" xml:space="preserve">
+    <value>Open a TGA, DDS, or PNG atlas to slice MappedImages, or auto-pack a folder of loose icons.</value>
+  </data>
+  <data name="TextureEditor.Preset.Large" xml:space="preserve">
+    <value>Large cameo 64x64</value>
+  </data>
+  <data name="TextureEditor.Preset.Small" xml:space="preserve">
+    <value>Small cameo 60x48</value>
+  </data>
+  <data name="TextureEditor.Preset.Hud" xml:space="preserve">
+    <value>HUD button 32x32</value>
+  </data>
+  <data name="TextureEditor.Inspector.Empty" xml:space="preserve">
+    <value>Select a slice on the canvas or in the list to edit its coordinates.</value>
+  </data>
+  <data name="TextureEditor.Dialog.OpenAtlas" xml:space="preserve">
+    <value>Open texture atlas</value>
+  </data>
+  <data name="TextureEditor.Dialog.TextureFiles" xml:space="preserve">
+    <value>Texture files</value>
+  </data>
+  <data name="TextureEditor.Dialog.ScanFolder" xml:space="preserve">
+    <value>Select MappedImages folder</value>
+  </data>
+  <data name="TextureEditor.Dialog.ExportIni" xml:space="preserve">
+    <value>Export MappedImages INI</value>
+  </data>
+  <data name="TextureEditor.Dialog.IniFiles" xml:space="preserve">
+    <value>INI files</value>
+  </data>
+  <data name="TextureEditor.Dialog.ExportSheet" xml:space="preserve">
+    <value>Export texture sheet</value>
+  </data>
+  <data name="TextureEditor.Dialog.PackFolder" xml:space="preserve">
+    <value>Select folder with loose images</value>
+  </data>
+  <data name="TextureEditor.Notify.NoAtlas.Title" xml:space="preserve">
+    <value>No atlas open</value>
+  </data>
+  <data name="TextureEditor.Notify.NoAtlas.Message" xml:space="preserve">
+    <value>Open a texture atlas before adding slices.</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanComplete.Title" xml:space="preserve">
+    <value>Scan complete</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanComplete.Message" xml:space="preserve">
+    <value>Indexed {0} mapped images from {1} files.</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanFailed.Title" xml:space="preserve">
+    <value>Scan failed</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanFailed.Message" xml:space="preserve">
+    <value>Failed to scan MappedImages folder.</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportComplete.Title" xml:space="preserve">
+    <value>Export complete</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportComplete.Message" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportFailed.Title" xml:space="preserve">
+    <value>Export failed</value>
+  </data>
+  <data name="TextureEditor.Notify.PackComplete.Title" xml:space="preserve">
+    <value>Atlas packed</value>
+  </data>
+  <data name="TextureEditor.Notify.PackComplete.Message" xml:space="preserve">
+    <value>Packed {0} sprites into a {1}x{2} sheet.</value>
+  </data>
+  <data name="TextureEditor.Notify.PackFailed.Title" xml:space="preserve">
+    <value>Auto-pack failed</value>
+  </data>
+  <data name="TextureEditor.Notify.OpenFailed.Title" xml:space="preserve">
+    <value>Failed to open atlas</value>
+  </data>
+  <data name="TextureEditor.Picker.Watermark.Search" xml:space="preserve">
+    <value>Search by name or texture...</value>
+  </data>
+  <data name="TextureEditor.Picker.Empty.Title" xml:space="preserve">
+    <value>No mapped images</value>
+  </data>
+  <data name="TextureEditor.Picker.Empty.Description" xml:space="preserve">
+    <value>Scan a MappedImages folder to browse entries here.</value>
+  </data>
+  <data name="TextureEditor.Picker.Tooltip.EditInTextureEditor" xml:space="preserve">
+    <value>Load this entry as a slice in the Texture Editor</value>
+  </data>
+  <data name="TextureEditor.Picker.Button.EditInTextureEditor" xml:space="preserve">
+    <value>Edit in Texture Editor</value>
+  </data>
+
 </root>

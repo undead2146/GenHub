@@ -14357,4 +14357,212 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Settings.Profiles.DeletedMessage" xml:space="preserve">
     <value>عدد ملفات التعريف المحذوفة بنجاح: {0}.</value>
   </data>
+  <data name="Tools.Plugin.texture-editor.Name" xml:space="preserve">
+    <value>محرر القوام</value>
+  </data>
+  <data name="Tools.Plugin.texture-editor.Description" xml:space="preserve">
+    <value>قسّم أطالس القوام وحرّر MappedImages بصريًا واجمع الأيقونات في صفحات SAGE.</value>
+  </data>
+  <data name="TextureEditor.Header.NoAtlas" xml:space="preserve">
+    <value>لا يوجد أطلس مفتوح</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ZoomOut" xml:space="preserve">
+    <value>تصغير</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ZoomIn" xml:space="preserve">
+    <value>تكبير</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ResetZoom" xml:space="preserve">
+    <value>إعادة التكبير إلى 100٪</value>
+  </data>
+  <data name="TextureEditor.Tooltip.OpenAtlas" xml:space="preserve">
+    <value>فتح أطلس قوام (TGA أو DDS أو PNG)</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ScanRegistry" xml:space="preserve">
+    <value>فحص مجلد بحثًا عن ملفات MappedImages INI</value>
+  </data>
+  <data name="TextureEditor.Tooltip.AutoPack" xml:space="preserve">
+    <value>جمع مجلد صور في أطلس جديد</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ExportIni" xml:space="preserve">
+    <value>تصدير الشرائح إلى ملف MappedImages INI</value>
+  </data>
+  <data name="TextureEditor.Tooltip.ExportSheet" xml:space="preserve">
+    <value>تصدير ورقة القوام (TGA أو PNG)</value>
+  </data>
+  <data name="TextureEditor.Tooltip.AddSlice" xml:space="preserve">
+    <value>إضافة شريحة جديدة في مركز الأطلس</value>
+  </data>
+  <data name="TextureEditor.Tooltip.DeleteSlice" xml:space="preserve">
+    <value>حذف الشريحة المحددة</value>
+  </data>
+  <data name="TextureEditor.Tooltip.PresetLarge" xml:space="preserve">
+    <value>تغيير حجم الشريحة إلى صورة كبيرة 64x64</value>
+  </data>
+  <data name="TextureEditor.Tooltip.PresetSmall" xml:space="preserve">
+    <value>تغيير حجم الشريحة إلى صورة صغيرة 60x48</value>
+  </data>
+  <data name="TextureEditor.Tooltip.PresetHud" xml:space="preserve">
+    <value>تغيير حجم الشريحة إلى زر HUD بمقاس 32x32</value>
+  </data>
+  <data name="TextureEditor.Button.Open" xml:space="preserve">
+    <value>فتح</value>
+  </data>
+  <data name="TextureEditor.Button.Scan" xml:space="preserve">
+    <value>فحص</value>
+  </data>
+  <data name="TextureEditor.Button.AutoPack" xml:space="preserve">
+    <value>جمع تلقائي</value>
+  </data>
+  <data name="TextureEditor.Button.ExportIni" xml:space="preserve">
+    <value>تصدير INI</value>
+  </data>
+  <data name="TextureEditor.Button.ExportSheet" xml:space="preserve">
+    <value>ورقة</value>
+  </data>
+  <data name="TextureEditor.Button.Add" xml:space="preserve">
+    <value>إضافة</value>
+  </data>
+  <data name="TextureEditor.Button.OpenAtlas" xml:space="preserve">
+    <value>فتح أطلس</value>
+  </data>
+  <data name="TextureEditor.Label.Slices" xml:space="preserve">
+    <value>شرائح مرسومة</value>
+  </data>
+  <data name="TextureEditor.Label.Inspector" xml:space="preserve">
+    <value>الشريحة المحددة</value>
+  </data>
+  <data name="TextureEditor.Label.Name" xml:space="preserve">
+    <value>الاسم</value>
+  </data>
+  <data name="TextureEditor.Label.Left" xml:space="preserve">
+    <value>يسار</value>
+  </data>
+  <data name="TextureEditor.Label.Top" xml:space="preserve">
+    <value>أعلى</value>
+  </data>
+  <data name="TextureEditor.Label.Right" xml:space="preserve">
+    <value>يمين</value>
+  </data>
+  <data name="TextureEditor.Label.Bottom" xml:space="preserve">
+    <value>أسفل</value>
+  </data>
+  <data name="TextureEditor.Label.Size" xml:space="preserve">
+    <value>الحجم</value>
+  </data>
+  <data name="TextureEditor.Label.WithinBounds" xml:space="preserve">
+    <value>الإحداثيات داخل حدود القوام</value>
+  </data>
+  <data name="TextureEditor.Label.OutOfBounds" xml:space="preserve">
+    <value>الإحداثيات خارج حدود القوام</value>
+  </data>
+  <data name="TextureEditor.Label.GuardOk" xml:space="preserve">
+    <value>حد الألفا الوقائي 1px سليم</value>
+  </data>
+  <data name="TextureEditor.Label.Presets" xml:space="preserve">
+    <value>أحجام جاهزة</value>
+  </data>
+  <data name="TextureEditor.Label.Working" xml:space="preserve">
+    <value>جارٍ العمل...</value>
+  </data>
+  <data name="TextureEditor.Tab.Slices" xml:space="preserve">
+    <value>شرائح</value>
+  </data>
+  <data name="TextureEditor.Tab.Library" xml:space="preserve">
+    <value>مكتبة</value>
+  </data>
+  <data name="TextureEditor.Empty.Title" xml:space="preserve">
+    <value>لا يوجد أطلس قوام مفتوح</value>
+  </data>
+  <data name="TextureEditor.Empty.Description" xml:space="preserve">
+    <value>افتح أطلس TGA أو DDS أو PNG لتقطيع MappedImages، أو اجمع مجلد أيقونات تلقائيًا.</value>
+  </data>
+  <data name="TextureEditor.Preset.Large" xml:space="preserve">
+    <value>صورة كبيرة 64x64</value>
+  </data>
+  <data name="TextureEditor.Preset.Small" xml:space="preserve">
+    <value>صورة صغيرة 60x48</value>
+  </data>
+  <data name="TextureEditor.Preset.Hud" xml:space="preserve">
+    <value>زر HUD بمقاس 32x32</value>
+  </data>
+  <data name="TextureEditor.Inspector.Empty" xml:space="preserve">
+    <value>حدد شريحة على اللوحة أو في القائمة لتحرير إحداثياتها.</value>
+  </data>
+  <data name="TextureEditor.Dialog.OpenAtlas" xml:space="preserve">
+    <value>فتح أطلس قوام</value>
+  </data>
+  <data name="TextureEditor.Dialog.TextureFiles" xml:space="preserve">
+    <value>ملفات القوام</value>
+  </data>
+  <data name="TextureEditor.Dialog.ScanFolder" xml:space="preserve">
+    <value>اختيار مجلد MappedImages</value>
+  </data>
+  <data name="TextureEditor.Dialog.ExportIni" xml:space="preserve">
+    <value>تصدير MappedImages INI</value>
+  </data>
+  <data name="TextureEditor.Dialog.IniFiles" xml:space="preserve">
+    <value>ملفات INI</value>
+  </data>
+  <data name="TextureEditor.Dialog.ExportSheet" xml:space="preserve">
+    <value>تصدير ورقة القوام</value>
+  </data>
+  <data name="TextureEditor.Dialog.PackFolder" xml:space="preserve">
+    <value>اختيار مجلد الصور</value>
+  </data>
+  <data name="TextureEditor.Notify.NoAtlas.Title" xml:space="preserve">
+    <value>لا يوجد أطلس مفتوح</value>
+  </data>
+  <data name="TextureEditor.Notify.NoAtlas.Message" xml:space="preserve">
+    <value>افتح أطلس قوام قبل إضافة الشرائح.</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanComplete.Title" xml:space="preserve">
+    <value>اكتمل الفحص</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanComplete.Message" xml:space="preserve">
+    <value>تمت فهرسة {0} صورة من {1} ملفات.</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanFailed.Title" xml:space="preserve">
+    <value>فشل الفحص</value>
+  </data>
+  <data name="TextureEditor.Notify.ScanFailed.Message" xml:space="preserve">
+    <value>تعذر فحص مجلد MappedImages.</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportComplete.Title" xml:space="preserve">
+    <value>اكتمل التصدير</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportComplete.Message" xml:space="preserve">
+    <value>تم الحفظ {0}.</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportFailed.Title" xml:space="preserve">
+    <value>فشل التصدير</value>
+  </data>
+  <data name="TextureEditor.Notify.PackComplete.Title" xml:space="preserve">
+    <value>تم جمع الأطلس</value>
+  </data>
+  <data name="TextureEditor.Notify.PackComplete.Message" xml:space="preserve">
+    <value>تم جمع {0} عناصر في ورقة {1}x{2}.</value>
+  </data>
+  <data name="TextureEditor.Notify.PackFailed.Title" xml:space="preserve">
+    <value>فشل الجمع التلقائي</value>
+  </data>
+  <data name="TextureEditor.Notify.OpenFailed.Title" xml:space="preserve">
+    <value>تعذر فتح الأطلس</value>
+  </data>
+  <data name="TextureEditor.Picker.Watermark.Search" xml:space="preserve">
+    <value>ابحث بالاسم أو القوام...</value>
+  </data>
+  <data name="TextureEditor.Picker.Empty.Title" xml:space="preserve">
+    <value>لا توجد صور مرسومة</value>
+  </data>
+  <data name="TextureEditor.Picker.Empty.Description" xml:space="preserve">
+    <value>افحص مجلد MappedImages لتصفح العناصر هنا.</value>
+  </data>
+  <data name="TextureEditor.Picker.Tooltip.EditInTextureEditor" xml:space="preserve">
+    <value>تحميل هذا العنصر كشريحة في محرر القوام</value>
+  </data>
+  <data name="TextureEditor.Picker.Button.EditInTextureEditor" xml:space="preserve">
+    <value>تحرير في محرر القوام</value>
+  </data>
+
 </root>

@@ -1,0 +1,69 @@
+# Texture Editor
+
+The Texture Editor is a built-in tool in GenHub for working with SAGE engine texture atlases and `MappedImage` entries. It replaces blind manual coordinate math with a visual slicing canvas, live validation, and one-click INI export.
+
+## Features
+
+- **Visual atlas canvas**: Open TGA, DDS, or PNG atlases with pan, zoom, and pixel-accurate slice overlays.
+- **Draggable slices**: Move slices directly on the canvas or fine-tune coordinates in the inspector.
+- **SAGE validation**: Live bounds checks, 1px alpha guard-border checks, and inclusive coordinate math (`Width = Right - Left + 1`).
+- **Size presets**: One-click 64x64 large cameos, 60x48 small cameos, and 32x32 HUD buttons.
+- **MappedImages library**: Scan any folder for `MappedImages` INI files and browse entries in the shared picker with live thumbnails.
+- **Auto-pack**: Turn a folder of loose icons into a power-of-two atlas sheet plus matching INI entries.
+- **INI and sheet export**: Export slices to SAGE `MappedImage` INI blocks and sheets to TGA or PNG.
+
+## Getting Started
+
+To access the Texture Editor:
+
+1. Open GenHub.
+2. Navigate to the **TOOLS** tab.
+3. Select **Texture Editor** from the sidebar.
+
+## Interface Overview
+
+The Texture Editor interface consists of three columns:
+
+### Left: Slices and Library
+
+- **Slices tab**: All slices of the open atlas with thumbnails, dimensions, and origin coordinates.
+- **Library tab**: The shared `MappedImagePickerControl` browsing registry entries scanned from `MappedImages` folders. Use **Edit in Texture Editor** to load an entry as a slice.
+- **Add / Delete**: Create a centered slice or remove the selected slice.
+
+### Center: Canvas
+
+- Scroll to pan and use the zoom controls (or Ctrl + mouse wheel) to inspect pixels.
+- Click an overlay rectangle to select its slice, then drag it to reposition.
+- Selected slices use the accent border; out-of-bounds slices use the error border.
+
+### Right: Inspector
+
+- Edit the slice name and `Left`, `Top`, `Right`, `Bottom` coordinates with 1px precision.
+- Validation rows confirm texture bounds and the 1px alpha guard border.
+- Size presets resize the selected slice without moving its origin.
+
+## Shared Services
+
+The Texture Editor is built on reusable core services in `GenHub.Core` so other tools never duplicate texture logic:
+
+- `ISageMappedImageParser`: Parses and serializes SAGE `MappedImage` INI blocks. Also used by the GenHotkeys packager.
+- `IMappedImageRegistry`: Case-insensitive in-memory catalog with SAGE load-order semantics (alphabetical, `HandCreated` last).
+- `ISageTextureCodec`: Decodes 24/32-bit TGA (raw and RLE), uncompressed DDS, and DXT1 DDS into portable RGBA pixels; encodes 32-bit TGA.
+- `IAtlasPackingService`: Packs sprites into power-of-two sheets and executes `TextureAtlasBuildRequest` rules.
+
+## ModBuilder Integration
+
+ModBuilder projects can synthesize atlases at build time through `TextureAtlasBuildRequest`, without shelling out to the UI tool:
+
+```json
+{
+  "ItemType": "TextureAtlas",
+  "SourceDirectory": "RawAssets/Cameos",
+  "TargetTexture": "Art/Textures/CustomCameos_1024.tga",
+  "TargetIni": "Data/INI/MappedImages/CustomCameos.ini",
+  "GenerateMipmaps": false,
+  "Padding": 1
+}
+```
+
+The build pipeline calls `IAtlasPackingService.BuildAtlasAsync` with a host `ITextureImageLoader`, then packs the returned TGA bytes and INI content into the mod archive. SAGE 2D UI textures must keep `GenerateMipmaps` disabled to avoid blurred buttons and text.

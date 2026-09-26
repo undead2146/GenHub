@@ -9,7 +9,8 @@ GenHub currently offers three fully-featured tools with another in development:
 1. **Replay Manager** - Manage, import, and share replay files
 2. **Map Manager** - Manage, import, and share custom maps with MapPack support
 3. **Hotkeys Editor** - Customize in-game hotkeys and generate overlay textures
-4. **Publisher Studio** (Future) - Create and distribute custom content catalogs
+4. **Texture Editor** - Slice texture atlases, edit MappedImages, and pack sprite sheets
+5. **Publisher Studio** (Future) - Create and distribute custom content catalogs
 
 All tools are accessible from the **TOOLS** tab in the GenHub interface and share common features like cloud uploading, import/export capabilities, and seamless integration with game profiles.
 
