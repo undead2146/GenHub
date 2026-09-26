@@ -169,10 +169,15 @@
                     <Canvas/>
                   </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemContainerTheme>
+                  <ControlTheme TargetType="ContentPresenter" x:DataType="vm:TextureSliceViewModel">
+                    <Setter Property="Canvas.Left" Value="{Binding DisplayX}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding DisplayY}"/>
+                  </ControlTheme>
+                </ItemsControl.ItemContainerTheme>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:TextureSliceViewModel">
                     <Border Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
-                            Canvas.Left="{Binding DisplayX}" Canvas.Top="{Binding DisplayY}"
                             Classes="slice" Classes.selected="{Binding IsSelected}" Classes.invalid="{Binding !IsWithinTexture}"
                             BorderThickness="2" Background="Transparent"
                             Cursor="SizeAll"/>

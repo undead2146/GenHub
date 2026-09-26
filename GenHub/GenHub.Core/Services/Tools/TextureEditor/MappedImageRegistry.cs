@@ -66,7 +66,7 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
             return OperationResult<MappedImageScanResult>.CreateFailure($"Access denied enumerating directory: {directory}", Stopwatch.GetElapsedTime(started));
         }
 
-        Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+        Array.Sort(files, CompareSageLoadOrder);
         var errors = new List<string>();
         int images = 0;
 
@@ -131,5 +131,33 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
         {
             _entries.Clear();
         }
+    }
+
+    private static int CompareSageLoadOrder(string left, string right)
+    {
+        int priority = LoadPriority(left).CompareTo(LoadPriority(right));
+        return priority != 0 ? priority : StringComparer.OrdinalIgnoreCase.Compare(left, right);
+    }
+
+    private static int LoadPriority(string path)
+    {
+        var segments = path.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+        bool textureSize = false;
+        foreach (var segment in segments)
+        {
+            if (segment.Equals(TextureEditorConstants.HandCreatedDirectoryName, StringComparison.OrdinalIgnoreCase))
+            {
+                return 2;
+            }
+
+            if (segment.StartsWith(TextureEditorConstants.TextureSizeDirectoryPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                textureSize = true;
+            }
+        }
+
+        return textureSize ? 1 : 0;
     }
 }

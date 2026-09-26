@@ -111,8 +111,8 @@ public partial class TextureEditorView : UserControl
 
         _dragSlice.Left = Math.Max(0, _dragOriginLeft + deltaX);
         _dragSlice.Top = Math.Max(0, _dragOriginTop + deltaY);
-        _dragSlice.Right = _dragSlice.Left + width - 1;
-        _dragSlice.Bottom = _dragSlice.Top + height - 1;
+        _dragSlice.Right = _dragSlice.Left + width;
+        _dragSlice.Bottom = _dragSlice.Top + height;
     }
 
     private void OnOverlayPointerReleased(object? sender, PointerReleasedEventArgs e)

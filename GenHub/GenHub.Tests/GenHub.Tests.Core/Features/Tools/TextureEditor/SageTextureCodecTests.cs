@@ -191,6 +191,50 @@ public sealed class SageTextureCodecTests
     }
 
     /// <summary>
+    /// Verifies that right-to-left TGA rows are unmirrored instead of decoded mirrored.
+    /// </summary>
+    [Fact]
+    public void Decode_RightToLeftTga_UnmirrorsRows()
+    {
+        byte[] data = BuildTga(2, 2, 1, 24, [10, 20, 30, 40, 50, 60], descriptor: 0x10);
+
+        var result = _codec.Decode(data, ".tga", "test");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal([60, 50, 40, 255, 30, 20, 10, 255], result.Data.PixelData);
+    }
+
+    /// <summary>
+    /// Verifies that uncompressed DDS rows honor the header pitch instead of assuming tight packing.
+    /// </summary>
+    [Fact]
+    public void Decode_UncompressedDdsWithPaddedRows_SkipsPitchPadding()
+    {
+        byte[] data = BuildDds(1, 2, 24, [10, 20, 30, 0xFF, 40, 50, 60, 0xFF], pitch: 4);
+
+        var result = _codec.Decode(data, ".dds", "test");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal([30, 20, 10, 255, 60, 50, 40, 255], result.Data.PixelData);
+    }
+
+    /// <summary>
+    /// Verifies that hostile DXT1 dimensions return a failure instead of throwing on integer overflow.
+    /// </summary>
+    [Fact]
+    public void Decode_Dxt1HostileDimensions_ReturnsFailure()
+    {
+        byte[] data = BuildDds(int.MaxValue - 2, 4, 0, [1, 2, 3, 4, 5, 6, 7, 8], fourCc: 0x31545844);
+
+        var result = _codec.Decode(data, ".dds", "hostile");
+
+        Assert.True(result.Failed);
+        Assert.NotEmpty(result.Errors);
+    }
+
+    /// <summary>
     /// Verifies that unknown extensions return failures.
     /// </summary>
     [Fact]
@@ -236,7 +280,7 @@ public sealed class SageTextureCodecTests
         }
     }
 
-    private static byte[] BuildTga(int imageType, int width, int height, int bitsPerPixel, byte[] pixels)
+    private static byte[] BuildTga(int imageType, int width, int height, int bitsPerPixel, byte[] pixels, int descriptor = 0)
     {
         var header = new byte[18];
         header[2] = (byte)imageType;
@@ -245,11 +289,11 @@ public sealed class SageTextureCodecTests
         header[14] = (byte)(height & 0xFF);
         header[15] = (byte)((height >> 8) & 0xFF);
         header[16] = (byte)bitsPerPixel;
-        header[17] = 0;
+        header[17] = (byte)descriptor;
         return [.. header, .. pixels];
     }
 
-    private static byte[] BuildDds(int width, int height, int bitCount, byte[] pixels, uint fourCc = 0)
+    private static byte[] BuildDds(int width, int height, int bitCount, byte[] pixels, uint fourCc = 0, int pitch = 0)
     {
         var data = new byte[4 + 124 + pixels.Length];
         data[0] = (byte)'D';
@@ -257,6 +301,7 @@ public sealed class SageTextureCodecTests
         data[2] = (byte)'S';
         data[3] = (byte)' ';
         WriteInt32(data, 4, 124);
+        WriteInt32(data, 4 + 8, pitch);
         WriteInt32(data, 4 + 12, height);
         WriteInt32(data, 4 + 16, width);
         WriteInt32(data, 4 + 76, 32);

@@ -21,8 +21,10 @@ public interface IMappedImageRegistry
 
     /// <summary>
     /// Scans a directory recursively for MappedImages INI files.
-    /// Files are applied in alphabetical order so HandCreated overrides win,
-    /// matching SAGE load order.
+    /// Files are applied in SAGE load order: base files first, then TextureSize_*
+    /// overrides, then HandCreated overrides last, alphabetical within each tier.
+    /// Unlike the engine, which loads only the active texture size, the registry
+    /// indexes every size into one catalog for editing.
     /// </summary>
     /// <param name="directory">The directory to scan.</param>
     /// <param name="cancellationToken">The cancellation token.</param>

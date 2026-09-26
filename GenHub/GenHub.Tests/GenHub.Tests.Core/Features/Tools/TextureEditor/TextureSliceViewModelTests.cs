@@ -10,12 +10,12 @@ namespace GenHub.Tests.Core.Features.Tools.TextureEditor;
 public sealed class TextureSliceViewModelTests
 {
     /// <summary>
-    /// Verifies that dimensions follow inclusive SAGE coordinate rules.
+    /// Verifies that dimensions follow exclusive SAGE edge rules.
     /// </summary>
     [Fact]
-    public void Constructor_InclusiveCoords_ComputesDimensions()
+    public void Constructor_ExclusiveCoords_ComputesDimensions()
     {
-        var slice = new TextureSliceViewModel(new MappedImageDefinition("Solo", "a.tga", 512, 512, 10, 10, 73, 73));
+        var slice = new TextureSliceViewModel(new MappedImageDefinition("Solo", "a.tga", 512, 512, 10, 10, 74, 74));
 
         Assert.Equal(64, slice.Width);
         Assert.Equal(64, slice.Height);
@@ -55,7 +55,7 @@ public sealed class TextureSliceViewModelTests
     [Fact]
     public void UpdateZoom_DoubleZoom_ScalesDisplayRect()
     {
-        var slice = new TextureSliceViewModel(new MappedImageDefinition("Solo", "a.tga", 512, 512, 10, 20, 73, 83));
+        var slice = new TextureSliceViewModel(new MappedImageDefinition("Solo", "a.tga", 512, 512, 10, 20, 74, 84));
 
         slice.UpdateZoom(2);
 
@@ -80,6 +80,18 @@ public sealed class TextureSliceViewModelTests
     }
 
     /// <summary>
+    /// Verifies that disordered coordinates fail the guard border check.
+    /// </summary>
+    [Fact]
+    public void Coordinates_Disordered_FailsGuardBorder()
+    {
+        var slice = new TextureSliceViewModel(new MappedImageDefinition("Solo", "a.tga", 64, 64, 1, 1, 0, 0));
+
+        Assert.False(slice.IsWithinTexture);
+        Assert.False(slice.HasGuardBorder);
+    }
+
+    /// <summary>
     /// Verifies that edited state round-trips through definitions.
     /// </summary>
     [Fact]
@@ -97,7 +109,7 @@ public sealed class TextureSliceViewModelTests
         Assert.Equal("Renamed", definition.Name);
         Assert.Equal(4, definition.Left);
         Assert.Equal(35, definition.Right);
-        Assert.Equal(32, definition.Width);
+        Assert.Equal(31, definition.Width);
 
         var restored = new TextureSliceViewModel(definition);
         Assert.Equal("Renamed", restored.Name);

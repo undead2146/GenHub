@@ -4,7 +4,7 @@ GenHub provides a suite of integrated tools designed to enhance your Command & C
 
 ## Available Tools
 
-GenHub currently offers three fully-featured tools with another in development:
+GenHub currently offers four fully-featured tools with another in development:
 
 1. **Replay Manager** - Manage, import, and share replay files
 2. **Map Manager** - Manage, import, and share custom maps with MapPack support

@@ -31,6 +31,16 @@ public static class TextureEditorConstants
     public const string MappedImagesRootDirectory = "Data/INI/MappedImages";
 
     /// <summary>
+    /// Directory name for hand-authored MappedImages overrides, applied last in SAGE load order.
+    /// </summary>
+    public const string HandCreatedDirectoryName = "HandCreated";
+
+    /// <summary>
+    /// Directory name prefix for per-texture-size MappedImages overrides, applied before HandCreated.
+    /// </summary>
+    public const string TextureSizeDirectoryPrefix = "TextureSize_";
+
+    /// <summary>
     /// INI block keyword for a mapped image entry.
     /// </summary>
     public const string IniBlockName = "MappedImage";

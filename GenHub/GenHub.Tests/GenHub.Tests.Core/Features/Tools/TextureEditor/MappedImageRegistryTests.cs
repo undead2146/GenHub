@@ -71,6 +71,33 @@ public sealed class MappedImageRegistryTests
     }
 
     /// <summary>
+    /// Verifies that HandCreated overrides win over TextureSize files regardless of alphabetical order.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ScanDirectoryAsync_HandCreatedOverride_WinsOverTextureSizeAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(Path.Combine(directory, "TextureSize_512"));
+        Directory.CreateDirectory(Path.Combine(directory, "HandCreated"));
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "TextureSize_512", "z_size.ini"), Block("Dupe", "size.tga"));
+            await File.WriteAllTextAsync(Path.Combine(directory, "HandCreated", "a_hand.ini"), Block("Dupe", "hand.tga"));
+            await File.WriteAllTextAsync(Path.Combine(directory, "z_base.ini"), Block("Dupe", "base.tga"));
+
+            var result = await _registry.ScanDirectoryAsync(directory);
+
+            Assert.True(result.Success);
+            Assert.Equal("hand.tga", _registry.GetByName("Dupe")?.TextureFileName);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
     /// Verifies that name lookups are case-insensitive.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>

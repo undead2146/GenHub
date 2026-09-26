@@ -14537,6 +14537,12 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="TextureEditor.Notify.ExportFailed.Title" xml:space="preserve">
     <value>Ошибка экспорта</value>
   </data>
+  <data name="TextureEditor.Notify.ExportInvalid.Title" xml:space="preserve">
+    <value>Не удалось экспортировать срезы</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportInvalid.Message" xml:space="preserve">
+    <value>Срез «{0}» выходит за пределы текстуры.</value>
+  </data>
   <data name="TextureEditor.Notify.PackComplete.Title" xml:space="preserve">
     <value>Атлас упакован</value>
   </data>

@@ -16,7 +16,7 @@ public sealed class SageMappedImageParserTests
     private readonly SageMappedImageParser _parser = new(NullLogger<SageMappedImageParser>.Instance);
 
     /// <summary>
-    /// Verifies that valid INI text parses all blocks with inclusive SAGE coordinates.
+    /// Verifies that valid INI text parses all blocks with exclusive SAGE edges.
     /// </summary>
     [Fact]
     public void ParseText_ValidIni_ParsesAllBlocks()
@@ -47,8 +47,8 @@ public sealed class SageMappedImageParserTests
         Assert.Equal(2, result.Data.Count);
         Assert.Equal("AttackButton", result.Data[0].Name);
         Assert.Equal("CommandBar.tga", result.Data[0].TextureFileName);
-        Assert.Equal(64, result.Data[0].Width);
-        Assert.Equal(64, result.Data[0].Height);
+        Assert.Equal(63, result.Data[0].Width);
+        Assert.Equal(63, result.Data[0].Height);
         Assert.True(result.Data[0].IsWithinTexture);
         Assert.True(result.Data[0].HasGuardBorder);
     }
@@ -75,7 +75,7 @@ public sealed class SageMappedImageParserTests
         Assert.NotNull(result.Data);
         Assert.Single(result.Data);
         Assert.Equal("LowerButton", result.Data[0].Name);
-        Assert.Equal(32, result.Data[0].Width);
+        Assert.Equal(31, result.Data[0].Width);
     }
 
     /// <summary>
@@ -201,6 +201,54 @@ public sealed class SageMappedImageParserTests
 
         Assert.StartsWith("; Title" + Environment.NewLine + "; Second line" + Environment.NewLine, text);
         Assert.Contains("MappedImage Solo", text);
+    }
+
+    /// <summary>
+    /// Verifies that a Coords line without coordinate fields fails the block instead of zeroing coordinates.
+    /// </summary>
+    [Fact]
+    public void ParseText_MalformedCoords_ReturnsFailure()
+    {
+        const string ini = """
+            MappedImage Broken
+              Texture = bar.tga
+              TextureWidth = 64
+              TextureHeight = 64
+              Coords = malformed
+              Status = NONE
+            End
+            """;
+
+        var result = _parser.ParseText(ini);
+
+        Assert.True(result.Failed);
+        Assert.NotEmpty(result.Errors);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data);
+    }
+
+    /// <summary>
+    /// Verifies that non-numeric coordinate values fail the block instead of converting to zero.
+    /// </summary>
+    [Fact]
+    public void ParseText_NonNumericCoords_ReturnsFailure()
+    {
+        const string ini = """
+            MappedImage Broken
+              Texture = bar.tga
+              TextureWidth = 64
+              TextureHeight = 64
+              Coords = Left:x Top:0 Right:31 Bottom:31
+              Status = NONE
+            End
+            """;
+
+        var result = _parser.ParseText(ini);
+
+        Assert.True(result.Failed);
+        Assert.NotEmpty(result.Errors);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data);
     }
 
     /// <summary>

@@ -31,6 +31,16 @@ public sealed class AtlasPackingService(
             return OperationResult<AtlasPackResult>.CreateFailure("Padding cannot be negative.", Stopwatch.GetElapsedTime(started));
         }
 
+        var duplicate = sources
+            .GroupBy(source => source.Name, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+        {
+            return OperationResult<AtlasPackResult>.CreateFailure(
+                $"Duplicate sprite name '{duplicate.Key}'.",
+                Stopwatch.GetElapsedTime(started));
+        }
+
         var oversized = sources.FirstOrDefault(source =>
             source.Texture.Width <= 0 || source.Texture.Height <= 0 ||
             source.Texture.Width > maxDimension || source.Texture.Height > maxDimension);
@@ -42,17 +52,23 @@ public sealed class AtlasPackingService(
         }
 
         var ordered = sources.OrderByDescending(source => source.Texture.Height).ThenByDescending(source => source.Texture.Width).ToList();
-        int sheetWidth = NextPowerOfTwo(ordered.Max(source => source.Texture.Width + (padding * 2)));
-        sheetWidth = Math.Min(sheetWidth, maxDimension);
+        int sheetWidth = Math.Min(NextPowerOfTwo(ordered.Max(source => source.Texture.Width + (padding * 2)), maxDimension), maxDimension);
 
         var placements = new List<AtlasPlacement>(ordered.Count);
-        int sheetHeight = PackShelves(ordered, placements, sheetWidth, padding, maxDimension);
+        var (sheetHeight, unplaceable) = PackShelves(ordered, placements, sheetWidth, padding, maxDimension);
+        if (unplaceable is not null)
+        {
+            return OperationResult<AtlasPackResult>.CreateFailure(
+                $"Sprite '{unplaceable.Name}' ({unplaceable.Texture.Width}x{unplaceable.Texture.Height}) does not fit inside the {sheetWidth}px atlas width.",
+                Stopwatch.GetElapsedTime(started));
+        }
+
         if (sheetHeight < 0)
         {
             return OperationResult<AtlasPackResult>.CreateFailure("Sprites do not fit inside the maximum atlas size.", Stopwatch.GetElapsedTime(started));
         }
 
-        sheetHeight = NextPowerOfTwo(Math.Max(sheetHeight, 1));
+        sheetHeight = Math.Min(NextPowerOfTwo(Math.Max(sheetHeight, 1), maxDimension), maxDimension);
         var pack = new AtlasPackResult(sheetWidth, sheetHeight, placements);
         return OperationResult<AtlasPackResult>.CreateSuccess(pack, Stopwatch.GetElapsedTime(started));
     }
@@ -168,10 +184,10 @@ public sealed class AtlasPackingService(
             extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static int NextPowerOfTwo(int value)
+    private static int NextPowerOfTwo(int value, int ceiling)
     {
         int size = 1;
-        while (size < value && size < TextureEditorConstants.MaxTextureDimension)
+        while (size < value && size < ceiling)
         {
             size *= 2;
         }
@@ -179,7 +195,7 @@ public sealed class AtlasPackingService(
         return size;
     }
 
-    private static int PackShelves(List<AtlasSourceImage> ordered, List<AtlasPlacement> placements, int sheetWidth, int padding, int maxDimension)
+    private static (int SheetHeight, AtlasSourceImage? Unplaceable) PackShelves(List<AtlasSourceImage> ordered, List<AtlasPlacement> placements, int sheetWidth, int padding, int maxDimension)
     {
         int x = padding;
         int y = padding;
@@ -190,16 +206,20 @@ public sealed class AtlasPackingService(
             int width = source.Texture.Width;
             int height = source.Texture.Height;
 
-            if (x + width + padding > sheetWidth)
+            if ((long)x + width + padding > sheetWidth)
             {
                 x = padding;
                 y += shelfHeight + padding;
                 shelfHeight = 0;
+                if ((long)x + width + padding > sheetWidth)
+                {
+                    return (-1, source);
+                }
             }
 
-            if (y + height + padding > maxDimension)
+            if ((long)y + height + padding > maxDimension)
             {
-                return -1;
+                return (-1, null);
             }
 
             placements.Add(new AtlasPlacement(source.Name, x, y, width, height));
@@ -207,7 +227,7 @@ public sealed class AtlasPackingService(
             shelfHeight = Math.Max(shelfHeight, height);
         }
 
-        return y + shelfHeight + padding;
+        return (y + shelfHeight + padding, null);
     }
 
     private static IReadOnlyList<AtlasSourceImage> CollectOrderedSources(List<AtlasSourceImage> sources, AtlasPackResult pack)

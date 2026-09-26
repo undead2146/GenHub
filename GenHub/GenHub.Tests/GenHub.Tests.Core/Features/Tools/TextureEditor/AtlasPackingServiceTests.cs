@@ -78,6 +78,76 @@ public sealed class AtlasPackingServiceTests
     }
 
     /// <summary>
+    /// Verifies that the rounded sheet height never exceeds the requested maximum dimension.
+    /// </summary>
+    [Fact]
+    public void Pack_TallSheet_ClampsHeightToMaxDimension()
+    {
+        var sources = new[] { new AtlasSourceImage("Tall", new DecodedTexture(64, 900, new byte[64 * 900 * 4])) };
+
+        var result = _service.Pack(sources, padding: 1, maxDimension: 1000);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(1000, result.Data.SheetHeight);
+        Assert.All(result.Data.Placements, placement =>
+        {
+            Assert.True(placement.Y + placement.Height + 1 <= result.Data.SheetHeight);
+        });
+    }
+
+    /// <summary>
+    /// Verifies that duplicate sprite names fail with the offending name instead of throwing.
+    /// </summary>
+    [Fact]
+    public void Pack_DuplicateNames_ReturnsFailureNamingSource()
+    {
+        var sources = new[]
+        {
+            new AtlasSourceImage("Dupe", new DecodedTexture(16, 16, new byte[16 * 16 * 4])),
+            new AtlasSourceImage("Dupe", new DecodedTexture(8, 8, new byte[8 * 8 * 4])),
+        };
+
+        var result = _service.Pack(sources);
+
+        Assert.True(result.Failed);
+        Assert.Contains("Dupe", result.FirstError ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Verifies that a sprite wider than the capped sheet row fails with its name instead of overrunning.
+    /// </summary>
+    [Fact]
+    public void Pack_SpriteWiderThanCappedRow_ReturnsFailureNamingSource()
+    {
+        var sources = new[] { new AtlasSourceImage("Wide", new DecodedTexture(2048, 16, new byte[4])) };
+
+        var result = _service.Pack(sources, padding: 1, maxDimension: 2048);
+
+        Assert.True(result.Failed);
+        Assert.Contains("Wide", result.FirstError ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Verifies that a larger maximum dimension raises the sheet height ceiling above the default.
+    /// </summary>
+    [Fact]
+    public void Pack_LargerMaxDimension_AllowsTallerSheet()
+    {
+        var sources = new[]
+        {
+            new AtlasSourceImage("First", new DecodedTexture(64, 1500, new byte[4])),
+            new AtlasSourceImage("Second", new DecodedTexture(64, 1500, new byte[4])),
+        };
+
+        var result = _service.Pack(sources, padding: 1, maxDimension: 4096);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(4096, result.Data.SheetHeight);
+    }
+
+    /// <summary>
     /// Verifies that an oversized sprite names the offending source in the error.
     /// </summary>
     [Fact]

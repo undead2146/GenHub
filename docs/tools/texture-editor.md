@@ -6,7 +6,7 @@ The Texture Editor is a built-in tool in GenHub for working with SAGE engine tex
 
 - **Visual atlas canvas**: Open TGA, DDS, or PNG atlases with pan, zoom, and pixel-accurate slice overlays.
 - **Draggable slices**: Move slices directly on the canvas or fine-tune coordinates in the inspector.
-- **SAGE validation**: Live bounds checks, 1px alpha guard-border checks, and inclusive coordinate math (`Width = Right - Left + 1`).
+- **SAGE validation**: Live bounds checks, 1px alpha guard-border checks, and engine-accurate coordinate math (`Width = Right - Left`, exclusive edges).
 - **Size presets**: One-click 64x64 large cameos, 60x48 small cameos, and 32x32 HUD buttons.
 - **MappedImages library**: Scan any folder for `MappedImages` INI files and browse entries in the shared picker with live thumbnails.
 - **Auto-pack**: Turn a folder of loose icons into a power-of-two atlas sheet plus matching INI entries.

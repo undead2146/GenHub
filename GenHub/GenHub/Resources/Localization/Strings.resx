@@ -14635,6 +14635,12 @@ How do you want to apply this update?</value>
   <data name="TextureEditor.Notify.ExportFailed.Title" xml:space="preserve">
     <value>Export failed</value>
   </data>
+  <data name="TextureEditor.Notify.ExportInvalid.Title" xml:space="preserve">
+    <value>Cannot export slices</value>
+  </data>
+  <data name="TextureEditor.Notify.ExportInvalid.Message" xml:space="preserve">
+    <value>Slice '{0}' extends outside the texture bounds.</value>
+  </data>
   <data name="TextureEditor.Notify.PackComplete.Title" xml:space="preserve">
     <value>Atlas packed</value>
   </data>

@@ -47,14 +47,14 @@ public sealed partial class TextureSliceViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Gets the slice width in pixels using inclusive SAGE coordinates.
+    /// Gets the slice width in pixels using exclusive SAGE edges.
     /// </summary>
-    public int Width => (Right - Left) + 1;
+    public int Width => Right - Left;
 
     /// <summary>
-    /// Gets the slice height in pixels using inclusive SAGE coordinates.
+    /// Gets the slice height in pixels using exclusive SAGE edges.
     /// </summary>
-    public int Height => (Bottom - Top) + 1;
+    public int Height => Bottom - Top;
 
     /// <summary>
     /// Gets the display X of the overlay rectangle.
@@ -83,15 +83,16 @@ public sealed partial class TextureSliceViewModel : ObservableObject
         Left >= 0 && Top >= 0 &&
         Right >= Left && Bottom >= Top &&
         _textureWidth > 0 && _textureHeight > 0 &&
-        Right < _textureWidth && Bottom < _textureHeight;
+        Right <= _textureWidth && Bottom <= _textureHeight;
 
     /// <summary>
     /// Gets a value indicating whether a 1px alpha guard border fits inside the texture.
     /// </summary>
     public bool HasGuardBorder =>
         Left > 0 && Top > 0 &&
+        Right >= Left && Bottom >= Top &&
         _textureWidth > 0 && _textureHeight > 0 &&
-        Right < _textureWidth - 1 && Bottom < _textureHeight - 1;
+        Right < _textureWidth && Bottom < _textureHeight;
 
     /// <summary>
     /// Updates editable state from a mapped image definition.

@@ -5,6 +5,7 @@ using GenHub.Core.Models.Tools.TextureEditor;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
 
 namespace GenHub.Common.Controls;
@@ -45,6 +46,7 @@ public partial class MappedImagePickerControl : UserControl
             control => control.FilteredItems);
 
     private readonly ObservableCollection<MappedImagePickerItem> _filteredItems = [];
+    private INotifyCollectionChanged? _trackedSource;
     private bool _syncingSelection;
 
     /// <summary>
@@ -105,7 +107,12 @@ public partial class MappedImagePickerControl : UserControl
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == ItemsSourceProperty || change.Property == ThumbnailProviderProperty)
+        if (change.Property == ItemsSourceProperty)
+        {
+            TrackItemsSource(change.GetOldValue<IEnumerable<MappedImageDefinition>?>(), change.GetNewValue<IEnumerable<MappedImageDefinition>?>());
+            RefreshFilter();
+        }
+        else if (change.Property == ThumbnailProviderProperty)
         {
             RefreshFilter();
         }
@@ -163,6 +170,28 @@ public partial class MappedImagePickerControl : UserControl
             _syncingSelection = false;
         }
     }
+
+    private void TrackItemsSource(IEnumerable<MappedImageDefinition>? oldSource, IEnumerable<MappedImageDefinition>? newSource)
+    {
+        if (_trackedSource is not null)
+        {
+            _trackedSource.CollectionChanged -= OnItemsSourceCollectionChanged;
+            _trackedSource = null;
+        }
+
+        if (oldSource is INotifyCollectionChanged oldObservable && !ReferenceEquals(oldSource, newSource))
+        {
+            oldObservable.CollectionChanged -= OnItemsSourceCollectionChanged;
+        }
+
+        if (newSource is INotifyCollectionChanged newObservable)
+        {
+            _trackedSource = newObservable;
+            newObservable.CollectionChanged += OnItemsSourceCollectionChanged;
+        }
+    }
+
+    private void OnItemsSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => RefreshFilter();
 
     private void RefreshFilter()
     {

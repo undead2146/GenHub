@@ -246,6 +246,11 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 
         private void ApplyCoords(string value)
         {
+            int? left = null;
+            int? top = null;
+            int? right = null;
+            int? bottom = null;
+
             foreach (var part in value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 int separator = part.IndexOf(':');
@@ -255,25 +260,38 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
                 }
 
                 var key = part.Substring(0, separator);
-                int number = ParseInt(part.Substring(separator + 1));
+                if (!int.TryParse(part.Substring(separator + 1), out int number))
+                {
+                    continue;
+                }
+
                 if (key.Equals("Left", StringComparison.OrdinalIgnoreCase))
                 {
-                    Left = number;
+                    left = number;
                 }
                 else if (key.Equals("Top", StringComparison.OrdinalIgnoreCase))
                 {
-                    Top = number;
+                    top = number;
                 }
                 else if (key.Equals("Right", StringComparison.OrdinalIgnoreCase))
                 {
-                    Right = number;
+                    right = number;
                 }
                 else if (key.Equals("Bottom", StringComparison.OrdinalIgnoreCase))
                 {
-                    Bottom = number;
+                    bottom = number;
                 }
             }
 
+            if (left is null || top is null || right is null || bottom is null)
+            {
+                return;
+            }
+
+            Left = left.Value;
+            Top = top.Value;
+            Right = right.Value;
+            Bottom = bottom.Value;
             HasCoords = true;
         }
     }

@@ -11,12 +11,12 @@ namespace GenHub.Core.Models.Tools.TextureEditor;
 public sealed record AtlasPlacement(string Name, int X, int Y, int Width, int Height)
 {
     /// <summary>
-    /// Gets the inclusive right coordinate following SAGE coordinate rules.
+    /// Gets the exclusive right edge following SAGE coordinate rules.
     /// </summary>
-    public int Right => (X + Width) - 1;
+    public int Right => X + Width;
 
     /// <summary>
-    /// Gets the inclusive bottom coordinate following SAGE coordinate rules.
+    /// Gets the exclusive bottom edge following SAGE coordinate rules.
     /// </summary>
-    public int Bottom => (Y + Height) - 1;
+    public int Bottom => Y + Height;
 }
