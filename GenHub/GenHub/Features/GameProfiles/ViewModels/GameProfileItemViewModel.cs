@@ -821,6 +821,20 @@ public partial class GameProfileItemViewModel : ViewModelBase
         return $"v{version}";
     }
 
+    private static async Task<ProfileVerificationFileSet?> ResolveVerificationFileSetAsync(
+        GameProfile concreteProfile,
+        IGameCrcCalculatorService? crcCalculator,
+        IProfileVerificationFileSetService? fileSetService,
+        CancellationToken token)
+    {
+        if (crcCalculator == null || fileSetService == null)
+        {
+            return null;
+        }
+
+        return await fileSetService.GetVerificationFileSetAsync(concreteProfile, token).ConfigureAwait(false);
+    }
+
     private void UpdateDescription(GameProfile gameProfile)
     {
         // Use actual profile description if available
@@ -1099,7 +1113,9 @@ public partial class GameProfileItemViewModel : ViewModelBase
             return;
         }
 
-        var isRetail = ReplayCrcMatchingHelper.IsRetailCompatible(profile.GameClient, profile.EnabledContentIds);
+        // Metadata-only heuristic: executable hashing and live INI verification run on the
+        // scheduled background path below and correct the badge when they disagree.
+        var isRetail = ReplayCrcMatchingHelper.IsRetailCompatibleHeuristic(profile);
         ApplyCompatibilityBadge(profile, isRetail);
         ScheduleIniCompatibilityVerification(profile);
     }
@@ -1168,14 +1184,16 @@ public partial class GameProfileItemViewModel : ViewModelBase
         var token = cts.Token;
 
         var crcCalculator = AppLocator.GetServiceOrDefault<IGameCrcCalculatorService>();
+        var fileSetService = AppLocator.GetServiceOrDefault<IProfileVerificationFileSetService>();
 
-        Task.Run(() => ExecuteIniCompatibilityVerificationAsync(profile, concreteProfile, crcCalculator, token), token);
+        Task.Run(() => ExecuteIniCompatibilityVerificationAsync(profile, concreteProfile, crcCalculator, fileSetService, token), token);
     }
 
     private async Task ExecuteIniCompatibilityVerificationAsync(
         IGameProfile profile,
         GameProfile concreteProfile,
         IGameCrcCalculatorService? crcCalculator,
+        IProfileVerificationFileSetService? fileSetService,
         CancellationToken token)
     {
         try
@@ -1185,10 +1203,22 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 return;
             }
 
-            var isVerifiedRetail = await ReplayCrcMatchingHelper.IsRetailCompatibleAsync(
-                concreteProfile,
-                crcCalculator,
-                ct: token);
+            var fileSet = await ResolveVerificationFileSetAsync(concreteProfile, crcCalculator, fileSetService, token).ConfigureAwait(false);
+
+            bool isVerifiedRetail;
+            if (fileSet is { IsComplete: false })
+            {
+                isVerifiedRetail = false;
+            }
+            else
+            {
+                isVerifiedRetail = await ReplayCrcMatchingHelper.IsRetailCompatibleAsync(
+                    concreteProfile,
+                    crcCalculator,
+                    allowedBaseRelativePaths: fileSet?.AllowedBaseRelativePaths,
+                    overlayModPaths: fileSet?.OverlayModPaths,
+                    ct: token).ConfigureAwait(false);
+            }
 
             if (token.IsCancellationRequested)
             {
