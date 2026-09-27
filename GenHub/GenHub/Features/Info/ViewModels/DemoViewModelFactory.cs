@@ -6,14 +6,28 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Notifications;
+using GenHub.Core.Models.Providers;
+using GenHub.Core.Models.Publishers;
+using GenHub.Core.Models.Tools.ModBuilder;
+using GenHub.Core.Models.Tools.WndEditor;
 using GenHub.Features.AppUpdate.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.Info.Services;
+using GenHub.Features.Tools.GenHotkeys.Services;
+using GenHub.Features.Tools.GenHotkeys.ViewModels;
 using GenHub.Features.Tools.MapManager.ViewModels;
+using GenHub.Features.Tools.ModBuilder.ViewModels;
 using GenHub.Features.Tools.ReplayManager.ViewModels;
+using GenHub.Features.Tools.ViewModels;
+using GenHub.Features.Tools.WndEditor.Services;
+using GenHub.Features.Tools.WndEditor.ViewModels;
 using GenHub.Infrastructure.Imaging;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -170,7 +184,7 @@ public static class DemoViewModelFactory
         }
 
         vm.AvailableBranches.Clear();
-        foreach (var branch in new[] { "main", "dev", "v1.2-beta", "feature/ui-rework" })
+        foreach (var branch in new[] { "main", "development", "v1.2-beta", "feature/ui-rework" })
         {
             vm.AvailableBranches.Add(branch);
         }
@@ -214,7 +228,7 @@ public static class DemoViewModelFactory
                 mockLogger,
                 localizationService: localizationService);
 
-            _ = Task.Run(() => vm.InitializeAsync());
+            _ = SeedDemoAsync(() => vm.InitializeAsync(), "replay manager");
             return vm;
         }
         catch (Exception ex)
@@ -278,7 +292,7 @@ public static class DemoViewModelFactory
                 IsHistoryOpen = false,
             };
 
-            _ = Task.Run(() => vm.InitializeAsync());
+            _ = SeedDemoAsync(() => vm.InitializeAsync(), "map manager");
             return vm;
         }
         catch (Exception ex)
@@ -296,6 +310,168 @@ public static class DemoViewModelFactory
                 new TgaImageParser(new MockLogger<TgaImageParser>()),
                 new MockLogger<MapManagerViewModel>(),
                 localizationService: localizationService);
+        }
+    }
+
+    /// <summary>
+    /// Creates the actual WND editor view model with a sample main menu layout loaded from text.
+    /// Uses the real document parser with mock asset and installation services so nothing touches disk.
+    /// </summary>
+    /// <param name="notificationService">Optional notification service for demo actions.</param>
+    /// <param name="localizationService">Optional localization service for dynamic string translation.</param>
+    /// <returns>A configured WND editor view model with sample content.</returns>
+    public static WndEditorViewModel CreateDemoWndEditor(
+        INotificationService? notificationService = null,
+        ILocalizationService? localizationService = null)
+    {
+        var vm = new WndEditorViewModel(
+            new WndDocumentService(new MockLogger<WndDocumentService>()),
+            notificationService ?? new MockNotificationService(),
+            localizationService ?? new MockLocalizationService(),
+            new MockDialogService(),
+            new MockWndGameInstallationService(),
+            new MockWndEditorAssetService(),
+            new MockWndTextureImportService(),
+            new MockChallengeMedalService(),
+            new MockLogger<WndEditorViewModel>());
+
+        _ = SeedDemoAsync(SeedWndDemoAsync, "WND document");
+
+        return vm;
+
+        async Task SeedWndDemoAsync()
+        {
+            // Start zoomed out so the whole sample menu fits the demo viewport on first paint.
+            vm.Zoom = 0.5;
+            await vm.LoadFromTextAsync(BuildSampleMainMenuDocument(), "MainMenu.wnd");
+            vm.SelectedAssetInstallation ??= vm.AvailableInstallations.FirstOrDefault();
+        }
+    }
+
+    /// <summary>
+    /// Creates the actual ModBuilder view model with mock build and project services.
+    /// </summary>
+    /// <param name="notificationService">Optional notification service for demo actions.</param>
+    /// <param name="localizationService">Optional localization service for dynamic string translation.</param>
+    /// <returns>A configured ModBuilder view model.</returns>
+    public static ModBuilderViewModel CreateDemoModBuilder(
+        INotificationService? notificationService = null,
+        ILocalizationService? localizationService = null)
+    {
+        var notify = notificationService ?? new MockNotificationService();
+        var loc = localizationService ?? new MockLocalizationService();
+        var fileManager = new FileManagerViewModel(
+            new MockGameInstallationService(),
+            notify,
+            new WndDocumentService(new MockLogger<WndDocumentService>()),
+            loc,
+            new MockLogger<FileManagerViewModel>());
+
+        var configLoader = new MockConfigurationLoaderService();
+        var vm = new ModBuilderViewModel(
+            new MockBuildEngineService(),
+            new MockProjectConfigService(),
+            configLoader,
+            new MockProjectStructureGenerator(),
+            notify,
+            loc,
+            fileManager,
+            NullLoggerFactory.Instance,
+            new MockLogger<ModBuilderViewModel>(),
+            new MockDialogService(),
+            null);
+
+        _ = SeedDemoAsync(SeedModBuilderDemoAsync, "ModBuilder");
+
+        return vm;
+
+        async Task SeedModBuilderDemoAsync()
+        {
+            await vm.InitializeAsync();
+            var project = new ModBuilderProject
+            {
+                Name = "Demo Mod",
+                Version = "1.0.0",
+                Description = "Sample project for the interactive guide.",
+                Author = "GenHub Guide",
+                TargetGame = GameType.ZeroHour,
+                ContentType = ContentType.Mod,
+                ProjectDir = "demo-mod-project",
+                ConfigFiles = ["configs/build.json", "configs/bundles.json"],
+                BundleConfigs = ["configs/bundles.json"],
+            };
+            project.Configuration = await configLoader.LoadProjectConfigurationAsync(project.ProjectDir);
+            await vm.HandleNewProjectCreatedAsync("demo-mod-project/DemoMod.mbproj", project.Name, project, announceCreation: false);
+        }
+    }
+
+    /// <summary>
+    /// Creates the actual GenHotkeys view model with the real tech tree and an in-memory sample profile.
+    /// </summary>
+    /// <param name="notificationService">Optional notification service for demo actions.</param>
+    /// <param name="localizationService">Optional localization service for dynamic string translation.</param>
+    /// <returns>A configured GenHotkeys view model with sample content.</returns>
+    public static GenHotkeysViewModel CreateDemoGenHotkeys(
+        INotificationService? notificationService = null,
+        ILocalizationService? localizationService = null)
+    {
+        var vm = new GenHotkeysViewModel(
+            new TechTreeService(new MockLogger<TechTreeService>()),
+            new MockHotkeyProfileStorageService(),
+            new MockHotkeyPackageService(),
+            new MockLogger<GenHotkeysViewModel>(),
+            notificationService ?? new MockNotificationService(),
+            new MockGameProfileManager(),
+            null,
+            null,
+            null,
+            new MockDialogService(),
+            localizationService);
+
+        _ = SeedDemoAsync(() => vm.InitializeAsync(), "GenHotkeys");
+
+        return vm;
+    }
+
+    /// <summary>
+    /// Creates the actual Publisher Studio view model with an in-memory sample project.
+    /// Nothing is read from or written to disk.
+    /// </summary>
+    /// <param name="notificationService">Optional notification service for demo actions.</param>
+    /// <param name="localizationService">Optional localization service for dynamic string translation.</param>
+    /// <returns>A configured Publisher Studio view model with sample content.</returns>
+    public static PublisherStudioViewModel CreateDemoPublisherStudio(
+        INotificationService? notificationService = null,
+        ILocalizationService? localizationService = null)
+    {
+        var notify = notificationService ?? new MockNotificationService();
+        var dialogService = new MockPublisherStudioDialogService();
+        var studioLogger = new MockLogger<PublisherStudioViewModel>();
+        var vm = new PublisherStudioViewModel(
+            studioLogger,
+            new MockPublisherStudioService(),
+            dialogService,
+            new MockHostingProviderFactory(),
+            new MockHostingStateManager(),
+            notify,
+            new MockConfigurationProviderService(),
+            localizationService,
+            new MockHostingCredentialStore(),
+            catalogParser: null,
+            subscriptionStore: new MockPublisherSubscriptionStore());
+
+        var project = CreateSamplePublisherProject();
+        project.ProjectPath = "demo-publisher-project.json";
+        vm.CurrentProject = project;
+
+        _ = SeedDemoAsync(SeedPublisherStudioDemoAsync, "Publisher Studio");
+
+        return vm;
+
+        async Task SeedPublisherStudioDemoAsync()
+        {
+            await vm.InitializeChildViewModelsAsync();
+            vm.PublishShareViewModel?.ReloadHostingProviders();
         }
     }
 
@@ -329,6 +505,15 @@ public static class DemoViewModelFactory
     public static GameProfileSettingsViewModel CreateDemoProfileSettingsViewModel_ContentTab()
     {
         return CreateBaseDemoProfileSettingsViewModel(0);
+    }
+
+    /// <summary>
+    /// Creates a demo GameProfileSettingsViewModel with the Profile Settings tab selected and visible.
+    /// </summary>
+    /// <returns>A configured demo profile settings view model for the Profile Settings tab demo.</returns>
+    public static GameProfileSettingsViewModel CreateDemoProfileSettingsViewModel_ProfileTab()
+    {
+        return CreateBaseDemoProfileSettingsViewModel(1);
     }
 
     /// <summary>
@@ -425,6 +610,80 @@ public static class DemoViewModelFactory
         };
     }
 
+    private static PublisherStudioProject CreateSamplePublisherProject()
+    {
+        var catalog = new PublisherCatalog
+        {
+            Publisher = new PublisherProfile
+            {
+                Id = "demo-publisher",
+                Name = "Demo Publisher",
+                Description = "Sample publisher for the interactive guide.",
+            },
+            LastUpdated = DateTime.UtcNow,
+            Content =
+            [
+                new CatalogContentItem
+                {
+                    Id = "demo-mod",
+                    Name = "Demo Mod",
+                    Description = "A sample mod entry with one release.",
+                    ContentType = ContentType.Mod,
+                    TargetGame = GameType.ZeroHour,
+                    Releases =
+                    [
+                        new ContentRelease
+                        {
+                            Title = "Demo Mod",
+                            Version = "1.0.0",
+                            ReleaseDate = DateTime.UtcNow.AddDays(-7),
+                            IsLatest = true,
+                            Changelog = "Initial demo release.",
+                        },
+                    ],
+                    Tags = ["demo", "sample"],
+                },
+                new CatalogContentItem
+                {
+                    Id = "demo-map-pack",
+                    Name = "Demo Map Pack",
+                    Description = "A sample map pack entry with one release.",
+                    ContentType = ContentType.MapPack,
+                    TargetGame = GameType.ZeroHour,
+                    Releases =
+                    [
+                        new ContentRelease
+                        {
+                            Title = "Demo Map Pack",
+                            Version = "2.1.0",
+                            ReleaseDate = DateTime.UtcNow.AddDays(-2),
+                            IsLatest = true,
+                            Changelog = "Added two tournament maps.",
+                        },
+                    ],
+                    Tags = ["demo", "maps"],
+                },
+            ],
+        };
+
+        var project = new PublisherStudioProject
+        {
+            ProjectName = "Demo Publisher",
+            Catalog = catalog,
+            LastModified = DateTime.UtcNow,
+        };
+        project.Catalogs.Add(new NamedCatalog
+        {
+            Id = "demo-catalog",
+            Name = "Demo Catalog",
+            Description = "Sample catalog for the interactive guide.",
+            Catalog = catalog,
+            FileName = "catalog-demo.json",
+        });
+
+        return project;
+    }
+
     private static GameProfile CreateDemoRecoveryProfile() => new()
     {
         Id = "demo-recovery-profile",
@@ -438,4 +697,104 @@ public static class DemoViewModelFactory
             Capabilities = GameClientCapabilities.AllRecoveryFeatures,
         },
     };
+
+    /// <summary>
+    /// Seeds a demo view model on the caller's synchronization context so bound collections
+    /// are populated on the UI thread instead of a thread-pool thread. Failures are logged
+    /// without surfacing to the caller.
+    /// </summary>
+    /// <param name="seed">The seeding operation to run.</param>
+    /// <param name="demoName">The demo name used in the failure log.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous seeding operation.</returns>
+    private static async Task SeedDemoAsync(Func<Task> seed, string demoName)
+    {
+        try
+        {
+            await seed();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to seed demo {demoName}: {ex}");
+        }
+    }
+
+    private static string BuildSampleMainMenuDocument()
+    {
+        var buttonArt = ThreePieceDrawData("MenuButtonLeft", "MenuButtonMiddle", "MenuButtonRight");
+        var backdropArt = SingleDrawData("MenuBackdrop");
+        var builder = new StringBuilder();
+        builder.AppendLine("FILE_VERSION = 2;");
+        builder.AppendLine("STARTLAYOUTBLOCK");
+        builder.AppendLine("  LAYOUTINIT = MainMenuInit;");
+        builder.AppendLine("ENDLAYOUTBLOCK");
+        builder.AppendLine("WINDOW");
+        builder.AppendLine("  WINDOWTYPE = USER;");
+        builder.AppendLine("  SCREENRECT = UPPERLEFT: 0 0, BOTTOMRIGHT: 800 600, CREATIONRESOLUTION: 800 600;");
+        builder.AppendLine("  NAME = \"MainMenu.wnd:MainMenu\";");
+        builder.AppendLine("  STATUS = ENABLED;");
+        builder.AppendLine($"  ENABLEDDRAWDATA = {backdropArt};");
+        builder.AppendLine("  CHILD");
+        AppendWindow(builder, WndConstants.ControlTypes.StaticText, "200 40", "600 90", "MainMenu.wnd:TitleText", "GAMETEXT:Menu_Title");
+        AppendWindow(builder, WndConstants.ControlTypes.PushButton, "300 150", "500 190", "MainMenu.wnd:ButtonSinglePlayer", "GAMETEXT:GUI_SinglePlayer", buttonArt);
+        AppendWindow(builder, WndConstants.ControlTypes.PushButton, "300 200", "500 240", "MainMenu.wnd:ButtonMultiplayer", "GAMETEXT:GUI_Multiplayer", buttonArt);
+        AppendWindow(builder, WndConstants.ControlTypes.PushButton, "300 250", "500 290", "MainMenu.wnd:ButtonOptions", "GAMETEXT:GUI_Options", buttonArt);
+        AppendWindow(builder, WndConstants.ControlTypes.PushButton, "300 300", "500 340", "MainMenu.wnd:ButtonExit", "GAMETEXT:GUI_Exit", buttonArt);
+        AppendWindow(builder, WndConstants.ControlTypes.StaticText, "600 570", "790 595", "MainMenu.wnd:VersionText", "Version 1.0 (Demo)");
+        builder.AppendLine("  ENDALLCHILDREN");
+        builder.AppendLine("END");
+        builder.AppendLine("WINDOW");
+        builder.AppendLine("  WINDOWTYPE = USER;");
+        builder.AppendLine("  SCREENRECT = UPPERLEFT: 150 120, BOTTOMRIGHT: 650 500, CREATIONRESOLUTION: 800 600;");
+        builder.AppendLine("  NAME = \"MainMenu.wnd:OptionsPanel\";");
+        builder.AppendLine("  STATUS = HIDDEN;");
+        builder.AppendLine("  CHILD");
+        AppendWindow(builder, WndConstants.ControlTypes.CheckBox, "180 160", "420 190", "MainMenu.wnd:FullscreenCheck", "GAMETEXT:GUI_Fullscreen");
+        AppendWindow(builder, WndConstants.ControlTypes.RadioButton, "180 200", "420 230", "MainMenu.wnd:EasyRadio", "Easy");
+        AppendWindow(builder, WndConstants.ControlTypes.RadioButton, "180 235", "420 265", "MainMenu.wnd:NormalRadio", "Normal");
+        AppendWindow(builder, WndConstants.ControlTypes.PushButton, "180 440", "330 475", "MainMenu.wnd:BackButton", "GAMETEXT:GUI_Back", buttonArt);
+        builder.AppendLine("  ENDALLCHILDREN");
+        builder.AppendLine("END");
+        return builder.ToString();
+    }
+
+    private static void AppendWindow(StringBuilder builder, string windowType, string upperLeft, string bottomRight, string name, string text, string? drawData = null)
+    {
+        builder.AppendLine("  WINDOW");
+        builder.AppendLine($"    WINDOWTYPE = {windowType};");
+        builder.AppendLine($"    SCREENRECT = UPPERLEFT: {upperLeft}, BOTTOMRIGHT: {bottomRight}, CREATIONRESOLUTION: 800 600;");
+        builder.AppendLine($"    NAME = \"{name}\";");
+        builder.AppendLine($"    TEXT = \"{text}\";");
+        if (!string.IsNullOrEmpty(drawData))
+        {
+            builder.AppendLine($"    ENABLEDDRAWDATA = {drawData};");
+        }
+
+        builder.AppendLine("  END");
+    }
+
+    private static string ThreePieceDrawData(string left, string middle, string right)
+    {
+        return DrawDataWith((left, 0), (middle, 5), (right, 6));
+    }
+
+    private static string SingleDrawData(string image)
+    {
+        return DrawDataWith((image, 0));
+    }
+
+    private static string DrawDataWith(params (string Name, int Index)[] images)
+    {
+        var entries = new List<WndDrawDataEntry>();
+        for (var i = 0; i < WndConstants.DrawData.EntryCount; i++)
+        {
+            entries.Add(WndDrawDataEntry.Empty);
+        }
+
+        foreach (var (name, index) in images)
+        {
+            entries[index] = new WndDrawDataEntry(name, new WndRgbaColor(10, 20, 30, 255), new WndRgbaColor(40, 50, 60, 255));
+        }
+
+        return new WndDrawDataSet(entries).ToString();
+    }
 }
