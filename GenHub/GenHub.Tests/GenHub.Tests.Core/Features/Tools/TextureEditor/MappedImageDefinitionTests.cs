@@ -31,6 +31,18 @@ public sealed class MappedImageDefinitionTests
     }
 
     /// <summary>
+    /// Verifies that a zero-area slice fails the guard border check like IsWithinTexture.
+    /// </summary>
+    [Fact]
+    public void HasGuardBorder_ZeroAreaSlice_ReturnsFalse()
+    {
+        var definition = new MappedImageDefinition("Empty", "a.tga", 64, 64, 10, 10, 10, 20);
+
+        Assert.False(definition.IsWithinTexture);
+        Assert.False(definition.HasGuardBorder);
+    }
+
+    /// <summary>
     /// Verifies that dimensions follow the engine rule without an inclusive plus one.
     /// </summary>
     [Fact]

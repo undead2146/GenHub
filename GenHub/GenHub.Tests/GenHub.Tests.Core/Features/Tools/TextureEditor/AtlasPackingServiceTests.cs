@@ -97,6 +97,22 @@ public sealed class AtlasPackingServiceTests
     }
 
     /// <summary>
+    /// Verifies that an unbounded maximum dimension still terminates with a power-of-two sheet.
+    /// </summary>
+    [Fact]
+    public void Pack_HugeMaxDimension_TerminatesWithPowerOfTwoSheet()
+    {
+        var sources = new[] { new AtlasSourceImage("Solo", new DecodedTexture(16, 16, new byte[16 * 16 * 4])) };
+
+        var result = _service.Pack(sources, padding: 1, maxDimension: int.MaxValue);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.True(IsPowerOfTwo(result.Data.SheetWidth));
+        Assert.True(IsPowerOfTwo(result.Data.SheetHeight));
+    }
+
+    /// <summary>
     /// Verifies that duplicate sprite names fail with the offending name instead of throwing.
     /// </summary>
     [Fact]
@@ -254,6 +270,58 @@ public sealed class AtlasPackingServiceTests
 
         Assert.True(result.Failed);
         loader.Verify(loader => loader.LoadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// Verifies that an empty target texture returns a failure instead of throwing.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task BuildAtlasAsync_EmptyTargetTexture_ReturnsFailureAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var loader = new Mock<ITextureImageLoader>();
+            var request = new TextureAtlasBuildRequest(directory, string.Empty, Path.Combine(directory, "out.ini"));
+
+            var result = await _service.BuildAtlasAsync(request, loader.Object);
+
+            Assert.True(result.Failed);
+            Assert.Contains("Target texture", result.FirstError ?? string.Empty);
+            loader.Verify(loader => loader.LoadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that requesting mipmaps returns an explicit failure instead of silent output.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task BuildAtlasAsync_MipmapsRequested_ReturnsFailureAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var loader = new Mock<ITextureImageLoader>();
+            var request = new TextureAtlasBuildRequest(directory, Path.Combine(directory, "out.tga"), Path.Combine(directory, "out.ini"), GenerateMipmaps: true);
+
+            var result = await _service.BuildAtlasAsync(request, loader.Object);
+
+            Assert.True(result.Failed);
+            Assert.Contains("GenerateMipmaps", result.FirstError ?? string.Empty);
+            loader.Verify(loader => loader.LoadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     /// <summary>

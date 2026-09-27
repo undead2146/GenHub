@@ -154,8 +154,8 @@ public sealed partial class FileExplorerViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Nodes is still empty here: nothing is added until BuildDirectoryNode returns.
             _logger.LogWarning(ex, "Failed to list files in {Directory}", Directory);
-            Nodes.Clear();
         }
     }
 
@@ -308,6 +308,7 @@ public sealed partial class FileExplorerViewModel : ObservableObject
         {
             var files = FilePatterns
                 .SelectMany(pattern => directoryInfo.EnumerateFiles(pattern))
+                .DistinctBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase);
 
             foreach (var file in files)

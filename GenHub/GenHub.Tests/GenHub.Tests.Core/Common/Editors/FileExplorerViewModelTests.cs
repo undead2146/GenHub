@@ -42,6 +42,33 @@ public sealed class FileExplorerViewModelTests
     }
 
     /// <summary>
+    /// Verifies that overlapping file patterns list each file only once.
+    /// </summary>
+    [Fact]
+    public void Directory_OverlappingPatterns_ListsEachFileOnce()
+    {
+        string root = CreateTree();
+        try
+        {
+            var explorer = new FileExplorerViewModel
+            {
+                FilePatterns = ["*.wnd", "Main*"],
+            };
+
+            explorer.Directory = root;
+
+            Assert.Single(explorer.Nodes);
+            var files = explorer.Nodes[0].Children.Where(node => node.IsFile).ToList();
+            Assert.Single(files);
+            Assert.Equal("MainMenu.wnd", files[0].FileName);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
     /// Verifies that excluded and hidden directories are skipped.
     /// </summary>
     [Fact]

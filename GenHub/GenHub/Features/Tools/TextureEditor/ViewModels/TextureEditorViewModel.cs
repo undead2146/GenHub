@@ -346,7 +346,7 @@ public sealed partial class TextureEditorViewModel(
         }
 
         string path = _savedIniPath ?? DefaultIniPath;
-        BeginOperation();
+        var operation = BeginOperation();
         try
         {
             if (await TryWriteMappedImagesAsync(path, cancellationToken).ConfigureAwait(true))
@@ -373,7 +373,7 @@ public sealed partial class TextureEditorViewModel(
         }
         finally
         {
-            EndOperation();
+            EndOperation(operation);
         }
     }
 
@@ -410,7 +410,7 @@ public sealed partial class TextureEditorViewModel(
         }
 
         string path = file.Path.LocalPath;
-        BeginOperation();
+        var operation = BeginOperation();
         try
         {
             if (await TryWriteMappedImagesAsync(path, cancellationToken).ConfigureAwait(true))
@@ -437,7 +437,7 @@ public sealed partial class TextureEditorViewModel(
         }
         finally
         {
-            EndOperation();
+            EndOperation(operation);
         }
     }
 
@@ -506,6 +506,7 @@ public sealed partial class TextureEditorViewModel(
             await RunOperationAsync(async operationToken =>
             {
                 var result = await registry.ScanDirectoryAsync(directory, operationToken).ConfigureAwait(true);
+                operationToken.ThrowIfCancellationRequested();
                 RefreshRegistryImages();
 
                 if (result.Success && result.Data is not null)
@@ -574,6 +575,7 @@ public sealed partial class TextureEditorViewModel(
                     Path.Combine(sourceDir, TextureEditorConstants.PackedAtlasTextureFileName),
                     Path.Combine(sourceDir, TextureEditorConstants.PackedAtlasIniFileName));
                 var built = await packingService.BuildAtlasAsync(request, imageLoader, operationToken).ConfigureAwait(true);
+                operationToken.ThrowIfCancellationRequested();
                 if (built.Failed || built.Data is null)
                 {
                     Notifications.ShowError(
@@ -588,9 +590,12 @@ public sealed partial class TextureEditorViewModel(
                     return;
                 }
 
-                await AtomicFile.WriteAllBytesAsync(request.TargetTexture, built.Data.TextureBytes, operationToken).ConfigureAwait(true);
-                await AtomicFile.WriteAllTextAsync(request.TargetIni, built.Data.IniContent, operationToken).ConfigureAwait(true);
-                OpenDecodedAtlas(built.Data.Sheet, request.TargetTexture);
+                await WritePackOutputsAsync(request, built.Data.TextureBytes, built.Data.IniContent, operationToken).ConfigureAwait(true);
+                if (!OpenDecodedAtlas(built.Data.Sheet, request.TargetTexture))
+                {
+                    return;
+                }
+
                 ReplaceSlices(built.Data.MappedImages);
                 registry.ImportDefinitions(built.Data.MappedImages);
                 RefreshRegistryImages();
@@ -773,6 +778,8 @@ public sealed partial class TextureEditorViewModel(
         var (width, height) = preset switch
         {
             "64x64" => (64, 64),
+            "60x48" => (TextureEditorConstants.CameoSmallWidth, TextureEditorConstants.CameoSmallHeight),
+            "32x32" => (TextureEditorConstants.HudButtonWidth, TextureEditorConstants.HudButtonHeight),
             "128x128" => (128, 128),
             "256x256" => (256, 256),
             "fill-x" => (AtlasPixelWidth - SelectedSlice.Left, SelectedSlice.Height),
@@ -820,7 +827,9 @@ public sealed partial class TextureEditorViewModel(
 
     private void OnExplorerFileActivated(object? sender, EditorFileTreeNodeViewModel node)
     {
-        if (node.IsDirectory)
+        // Fire-and-forget activation bypasses command re-entrancy protection,
+        // so ignore activations while another operation owns the editor state.
+        if (node.IsDirectory || IsBusy)
         {
             return;
         }
@@ -850,6 +859,7 @@ public sealed partial class TextureEditorViewModel(
             await RunOperationAsync(async operationToken =>
             {
                 var decoded = await bitmapService.LoadDecodedAsync(path, operationToken).ConfigureAwait(true);
+                operationToken.ThrowIfCancellationRequested();
                 if (decoded.Failed || decoded.Data is null)
                 {
                     Notifications.ShowError(
@@ -859,8 +869,13 @@ public sealed partial class TextureEditorViewModel(
                     return;
                 }
 
-                OpenDecodedAtlas(decoded.Data, path);
+                if (!OpenDecodedAtlas(decoded.Data, path))
+                {
+                    return;
+                }
+
                 await ImportSiblingIniAsync(path, operationToken).ConfigureAwait(true);
+                operationToken.ThrowIfCancellationRequested();
                 LoadSlicesForAtlas();
                 FileExplorer.CurrentPath = path;
                 MarkSaved();
@@ -904,6 +919,7 @@ public sealed partial class TextureEditorViewModel(
             await RunOperationAsync(async operationToken =>
             {
                 var parsed = await parser.ParseFileAsync(path, operationToken).ConfigureAwait(true);
+                operationToken.ThrowIfCancellationRequested();
                 if (parsed.Data is null || parsed.Data.Count == 0)
                 {
                     Notifications.ShowError(
@@ -947,7 +963,7 @@ public sealed partial class TextureEditorViewModel(
         }
     }
 
-    private void OpenDecodedAtlas(DecodedTexture decoded, string path)
+    private bool OpenDecodedAtlas(DecodedTexture decoded, string path)
     {
         var bitmap = bitmapService.ToBitmap(decoded);
         if (bitmap.Failed || bitmap.Data is null)
@@ -956,7 +972,7 @@ public sealed partial class TextureEditorViewModel(
                 Localize("TextureEditor.Notify.OpenFailed.Title", "Failed to open atlas"),
                 bitmap.FirstError ?? string.Empty,
                 NotificationDurations.Long);
-            return;
+            return false;
         }
 
         ClearAtlas();
@@ -966,6 +982,7 @@ public sealed partial class TextureEditorViewModel(
         AddSliceCommand.NotifyCanExecuteChanged();
         ExportIniCommand.NotifyCanExecuteChanged();
         ExportSheetCommand.NotifyCanExecuteChanged();
+        return true;
     }
 
     private void LoadSlicesForAtlas()
@@ -1100,6 +1117,59 @@ public sealed partial class TextureEditorViewModel(
         string content = parser.Serialize(definitions, $"Generated by GenHub {TextureEditorConstants.ToolName} from {AtlasFileName}");
         await AtomicFile.WriteAllTextAsync(path, content, cancellationToken).ConfigureAwait(true);
         return true;
+    }
+
+    private async Task WritePackOutputsAsync(TextureAtlasBuildRequest request, byte[] textureBytes, string iniContent, CancellationToken cancellationToken)
+    {
+        byte[]? previousTexture = await ReadExistingFileBytesAsync(request.TargetTexture).ConfigureAwait(true);
+        await AtomicFile.WriteAllBytesAsync(request.TargetTexture, textureBytes, cancellationToken).ConfigureAwait(true);
+        try
+        {
+            await AtomicFile.WriteAllTextAsync(request.TargetIni, iniContent, cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Auto-pack INI write failed; restoring the previous atlas texture.");
+            await RestorePackTextureAsync(request.TargetTexture, previousTexture).ConfigureAwait(true);
+            throw;
+        }
+    }
+
+    private async Task<byte[]?> ReadExistingFileBytesAsync(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? await File.ReadAllBytesAsync(path).ConfigureAwait(true) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Unable to back up existing atlas texture {Path} before auto-pack.", path);
+            return null;
+        }
+    }
+
+    private async Task RestorePackTextureAsync(string path, byte[]? previousTexture)
+    {
+        // Best effort on a detached path: the failure result is already decided,
+        // so the restore must neither throw nor honor the cancelled operation token.
+        try
+        {
+            if (previousTexture is null)
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+
+                return;
+            }
+
+            await AtomicFile.WriteAllBytesAsync(path, previousTexture).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Unable to restore atlas texture {Path} after a failed auto-pack.", path);
+        }
     }
 
     private async Task<bool> ConfirmOverwriteAsync(TextureAtlasBuildRequest request, CancellationToken cancellationToken)

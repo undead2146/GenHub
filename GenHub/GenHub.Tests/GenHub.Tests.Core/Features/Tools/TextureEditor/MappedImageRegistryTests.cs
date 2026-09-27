@@ -2,6 +2,7 @@ using GenHub.Core.Services.Tools.TextureEditor;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -257,6 +258,39 @@ public sealed class MappedImageRegistryTests
 
         Assert.Equal(1, _registry.Count);
         Assert.Equal("b.tga", _registry.GetByName("Solo")?.TextureFileName);
+    }
+
+    /// <summary>
+    /// Verifies that a cancelled scan keeps the previously indexed entries.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ScanDirectoryAsync_CancelledScan_PreservesPreviousEntriesAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "First.ini"), Block("Alpha", "a.tga"));
+
+            var first = await _registry.ScanDirectoryAsync(directory);
+            Assert.True(first.Success);
+            Assert.Equal(1, _registry.Count);
+
+            await File.WriteAllTextAsync(Path.Combine(directory, "Second.ini"), Block("Beta", "b.tga"));
+
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            await Assert.ThrowsAsync<OperationCanceledException>(async () => await _registry.ScanDirectoryAsync(directory, cancelled.Token));
+
+            Assert.Equal(1, _registry.Count);
+            Assert.NotNull(_registry.GetByName("Alpha"));
+            Assert.Null(_registry.GetByName("Beta"));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     private static string Block(string name, string texture) =>

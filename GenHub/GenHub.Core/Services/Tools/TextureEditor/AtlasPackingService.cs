@@ -123,9 +123,36 @@ public sealed class AtlasPackingService(
             return OperationResult<TextureAtlasBuildResult>.CreateFailure($"Source directory not found: {request.SourceDirectory}", Stopwatch.GetElapsedTime(started));
         }
 
+        if (request.GenerateMipmaps)
+        {
+            return OperationResult<TextureAtlasBuildResult>.CreateFailure("Mipmap generation is not supported for SAGE 2D UI atlases; keep GenerateMipmaps disabled.", Stopwatch.GetElapsedTime(started));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TargetTexture))
+        {
+            return OperationResult<TextureAtlasBuildResult>.CreateFailure("Target texture path must not be empty.", Stopwatch.GetElapsedTime(started));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TargetIni))
+        {
+            return OperationResult<TextureAtlasBuildResult>.CreateFailure("Target INI path must not be empty.", Stopwatch.GetElapsedTime(started));
+        }
+
+        string targetTextureFull;
+        string targetIniFull;
+        try
+        {
+            targetTextureFull = Path.GetFullPath(request.TargetTexture);
+            targetIniFull = Path.GetFullPath(request.TargetIni);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            return OperationResult<TextureAtlasBuildResult>.CreateFailure($"Invalid atlas target path: {ex.Message}", Stopwatch.GetElapsedTime(started));
+        }
+
         var files = Directory.GetFiles(request.SourceDirectory)
             .Where(IsSupportedSource)
-            .Where(file => !IsPackOutput(file, request))
+            .Where(file => !IsPackOutput(file, targetTextureFull, targetIniFull))
             .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (files.Count == 0)
@@ -189,19 +216,21 @@ public sealed class AtlasPackingService(
         return TextureEditorConstants.PackableSourceExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static bool IsPackOutput(string file, TextureAtlasBuildRequest request) =>
-        string.Equals(Path.GetFullPath(file), Path.GetFullPath(request.TargetTexture), StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(Path.GetFullPath(file), Path.GetFullPath(request.TargetIni), StringComparison.OrdinalIgnoreCase);
+    private static bool IsPackOutput(string file, string targetTextureFull, string targetIniFull) =>
+        string.Equals(Path.GetFullPath(file), targetTextureFull, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Path.GetFullPath(file), targetIniFull, StringComparison.OrdinalIgnoreCase);
 
     private static int NextPowerOfTwo(int value, int ceiling)
     {
-        int size = 1;
+        // Double in 64-bit arithmetic: with huge inputs the 32-bit doubling
+        // overflows to a negative size that never reaches the exit condition.
+        long size = 1;
         while (size < value && size < ceiling)
         {
             size *= 2;
         }
 
-        return size;
+        return (int)Math.Min(size, int.MaxValue);
     }
 
     private static (int SheetHeight, AtlasSourceImage? Unplaceable) PackShelves(List<AtlasSourceImage> ordered, List<AtlasPlacement> placements, int sheetWidth, int padding, int maxDimension)

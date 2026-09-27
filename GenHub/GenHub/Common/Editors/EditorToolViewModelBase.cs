@@ -286,11 +286,6 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
     protected IDialogService Dialogs => _dialogs;
 
     /// <summary>
-    /// Gets the token of the running operation, or none when idle.
-    /// </summary>
-    protected CancellationToken OperationToken => _operationCts?.Token ?? CancellationToken.None;
-
-    /// <summary>
     /// Refreshes every editor command and document-dependent display property.
     /// </summary>
     public void RefreshEditorCommands()
@@ -498,10 +493,10 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
     protected async Task RunOperationAsync(Func<CancellationToken, Task> action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        BeginOperation();
+        var owner = BeginOperation();
         try
         {
-            await action(OperationToken).ConfigureAwait(true);
+            await action(owner.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -509,7 +504,7 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
         }
         finally
         {
-            EndOperation();
+            EndOperation(owner);
         }
     }
 
@@ -572,7 +567,8 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
     /// <summary>
     /// Starts a busy operation with a fresh cancellation token.
     /// </summary>
-    protected void BeginOperation()
+    /// <returns>The source owning the new operation.</returns>
+    protected CancellationTokenSource BeginOperation()
     {
         if (_operationCts is not null)
         {
@@ -583,13 +579,21 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
         _operationCts = new CancellationTokenSource();
         IsBusy = true;
         RefreshEditorCommands();
+        return _operationCts;
     }
 
     /// <summary>
-    /// Ends the running busy operation.
+    /// Ends the running busy operation when the owner still owns it.
+    /// A superseded operation ending late must not clear a newer operation's busy state.
     /// </summary>
-    protected void EndOperation()
+    /// <param name="owner">The source returned by <see cref="BeginOperation"/>.</param>
+    protected void EndOperation(CancellationTokenSource owner)
     {
+        if (!ReferenceEquals(_operationCts, owner))
+        {
+            return;
+        }
+
         IsBusy = false;
         RefreshEditorCommands();
     }

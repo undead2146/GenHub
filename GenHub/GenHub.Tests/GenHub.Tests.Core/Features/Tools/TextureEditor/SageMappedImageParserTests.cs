@@ -79,6 +79,33 @@ public sealed class SageMappedImageParserTests
     }
 
     /// <summary>
+    /// Verifies that coordinate keys parse in any order with the last duplicate winning.
+    /// </summary>
+    [Fact]
+    public void ParseText_UnorderedCoords_ParsesCoordinates()
+    {
+        const string ini = """
+            MappedImage ShuffledButton
+              Texture = bar.tga
+              TextureWidth = 128
+              TextureHeight = 128
+              Coords = Bottom:63 Right:63 Top:0 Left:4 Left:0
+              Status = NONE
+            End
+            """;
+
+        var result = _parser.ParseText(ini);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Single(result.Data);
+        Assert.Equal(0, result.Data[0].Left);
+        Assert.Equal(0, result.Data[0].Top);
+        Assert.Equal(63, result.Data[0].Right);
+        Assert.Equal(63, result.Data[0].Bottom);
+    }
+
+    /// <summary>
     /// Verifies that malformed blocks produce failures while preserving parsed entries.
     /// </summary>
     [Fact]

@@ -264,7 +264,6 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 
         private void ApplyCoords(string value)
         {
-            var coords = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             MatchCollection matches;
             try
             {
@@ -275,26 +274,45 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
                 return;
             }
 
+            int? left = null;
+            int? top = null;
+            int? right = null;
+            int? bottom = null;
             foreach (Match match in matches)
             {
-                if (int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
+                if (!int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
                 {
-                    coords[match.Groups[1].Value] = number;
+                    continue;
+                }
+
+                switch (match.Groups[1].Value.ToUpperInvariant())
+                {
+                    case "LEFT":
+                        left = number;
+                        break;
+                    case "TOP":
+                        top = number;
+                        break;
+                    case "RIGHT":
+                        right = number;
+                        break;
+                    case "BOTTOM":
+                        bottom = number;
+                        break;
+                    default:
+                        break;
                 }
             }
 
-            if (!coords.TryGetValue("Left", out int left) ||
-                !coords.TryGetValue("Top", out int top) ||
-                !coords.TryGetValue("Right", out int right) ||
-                !coords.TryGetValue("Bottom", out int bottom))
+            if (left is null || top is null || right is null || bottom is null)
             {
                 return;
             }
 
-            Left = left;
-            Top = top;
-            Right = right;
-            Bottom = bottom;
+            Left = left.Value;
+            Top = top.Value;
+            Right = right.Value;
+            Bottom = bottom.Value;
             HasCoords = true;
         }
     }

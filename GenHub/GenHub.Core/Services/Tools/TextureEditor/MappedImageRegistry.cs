@@ -68,23 +68,19 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
 
         Array.Sort(files, CompareSageLoadOrder);
         var errors = new List<string>();
-        lock (_syncLock)
-        {
-            _entries.Clear();
-        }
 
+        // Stage in a temporary catalog so a cancelled or failed scan
+        // never clears the previously valid entries.
+        var staged = new Dictionary<string, MappedImageDefinition>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var parsed = await parser.ParseFileAsync(file, cancellationToken).ConfigureAwait(false);
             if (parsed.Data is not null)
             {
-                lock (_syncLock)
+                foreach (var image in parsed.Data)
                 {
-                    foreach (var image in parsed.Data)
-                    {
-                        _entries[image.Name] = image;
-                    }
+                    staged[image.Name] = image;
                 }
             }
 
@@ -94,11 +90,16 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
             }
         }
 
-        int images;
         lock (_syncLock)
         {
-            images = _entries.Count;
+            _entries.Clear();
+            foreach (var entry in staged)
+            {
+                _entries[entry.Key] = entry.Value;
+            }
         }
+
+        int images = staged.Count;
 
         var elapsed = Stopwatch.GetElapsedTime(started);
         logger.LogInformation("Scanned {Files} MappedImages INI files with {Images} entries from {Directory}", files.Length, images, directory);
