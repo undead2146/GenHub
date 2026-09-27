@@ -17,7 +17,8 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 {
     private static readonly Regex CoordsPattern = new(
         @"\b(Left|Top|Right|Bottom)\s*[:=]\s*(-?\d+)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TextureEditorConstants.CoordsRegexTimeout);
 
     /// <inheritdoc />
     public OperationResult<IReadOnlyList<MappedImageDefinition>> ParseText(string content, string? sourcePath = null)
@@ -27,7 +28,7 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 
         var images = new List<MappedImageDefinition>();
         var errors = new List<string>();
-        var lines = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        var lines = content.ReplaceLineEndings("\n").Split('\n');
 
         MappedImageBlock? current = null;
         int lineNumber = 0;
@@ -40,40 +41,7 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
                 continue;
             }
 
-            if (IsBlockStart(line))
-            {
-                if (current is not null)
-                {
-                    errors.Add(FormatError(sourcePath, current.StartLine, $"Missing '{TextureEditorConstants.IniBlockEnd}' for '{current.Name}'."));
-                }
-
-                current = MappedImageBlock.Start(ParseBlockName(line), lineNumber);
-                continue;
-            }
-
-            if (IsBlockEnd(line))
-            {
-                if (current is null)
-                {
-                    errors.Add(FormatError(sourcePath, lineNumber, $"Stray '{TextureEditorConstants.IniBlockEnd}' without a MappedImage block."));
-                    continue;
-                }
-
-                var built = current.Build(sourcePath);
-                if (built is null)
-                {
-                    errors.Add(FormatError(sourcePath, current.StartLine, $"Incomplete MappedImage block '{current.Name}'."));
-                }
-                else
-                {
-                    images.Add(built);
-                }
-
-                current = null;
-                continue;
-            }
-
-            current?.Apply(line);
+            current = ProcessContentLine(line, lineNumber, current, sourcePath, images, errors);
         }
 
         if (current is not null)
@@ -153,6 +121,48 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
         }
 
         return sb.ToString();
+    }
+
+    private static MappedImageBlock? ProcessContentLine(string line, int lineNumber, MappedImageBlock? current, string? sourcePath, List<MappedImageDefinition> images, List<string> errors)
+    {
+        if (IsBlockStart(line))
+        {
+            if (current is not null)
+            {
+                errors.Add(FormatError(sourcePath, current.StartLine, $"Missing '{TextureEditorConstants.IniBlockEnd}' for '{current.Name}'."));
+            }
+
+            return MappedImageBlock.Start(ParseBlockName(line), lineNumber);
+        }
+
+        if (IsBlockEnd(line))
+        {
+            return FinishBlock(lineNumber, current, sourcePath, images, errors);
+        }
+
+        current?.Apply(line);
+        return current;
+    }
+
+    private static MappedImageBlock? FinishBlock(int lineNumber, MappedImageBlock? current, string? sourcePath, List<MappedImageDefinition> images, List<string> errors)
+    {
+        if (current is null)
+        {
+            errors.Add(FormatError(sourcePath, lineNumber, $"Stray '{TextureEditorConstants.IniBlockEnd}' without a MappedImage block."));
+            return null;
+        }
+
+        var built = current.Build(sourcePath);
+        if (built is null)
+        {
+            errors.Add(FormatError(sourcePath, current.StartLine, $"Incomplete MappedImage block '{current.Name}'."));
+        }
+        else
+        {
+            images.Add(built);
+        }
+
+        return null;
     }
 
     private static bool IsBlockStart(string line) =>
@@ -255,7 +265,17 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
         private void ApplyCoords(string value)
         {
             var coords = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (Match match in CoordsPattern.Matches(value))
+            MatchCollection matches;
+            try
+            {
+                matches = CoordsPattern.Matches(value);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return;
+            }
+
+            foreach (Match match in matches)
             {
                 if (int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
                 {

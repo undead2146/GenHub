@@ -106,9 +106,49 @@ public static class TextureEditorConstants
     public const string MappedImagesFilePattern = "*.ini";
 
     /// <summary>
+    /// File name of the texture sheet written by auto-pack into the source directory.
+    /// </summary>
+    public const string PackedAtlasTextureFileName = "PackedAtlas.tga";
+
+    /// <summary>
+    /// File name of the mapped images INI written by auto-pack into the source directory.
+    /// </summary>
+    public const string PackedAtlasIniFileName = "PackedAtlas.ini";
+
+    /// <summary>
+    /// Mapped images INI file extension.
+    /// </summary>
+    public const string MappedImagesExtension = ".ini";
+
+    /// <summary>
+    /// Suffix appended to duplicated slice names.
+    /// </summary>
+    public const string DuplicateNameSuffix = "_Copy";
+
+    /// <summary>
+    /// Pixel offset applied to pasted or duplicated slices so they do not stack exactly.
+    /// </summary>
+    public const int PasteOffset = 16;
+
+    /// <summary>
     /// Supported texture file extensions for the editor.
     /// </summary>
     public static readonly string[] TextureExtensions = [".tga", ".dds", ".png"];
+
+    /// <summary>
+    /// Image extensions accepted as auto-pack sources, covering every format the image loader decodes.
+    /// </summary>
+    public static readonly string[] PackableSourceExtensions = [".tga", ".dds", ".png", ".bmp"];
+
+    /// <summary>
+    /// File search patterns listed in the texture editor file explorer.
+    /// </summary>
+    public static readonly string[] ExplorerFilePatterns = ["*.tga", "*.dds", "*.png", "*.ini"];
+
+    /// <summary>
+    /// Match timeout guarding Coords parsing against pathological input lines.
+    /// </summary>
+    public static readonly TimeSpan CoordsRegexTimeout = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Valid power-of-two atlas dimensions.

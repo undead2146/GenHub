@@ -67,11 +67,6 @@ public partial class MappedImagePickerControl : UserControl
     }
 
     /// <summary>
-    /// Raised when the user requests editing the selected image in the Texture Editor.
-    /// </summary>
-    public event EventHandler<MappedImageDefinition>? EditRequested;
-
-    /// <summary>
     /// Gets or sets the available mapped image entries.
     /// </summary>
     public IEnumerable<MappedImageDefinition>? ItemsSource
@@ -91,6 +86,7 @@ public partial class MappedImagePickerControl : UserControl
 
     /// <summary>
     /// Gets or sets the optional thumbnail provider for entries.
+    /// Returned images are owned by the picker and disposed on refresh.
     /// </summary>
     public Func<MappedImageDefinition, IImage?>? ThumbnailProvider
     {
@@ -102,6 +98,11 @@ public partial class MappedImagePickerControl : UserControl
     /// Gets the filtered picker items matching the search text.
     /// </summary>
     public ObservableCollection<MappedImagePickerItem> FilteredItems => _filteredItems;
+
+    /// <summary>
+    /// Raised when the user requests editing the selected image in the Texture Editor.
+    /// </summary>
+    public event EventHandler<MappedImageDefinition>? EditRequested;
 
     /// <inheritdoc />
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -201,7 +202,16 @@ public partial class MappedImagePickerControl : UserControl
         var matches = items
             .Where(image => MatchesSearch(image, search))
             .OrderBy(image => image.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(image => new MappedImagePickerItem(image, provider?.Invoke(image)));
+            .Select(image => new MappedImagePickerItem(image, provider?.Invoke(image)))
+            .ToList();
+
+        foreach (var old in _filteredItems)
+        {
+            if (old.Thumbnail is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
 
         _filteredItems.Clear();
         foreach (var item in matches)

@@ -68,7 +68,10 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
 
         Array.Sort(files, CompareSageLoadOrder);
         var errors = new List<string>();
-        int images = 0;
+        lock (_syncLock)
+        {
+            _entries.Clear();
+        }
 
         foreach (var file in files)
         {
@@ -81,7 +84,6 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
                     foreach (var image in parsed.Data)
                     {
                         _entries[image.Name] = image;
-                        images++;
                     }
                 }
             }
@@ -90,6 +92,12 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
             {
                 errors.AddRange(parsed.Errors);
             }
+        }
+
+        int images;
+        lock (_syncLock)
+        {
+            images = _entries.Count;
         }
 
         var elapsed = Stopwatch.GetElapsedTime(started);
@@ -121,6 +129,19 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
                 .Where(image => image.TextureFileName.Equals(textureFileName, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(image => image.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+    }
+
+    /// <inheritdoc />
+    public void ImportDefinitions(IEnumerable<MappedImageDefinition> images)
+    {
+        ArgumentNullException.ThrowIfNull(images);
+        lock (_syncLock)
+        {
+            foreach (var image in images)
+            {
+                _entries[image.Name] = image;
+            }
         }
     }
 

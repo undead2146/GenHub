@@ -187,6 +187,78 @@ public sealed class MappedImageRegistryTests
         }
     }
 
+    /// <summary>
+    /// Verifies that overwritten duplicates count once in the scan result.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ScanDirectoryAsync_DuplicateNames_ReportsDistinctCountAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "a_first.ini"), Block("Dupe", "early.tga"));
+            await File.WriteAllTextAsync(Path.Combine(directory, "z_last.ini"), Block("Dupe", "late.tga"));
+
+            var result = await _registry.ScanDirectoryAsync(directory);
+
+            Assert.True(result.Success);
+            Assert.NotNull(result.Data);
+            Assert.Equal(1, result.Data.ImagesIndexed);
+            Assert.Equal(1, _registry.Count);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that a second scan replaces earlier entries instead of accumulating them.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ScanDirectoryAsync_SecondScan_ReplacesEarlierEntriesAsync()
+    {
+        string first = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        string second = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(first);
+        Directory.CreateDirectory(second);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(first, "one.ini"), Block("Alpha", "a.tga"));
+            await File.WriteAllTextAsync(Path.Combine(second, "two.ini"), Block("Beta", "b.tga"));
+
+            await _registry.ScanDirectoryAsync(first);
+            var result = await _registry.ScanDirectoryAsync(second);
+
+            Assert.True(result.Success);
+            Assert.NotNull(result.Data);
+            Assert.Equal(1, result.Data.ImagesIndexed);
+            Assert.Null(_registry.GetByName("Alpha"));
+            Assert.NotNull(_registry.GetByName("Beta"));
+        }
+        finally
+        {
+            Directory.Delete(first, true);
+            Directory.Delete(second, true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that imported entries overwrite same-named entries.
+    /// </summary>
+    [Fact]
+    public void ImportDefinitions_DuplicateName_OverwritesExisting()
+    {
+        _registry.ImportDefinitions([new GenHub.Core.Models.Tools.TextureEditor.MappedImageDefinition("Solo", "a.tga", 64, 64, 0, 0, 31, 31)]);
+        _registry.ImportDefinitions([new GenHub.Core.Models.Tools.TextureEditor.MappedImageDefinition("Solo", "b.tga", 64, 64, 0, 0, 31, 31)]);
+
+        Assert.Equal(1, _registry.Count);
+        Assert.Equal("b.tga", _registry.GetByName("Solo")?.TextureFileName);
+    }
+
     private static string Block(string name, string texture) =>
         $"MappedImage {name}\n  Texture = {texture}\n  TextureWidth = 64\n  TextureHeight = 64\n  Coords = Left:0 Top:0 Right:63 Bottom:63\n  Status = NONE\nEnd\n";
 }

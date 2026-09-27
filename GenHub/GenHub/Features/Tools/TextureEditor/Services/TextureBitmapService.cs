@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Tools.TextureEditor;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Tools.TextureEditor;
@@ -133,7 +134,11 @@ public sealed class TextureBitmapService(ISageTextureCodec codec, ILogger<Textur
                 AlphaFormat.Unpremul);
             using (var locked = bitmap.Lock())
             {
-                Marshal.Copy(texture.PixelData, 0, locked.Address, texture.PixelData.Length);
+                int rowBytes = texture.Width * 4;
+                for (int y = 0; y < texture.Height; y++)
+                {
+                    Marshal.Copy(texture.PixelData, y * rowBytes, locked.Address + (y * locked.RowBytes), rowBytes);
+                }
             }
 
             return OperationResult<Bitmap>.CreateSuccess(bitmap, Stopwatch.GetElapsedTime(started));
@@ -168,37 +173,30 @@ public sealed class TextureBitmapService(ISageTextureCodec codec, ILogger<Textur
             return OperationResult<string>.CreateFailure("Pixel data length does not match texture dimensions.", Stopwatch.GetElapsedTime(started));
         }
 
-        string? tempPath = null;
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            tempPath = CreateTempPath(path);
-            using (var stream = File.Create(tempPath))
+            byte[] encoded;
+            using (var buffer = new MemoryStream())
             {
                 using var image = Image.LoadPixelData<Rgba32>(texture.PixelData, texture.Width, texture.Height);
-                await image.SaveAsPngAsync(stream, cancellationToken).ConfigureAwait(false);
-                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                await image.SaveAsPngAsync(buffer, cancellationToken).ConfigureAwait(false);
+                encoded = buffer.ToArray();
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            ReplaceDestination(tempPath, path);
-            tempPath = null;
+            await AtomicFile.WriteAllBytesAsync(path, encoded, cancellationToken).ConfigureAwait(false);
             return OperationResult<string>.CreateSuccess(path, Stopwatch.GetElapsedTime(started));
         }
         catch (OperationCanceledException)
         {
-            DeleteQuietly(tempPath);
             throw;
         }
         catch (IOException ex)
         {
-            DeleteQuietly(tempPath);
             logger.LogWarning(ex, "Failed to save PNG file: {Path}", path);
             return OperationResult<string>.CreateFailure($"Failed to save PNG file: {path}", Stopwatch.GetElapsedTime(started));
         }
         catch (UnauthorizedAccessException ex)
         {
-            DeleteQuietly(tempPath);
             logger.LogWarning(ex, "Access denied saving PNG file: {Path}", path);
             return OperationResult<string>.CreateFailure($"Access denied saving PNG file: {path}", Stopwatch.GetElapsedTime(started));
         }
@@ -223,63 +221,24 @@ public sealed class TextureBitmapService(ISageTextureCodec codec, ILogger<Textur
             return OperationResult<string>.CreateFailure(encoded, Stopwatch.GetElapsedTime(started));
         }
 
-        string? tempPath = null;
         try
         {
-            tempPath = CreateTempPath(path);
-            await File.WriteAllBytesAsync(tempPath, encoded.Data, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            ReplaceDestination(tempPath, path);
-            tempPath = null;
+            await AtomicFile.WriteAllBytesAsync(path, encoded.Data, cancellationToken).ConfigureAwait(false);
             return OperationResult<string>.CreateSuccess(path, Stopwatch.GetElapsedTime(started));
         }
         catch (OperationCanceledException)
         {
-            DeleteQuietly(tempPath);
             throw;
         }
         catch (IOException ex)
         {
-            DeleteQuietly(tempPath);
             logger.LogWarning(ex, "Failed to save TGA file: {Path}", path);
             return OperationResult<string>.CreateFailure($"Failed to save TGA file: {path}", Stopwatch.GetElapsedTime(started));
         }
         catch (UnauthorizedAccessException ex)
         {
-            DeleteQuietly(tempPath);
             logger.LogWarning(ex, "Access denied saving TGA file: {Path}", path);
             return OperationResult<string>.CreateFailure($"Access denied saving TGA file: {path}", Stopwatch.GetElapsedTime(started));
-        }
-    }
-
-    private static string CreateTempPath(string path)
-    {
-        string fileName = Path.GetFileName(path) + "." + Path.GetRandomFileName() + ".tmp";
-        string? directory = Path.GetDirectoryName(path);
-        return string.IsNullOrEmpty(directory) ? fileName : Path.Combine(directory, fileName);
-    }
-
-    private static void ReplaceDestination(string tempPath, string path) =>
-        File.Move(tempPath, path, overwrite: true);
-
-    private static void DeleteQuietly(string? tempPath)
-    {
-        if (tempPath is null)
-        {
-            return;
-        }
-
-        try
-        {
-            File.Delete(tempPath);
-        }
-        catch (IOException)
-        {
-            // Best effort cleanup of the temp file; the export result is already decided.
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Best effort cleanup of the temp file; the export result is already decided.
         }
     }
 }

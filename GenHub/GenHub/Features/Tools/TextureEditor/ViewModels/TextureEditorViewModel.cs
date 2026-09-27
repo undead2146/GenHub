@@ -1,12 +1,12 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Common.Editors;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools.TextureEditor;
@@ -17,121 +17,68 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GenHub.Features.Tools.TextureEditor.ViewModels;
 
 /// <summary>
-/// ViewModel for the Texture Editor tool.
+/// View model for the Texture Editor tool.
 /// </summary>
-[SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "TextureEditorViewModel coordinates atlas loading, slicing, registry search, packing, export, notifications, logging, and localization.")]
-public sealed partial class TextureEditorViewModel : ObservableObject, IDisposable
+public sealed partial class TextureEditorViewModel(
+    ISageMappedImageParser parser,
+    IMappedImageRegistry registry,
+    IAtlasPackingService packingService,
+    ITextureImageLoader imageLoader,
+    TextureBitmapService bitmapService,
+    INotificationService notificationService,
+    ILogger<TextureEditorViewModel> logger,
+    ILocalizationService localizationService,
+    IDialogService dialogService)
+    : EditorToolViewModelBase(notificationService, localizationService, dialogService)
 {
-    private readonly ISageMappedImageParser _parser;
-    private readonly IMappedImageRegistry _registry;
-    private readonly IAtlasPackingService _packingService;
-    private readonly ITextureImageLoader _imageLoader;
-    private readonly TextureBitmapService _bitmapService;
-    private readonly INotificationService _notificationService;
-    private readonly ILogger<TextureEditorViewModel> _logger;
-    private readonly ILocalizationService? _localizationService;
     private DecodedTexture? _atlasDecoded;
-    private bool _disposed;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TextureEditorViewModel"/> class.
-    /// </summary>
-    /// <param name="parser">The mapped image parser.</param>
-    /// <param name="registry">The mapped image registry.</param>
-    /// <param name="packingService">The atlas packing service.</param>
-    /// <param name="imageLoader">The source image loader.</param>
-    /// <param name="bitmapService">The bitmap bridge service.</param>
-    /// <param name="notificationService">The notification service.</param>
-    /// <param name="logger">The logger.</param>
-    /// <param name="localizationService">The optional localization service.</param>
-    public TextureEditorViewModel(
-        ISageMappedImageParser parser,
-        IMappedImageRegistry registry,
-        IAtlasPackingService packingService,
-        ITextureImageLoader imageLoader,
-        TextureBitmapService bitmapService,
-        INotificationService notificationService,
-        ILogger<TextureEditorViewModel> logger,
-        ILocalizationService? localizationService = null)
-    {
-        _parser = parser;
-        _registry = registry;
-        _packingService = packingService;
-        _imageLoader = imageLoader;
-        _bitmapService = bitmapService;
-        _notificationService = notificationService;
-        _logger = logger;
-        _localizationService = localizationService;
-    }
+    private FileExplorerViewModel? _fileExplorer;
+    private MappedImageDefinition? _copiedSlice;
+    private bool _isCutOperation;
+    private string? _savedIniPath;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAtlas))]
+    [NotifyPropertyChangedFor(nameof(AtlasDimensions))]
+    [NotifyPropertyChangedFor(nameof(AtlasPixelWidth))]
+    [NotifyPropertyChangedFor(nameof(AtlasPixelHeight))]
     private Bitmap? _atlasBitmap;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AtlasFileName))]
+    [NotifyPropertyChangedFor(nameof(DocumentTitle))]
     private string _atlasPath = string.Empty;
-
-    [ObservableProperty]
-    private double _zoom = 1;
-
-    [ObservableProperty]
-    private bool _isBusy;
 
     [ObservableProperty]
     private TextureSliceViewModel? _selectedSlice;
 
-    partial void OnAtlasBitmapChanged(Bitmap? value)
-    {
-        OnPropertyChanged(nameof(HasAtlas));
-        OnPropertyChanged(nameof(DisplayWidth));
-        OnPropertyChanged(nameof(DisplayHeight));
-        OnPropertyChanged(nameof(AtlasDimensions));
-        OnPropertyChanged(nameof(AtlasPixelWidth));
-        OnPropertyChanged(nameof(AtlasPixelHeight));
-    }
-
-    partial void OnAtlasPathChanged(string value) => OnPropertyChanged(nameof(AtlasFileName));
-
-    partial void OnZoomChanged(double value)
-    {
-        foreach (var slice in Slices)
-        {
-            slice.UpdateZoom(value);
-        }
-
-        OnPropertyChanged(nameof(DisplayWidth));
-        OnPropertyChanged(nameof(DisplayHeight));
-    }
-
-    partial void OnSelectedSliceChanged(TextureSliceViewModel? oldValue, TextureSliceViewModel? newValue)
-    {
-        if (oldValue is not null)
-        {
-            oldValue.IsSelected = false;
-        }
-
-        if (newValue is not null)
-        {
-            newValue.IsSelected = true;
-        }
-    }
+    /// <summary>
+    /// Gets the shared file explorer listing textures and MappedImages INI files.
+    /// </summary>
+    public FileExplorerViewModel FileExplorer => _fileExplorer ??= CreateFileExplorer();
 
     /// <summary>
-    /// Gets the slices of the open atlas.
+    /// Gets the mapped images indexed from MappedImages INI registries.
+    /// </summary>
+    public ObservableCollection<MappedImageDefinition> RegistryImages { get; } = [];
+
+    /// <summary>
+    /// Gets the editable slices for the open atlas.
     /// </summary>
     public ObservableCollection<TextureSliceViewModel> Slices { get; } = [];
 
     /// <summary>
-    /// Gets the registry entries shown in the shared picker.
+    /// Gets the file name of the open atlas.
     /// </summary>
-    public ObservableCollection<MappedImageDefinition> RegistryImages { get; } = [];
+    public string AtlasFileName => Path.GetFileName(AtlasPath);
 
     /// <summary>
     /// Gets a value indicating whether an atlas is open.
@@ -139,170 +86,229 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
     public bool HasAtlas => AtlasBitmap is not null;
 
     /// <summary>
-    /// Gets the atlas file name for display.
+    /// Gets the display width of the atlas on the canvas.
     /// </summary>
-    public string AtlasFileName => AtlasPath.Length == 0 ? string.Empty : Path.GetFileName(AtlasPath);
+    public double DisplayWidth => HasAtlas ? AtlasBitmap!.PixelSize.Width * Zoom : 0;
 
     /// <summary>
-    /// Gets the display width of the atlas canvas.
+    /// Gets the display height of the atlas on the canvas.
     /// </summary>
-    public double DisplayWidth => AtlasBitmap is null ? 0 : AtlasBitmap.PixelSize.Width * Zoom;
-
-    /// <summary>
-    /// Gets the display height of the atlas canvas.
-    /// </summary>
-    public double DisplayHeight => AtlasBitmap is null ? 0 : AtlasBitmap.PixelSize.Height * Zoom;
+    public double DisplayHeight => HasAtlas ? AtlasBitmap!.PixelSize.Height * Zoom : 0;
 
     /// <summary>
     /// Gets the atlas dimensions display text.
     /// </summary>
-    public string AtlasDimensions => AtlasBitmap is null
-        ? string.Empty
-        : $"{AtlasBitmap.PixelSize.Width} x {AtlasBitmap.PixelSize.Height} px";
+    public string AtlasDimensions => HasAtlas ? $"{AtlasBitmap!.PixelSize.Width} x {AtlasBitmap.PixelSize.Height}" : string.Empty;
 
     /// <summary>
-    /// Gets the atlas width in pixels for inspector bounds, defaulting to the SAGE maximum.
+    /// Gets the pixel width of the open atlas.
     /// </summary>
-    public int AtlasPixelWidth => AtlasBitmap?.PixelSize.Width ?? TextureEditorConstants.MaxTextureDimension;
+    public int AtlasPixelWidth => AtlasBitmap?.PixelSize.Width ?? 0;
 
     /// <summary>
-    /// Gets the atlas height in pixels for inspector bounds, defaulting to the SAGE maximum.
+    /// Gets the pixel height of the open atlas.
     /// </summary>
-    public int AtlasPixelHeight => AtlasBitmap?.PixelSize.Height ?? TextureEditorConstants.MaxTextureDimension;
+    public int AtlasPixelHeight => AtlasBitmap?.PixelSize.Height ?? 0;
 
     /// <summary>
-    /// Gets the thumbnail provider for the shared mapped image picker.
+    /// Gets the thumbnail provider for registry entries.
     /// </summary>
-    public Func<MappedImageDefinition, IImage?> PickerThumbnailProvider => CreatePickerThumbnail;
+    public Func<MappedImageDefinition, Avalonia.Media.IImage?> PickerThumbnailProvider => CreatePickerThumbnail;
 
     /// <summary>
-    /// Loads a registry entry as a new slice on the open atlas.
+    /// Gets the document title with a modification marker.
+    /// </summary>
+    public override string? DocumentTitle => HasAtlas ? (IsDirty ? $"*{AtlasFileName}" : AtlasFileName) : null;
+
+    /// <summary>
+    /// Gets a value indicating whether the slices can be saved.
+    /// </summary>
+    public override bool CanSave => HasAtlas;
+
+    /// <summary>
+    /// Gets a value indicating whether the slices can be saved under a new path.
+    /// </summary>
+    public override bool CanSaveAs => HasAtlas;
+
+    /// <summary>
+    /// Gets a value indicating whether the selected slice can be copied.
+    /// </summary>
+    public override bool CanCopy => SelectedSlice is not null;
+
+    /// <summary>
+    /// Gets a value indicating whether the selected slice can be cut.
+    /// </summary>
+    public override bool CanCut => SelectedSlice is not null;
+
+    /// <summary>
+    /// Gets a value indicating whether a copied slice can be pasted.
+    /// </summary>
+    public override bool CanPaste => HasAtlas && _copiedSlice is not null;
+
+    /// <summary>
+    /// Gets a value indicating whether the selected slice can be duplicated.
+    /// </summary>
+    public override bool CanDuplicate => SelectedSlice is not null;
+
+    /// <summary>
+    /// Gets a value indicating whether the selected slice can be deleted.
+    /// </summary>
+    public override bool CanDelete => SelectedSlice is not null;
+
+    private string DefaultIniPath => Path.Combine(
+        Path.GetDirectoryName(AtlasPath) ?? string.Empty,
+        Path.GetFileNameWithoutExtension(AtlasPath) + TextureEditorConstants.MappedImagesExtension);
+
+    /// <summary>
+    /// Loads a registry entry into the slice list for editing.
     /// </summary>
     /// <param name="definition">The mapped image definition.</param>
     public void LoadRegistryEntry(MappedImageDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
-
         if (AtlasBitmap is null)
         {
-            _notificationService.ShowWarning(
-                Localize("TextureEditor.Notify.NoAtlas.Title", "No atlas open"),
-                Localize("TextureEditor.Notify.NoAtlas.Message", "Open a texture atlas before adding slices."),
-                NotificationDurations.Medium);
+            return;
+        }
+
+        var existing = Slices.FirstOrDefault(slice => slice.Name.Equals(definition.Name, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            SelectedSlice = existing;
             return;
         }
 
         var slice = new TextureSliceViewModel(definition);
         slice.UpdateTexture(AtlasFileName, AtlasBitmap.PixelSize.Width, AtlasBitmap.PixelSize.Height);
         slice.UpdateZoom(Zoom);
-        AddSlice(slice);
+        TrackSlice(slice);
         SelectedSlice = slice;
+        MarkDirty();
     }
 
     /// <inheritdoc />
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
+    protected override string UnsavedChangesTitleKey => "TextureEditor.Dialog.UnsavedChanges.Title";
 
-        _disposed = true;
+    /// <inheritdoc />
+    protected override string UnsavedChangesMessageKey => "TextureEditor.Dialog.UnsavedChanges.Message";
+
+    /// <inheritdoc />
+    protected override string UnsavedChangesDiscardKey => "TextureEditor.Dialog.UnsavedChanges.Discard";
+
+    /// <inheritdoc />
+    protected override string UnsavedChangesCancelKey => "TextureEditor.Dialog.UnsavedChanges.Cancel";
+
+    /// <inheritdoc />
+    protected override void OnZoomChanged()
+    {
         foreach (var slice in Slices)
         {
-            slice.PropertyChanged -= OnSlicePropertyChanged;
-            DisposeThumbnail(slice.Thumbnail);
+            slice.UpdateZoom(Zoom);
         }
 
-        AtlasBitmap?.Dispose();
-        GC.SuppressFinalize(this);
+        OnPropertyChanged(nameof(DisplayWidth));
+        OnPropertyChanged(nameof(DisplayHeight));
     }
 
-    private static TopLevel? GetTopLevel()
-    {
-        var lifetime = Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
-        return TopLevel.GetTopLevel(lifetime?.MainWindow);
-    }
-
-    private static void DisposeThumbnail(IImage? image)
-    {
-        if (image is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
-    }
-
-    [RelayCommand]
-    private void ZoomIn() => Zoom = Math.Min(8, Math.Round(Zoom + 0.25, 2));
-
-    [RelayCommand]
-    private void ZoomOut() => Zoom = Math.Max(0.25, Math.Round(Zoom - 0.25, 2));
-
-    [RelayCommand]
-    private void ResetZoom() => Zoom = 1;
-
-    [RelayCommand(CanExecute = nameof(HasAtlas))]
-    private void AddSlice()
-    {
-        if (AtlasBitmap is null)
-        {
-            return;
-        }
-
-        int width = AtlasBitmap.PixelSize.Width;
-        int height = AtlasBitmap.PixelSize.Height;
-        int size = Math.Min(TextureEditorConstants.CameoLargeWidth, Math.Min(width, height));
-        int left = Math.Max(0, (width - size) / 2);
-        int top = Math.Max(0, (height - size) / 2);
-        var definition = new MappedImageDefinition(
-            $"Slice{Slices.Count + 1}",
-            AtlasFileName,
-            width,
-            height,
-            left,
-            top,
-            left + size,
-            top + size);
-        var slice = new TextureSliceViewModel(definition);
-        slice.UpdateZoom(Zoom);
-        AddSlice(slice);
-        SelectedSlice = slice;
-    }
-
-    [RelayCommand]
-    private void DeleteSelectedSlice()
+    /// <inheritdoc />
+    protected override void OnCopy()
     {
         if (SelectedSlice is null)
         {
             return;
         }
 
-        SelectedSlice.PropertyChanged -= OnSlicePropertyChanged;
-        DisposeThumbnail(SelectedSlice.Thumbnail);
-        Slices.Remove(SelectedSlice);
-        SelectedSlice = Slices.FirstOrDefault();
+        _copiedSlice = SelectedSlice.ToDefinition();
+        _isCutOperation = false;
+        RefreshEditorCommands();
     }
 
-    [RelayCommand]
-    private void ApplyPreset(string preset)
+    /// <inheritdoc />
+    protected override void OnCut()
     {
         if (SelectedSlice is null)
         {
             return;
         }
 
-        (int width, int height) = preset switch
-        {
-            "60x48" => (TextureEditorConstants.CameoSmallWidth, TextureEditorConstants.CameoSmallHeight),
-            "32x32" => (TextureEditorConstants.HudButtonWidth, TextureEditorConstants.HudButtonHeight),
-            _ => (TextureEditorConstants.CameoLargeWidth, TextureEditorConstants.CameoLargeHeight),
-        };
-        SelectedSlice.Right = SelectedSlice.Left + width;
-        SelectedSlice.Bottom = SelectedSlice.Top + height;
+        _copiedSlice = SelectedSlice.ToDefinition();
+        _isCutOperation = true;
+        DeleteSlice(SelectedSlice);
+        MarkDirty();
+        RefreshEditorCommands();
     }
 
-    [RelayCommand]
-    private async Task OpenAtlasAsync()
+    /// <inheritdoc />
+    protected override Task OnPasteAsync(CancellationToken cancellationToken)
+    {
+        if (_copiedSlice is null || AtlasBitmap is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        InsertSliceCopy(_copiedSlice);
+        if (_isCutOperation)
+        {
+            _copiedSlice = null;
+            _isCutOperation = false;
+        }
+
+        MarkDirty();
+        RefreshEditorCommands();
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    protected override void OnDuplicate()
+    {
+        if (SelectedSlice is null || AtlasBitmap is null)
+        {
+            return;
+        }
+
+        InsertSliceCopy(SelectedSlice.ToDefinition());
+        MarkDirty();
+        RefreshEditorCommands();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDelete()
+    {
+        if (SelectedSlice is null)
+        {
+            return;
+        }
+
+        DeleteSlice(SelectedSlice);
+        MarkDirty();
+        RefreshEditorCommands();
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnNewDocumentAsync(CancellationToken cancellationToken)
+    {
+        if (!await ConfirmDiscardUnsavedAsync(cancellationToken).ConfigureAwait(true))
+        {
+            return;
+        }
+
+        ClearAtlas();
+        MarkSaved();
+        logger.LogInformation("Created new texture atlas document");
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnOpenFolderAsync(CancellationToken cancellationToken)
+    {
+        string? folder = await BrowseExplorerFolderAsync(cancellationToken).ConfigureAwait(true);
+        if (!string.IsNullOrEmpty(folder))
+        {
+            FileExplorer.Directory = folder;
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnOpenFileAsync(CancellationToken cancellationToken)
     {
         var topLevel = GetTopLevel();
         if (topLevel is null)
@@ -318,7 +324,7 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
             [
                 new FilePickerFileType(Localize("TextureEditor.Dialog.TextureFiles", "Texture files"))
                 {
-                    Patterns = ["*.tga", "*.dds", "*.png"],
+                    Patterns = TextureEditorConstants.TextureExtensions.Select(extension => "*" + extension).ToArray(),
                 },
             ],
         }).ConfigureAwait(true);
@@ -328,7 +334,150 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
             return;
         }
 
-        await LoadAtlasAsync(files[0].Path.LocalPath).ConfigureAwait(true);
+        await LoadAtlasAsync(files[0].Path.LocalPath, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnSaveAsync(CancellationToken cancellationToken)
+    {
+        if (AtlasBitmap is null || string.IsNullOrEmpty(AtlasPath))
+        {
+            return;
+        }
+
+        string path = _savedIniPath ?? DefaultIniPath;
+        BeginOperation();
+        try
+        {
+            if (await TryWriteMappedImagesAsync(path, cancellationToken).ConfigureAwait(true))
+            {
+                _savedIniPath = path;
+                MarkSaved();
+                Notifications.ShowSuccess(
+                    Localize("TextureEditor.Notify.SaveComplete.Title", "Slices saved"),
+                    Localize("TextureEditor.Notify.SaveComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                    NotificationDurations.Medium);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Slice save failed");
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.SaveFailed.Title", "Save failed"),
+                ex.Message,
+                NotificationDurations.Long);
+        }
+        finally
+        {
+            EndOperation();
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnSaveAsAsync(CancellationToken cancellationToken)
+    {
+        if (AtlasBitmap is null)
+        {
+            return;
+        }
+
+        var topLevel = GetTopLevel();
+        if (topLevel is null)
+        {
+            return;
+        }
+
+        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = Localize("TextureEditor.Dialog.SaveIni", "Save MappedImages INI"),
+            SuggestedFileName = Path.GetFileName(DefaultIniPath),
+            FileTypeChoices =
+            [
+                new FilePickerFileType(Localize("TextureEditor.Dialog.IniFiles", "INI files"))
+                {
+                    Patterns = [TextureEditorConstants.MappedImagesFilePattern],
+                },
+            ],
+        }).ConfigureAwait(true);
+
+        if (file is null)
+        {
+            return;
+        }
+
+        string path = file.Path.LocalPath;
+        BeginOperation();
+        try
+        {
+            if (await TryWriteMappedImagesAsync(path, cancellationToken).ConfigureAwait(true))
+            {
+                _savedIniPath = path;
+                MarkSaved();
+                Notifications.ShowSuccess(
+                    Localize("TextureEditor.Notify.SaveComplete.Title", "Slices saved"),
+                    Localize("TextureEditor.Notify.SaveComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                    NotificationDurations.Medium);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Slice save failed");
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.SaveFailed.Title", "Save failed"),
+                ex.Message,
+                NotificationDurations.Long);
+        }
+        finally
+        {
+            EndOperation();
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        if (!disposing)
+        {
+            return;
+        }
+
+        foreach (var slice in Slices)
+        {
+            slice.PropertyChanged -= OnSlicePropertyChanged;
+            DisposeThumbnail(slice.Thumbnail);
+        }
+
+        Slices.Clear();
+        AtlasBitmap?.Dispose();
+        AtlasBitmap = null;
+        base.Dispose(disposing);
+    }
+
+    partial void OnAtlasBitmapChanged(Bitmap? value)
+    {
+        HasDocument = value is not null;
+        AddSliceCommand.NotifyCanExecuteChanged();
+        ExportIniCommand.NotifyCanExecuteChanged();
+        ExportSheetCommand.NotifyCanExecuteChanged();
+        RefreshEditorCommands();
+    }
+
+    partial void OnSelectedSliceChanged(TextureSliceViewModel? value)
+    {
+        foreach (var slice in Slices)
+        {
+            slice.IsSelected = ReferenceEquals(slice, value);
+        }
+
+        RefreshEditorCommands();
     }
 
     [RelayCommand]
@@ -351,44 +500,115 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
             return;
         }
 
-        IsBusy = true;
+        string directory = folders[0].Path.LocalPath;
         try
         {
-            _registry.Clear();
-            var result = await _registry.ScanDirectoryAsync(folders[0].Path.LocalPath).ConfigureAwait(true);
-            RegistryImages.Clear();
-            foreach (var image in _registry.All)
+            await RunOperationAsync(async operationToken =>
             {
-                RegistryImages.Add(image);
-            }
+                var result = await registry.ScanDirectoryAsync(directory, operationToken).ConfigureAwait(true);
+                RefreshRegistryImages();
 
-            if (result.Success && result.Data is not null)
-            {
-                _notificationService.ShowSuccess(
-                    Localize("TextureEditor.Notify.ScanComplete.Title", "Scan complete"),
-                    Localize("TextureEditor.Notify.ScanComplete.Message", "Indexed {0} mapped images from {1} files.", result.Data.ImagesIndexed, result.Data.FilesScanned),
-                    NotificationDurations.Medium);
-                LoadSlicesForAtlas();
-            }
-            else
-            {
-                _notificationService.ShowError(
-                    Localize("TextureEditor.Notify.ScanFailed.Title", "Scan failed"),
-                    result.FirstError ?? Localize("TextureEditor.Notify.ScanFailed.Message", "Failed to scan MappedImages folder."),
-                    NotificationDurations.Long);
-            }
+                if (result.Success && result.Data is not null)
+                {
+                    Notifications.ShowSuccess(
+                        Localize("TextureEditor.Notify.ScanComplete.Title", "Scan complete"),
+                        Localize("TextureEditor.Notify.ScanComplete.Message", "Indexed {0} mapped images from {1} files.", result.Data.ImagesIndexed, result.Data.FilesScanned),
+                        NotificationDurations.Medium);
+                    if (Slices.Count == 0)
+                    {
+                        LoadSlicesForAtlas();
+                        MarkSaved();
+                    }
+                }
+                else
+                {
+                    Notifications.ShowError(
+                        Localize("TextureEditor.Notify.ScanFailed.Title", "Scan failed"),
+                        result.FirstError ?? Localize("TextureEditor.Notify.ScanFailed.Message", "Failed to scan MappedImages folder."),
+                        NotificationDurations.Long);
+                }
+            }).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Registry scan failed");
-            _notificationService.ShowError(
+            logger.LogError(ex, "Registry scan failed");
+            Notifications.ShowError(
                 Localize("TextureEditor.Notify.ScanFailed.Title", "Scan failed"),
                 ex.Message,
                 NotificationDurations.Long);
         }
-        finally
+    }
+
+    [RelayCommand]
+    private async Task AutoPackAsync()
+    {
+        var topLevel = GetTopLevel();
+        if (topLevel is null)
         {
-            IsBusy = false;
+            return;
+        }
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = Localize("TextureEditor.Dialog.PackFolder", "Select folder with loose images"),
+            AllowMultiple = false,
+        }).ConfigureAwait(true);
+
+        if (folders.Count == 0)
+        {
+            return;
+        }
+
+        if (!await ConfirmDiscardUnsavedAsync(CancellationToken.None).ConfigureAwait(true))
+        {
+            return;
+        }
+
+        string sourceDir = folders[0].Path.LocalPath;
+        try
+        {
+            await RunOperationAsync(async operationToken =>
+            {
+                var request = new TextureAtlasBuildRequest(
+                    sourceDir,
+                    Path.Combine(sourceDir, TextureEditorConstants.PackedAtlasTextureFileName),
+                    Path.Combine(sourceDir, TextureEditorConstants.PackedAtlasIniFileName));
+                var built = await packingService.BuildAtlasAsync(request, imageLoader, operationToken).ConfigureAwait(true);
+                if (built.Failed || built.Data is null)
+                {
+                    Notifications.ShowError(
+                        Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
+                        built.FirstError ?? string.Empty,
+                        NotificationDurations.Long);
+                    return;
+                }
+
+                if (!await ConfirmOverwriteAsync(request, operationToken).ConfigureAwait(true))
+                {
+                    return;
+                }
+
+                await AtomicFile.WriteAllBytesAsync(request.TargetTexture, built.Data.TextureBytes, operationToken).ConfigureAwait(true);
+                await AtomicFile.WriteAllTextAsync(request.TargetIni, built.Data.IniContent, operationToken).ConfigureAwait(true);
+                OpenDecodedAtlas(built.Data.Sheet, request.TargetTexture);
+                ReplaceSlices(built.Data.MappedImages);
+                registry.ImportDefinitions(built.Data.MappedImages);
+                RefreshRegistryImages();
+                FileExplorer.CurrentPath = request.TargetTexture;
+                MarkSaved();
+                Notifications.ShowSuccess(
+                    Localize("TextureEditor.Notify.PackComplete.Title", "Atlas packed"),
+                    Localize("TextureEditor.Notify.PackComplete.Message", "Packed {0} sprites into a {1}x{2} sheet.", built.Data.MappedImages.Count, built.Data.Sheet.Width, built.Data.Sheet.Height),
+                    NotificationDurations.Medium);
+            }).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Auto-pack failed");
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
+                ex.Message,
+                NotificationDurations.Long);
         }
     }
 
@@ -409,12 +629,12 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = Localize("TextureEditor.Dialog.ExportIni", "Export MappedImages INI"),
-            SuggestedFileName = Path.GetFileNameWithoutExtension(AtlasPath) + ".ini",
+            SuggestedFileName = Path.GetFileNameWithoutExtension(AtlasPath) + TextureEditorConstants.MappedImagesExtension,
             FileTypeChoices =
             [
                 new FilePickerFileType(Localize("TextureEditor.Dialog.IniFiles", "INI files"))
                 {
-                    Patterns = ["*.ini"],
+                    Patterns = [TextureEditorConstants.MappedImagesFilePattern],
                 },
             ],
         }).ConfigureAwait(true);
@@ -424,7 +644,28 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
             return;
         }
 
-        await ExportIniToPathAsync(file.Path.LocalPath).ConfigureAwait(true);
+        string path = file.Path.LocalPath;
+        try
+        {
+            await RunOperationAsync(async operationToken =>
+            {
+                if (await TryWriteMappedImagesAsync(path, operationToken).ConfigureAwait(true))
+                {
+                    Notifications.ShowSuccess(
+                        Localize("TextureEditor.Notify.ExportComplete.Title", "Export complete"),
+                        Localize("TextureEditor.Notify.ExportComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                        NotificationDurations.Medium);
+                }
+            }).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "INI export failed");
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.ExportFailed.Title", "Export failed"),
+                ex.Message,
+                NotificationDurations.Long);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(HasAtlas))]
@@ -463,148 +704,255 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
             return;
         }
 
-        IsBusy = true;
+        string path = file.Path.LocalPath;
         try
         {
-            string path = file.Path.LocalPath;
-            var saved = Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase)
-                ? await _bitmapService.SavePngAsync(_atlasDecoded, path).ConfigureAwait(true)
-                : await _bitmapService.SaveTgaAsync(_atlasDecoded, path).ConfigureAwait(true);
+            await RunOperationAsync(async operationToken =>
+            {
+                var saved = Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase)
+                    ? await bitmapService.SavePngAsync(_atlasDecoded, path, operationToken).ConfigureAwait(true)
+                    : await bitmapService.SaveTgaAsync(_atlasDecoded, path, operationToken).ConfigureAwait(true);
 
-            if (saved.Success)
-            {
-                _notificationService.ShowSuccess(
-                    Localize("TextureEditor.Notify.ExportComplete.Title", "Export complete"),
-                    Localize("TextureEditor.Notify.ExportComplete.Message", "Saved {0}.", Path.GetFileName(path)),
-                    NotificationDurations.Medium);
-            }
-            else
-            {
-                _notificationService.ShowError(
-                    Localize("TextureEditor.Notify.ExportFailed.Title", "Export failed"),
-                    saved.FirstError ?? string.Empty,
-                    NotificationDurations.Long);
-            }
+                if (saved.Success)
+                {
+                    Notifications.ShowSuccess(
+                        Localize("TextureEditor.Notify.ExportComplete.Title", "Export complete"),
+                        Localize("TextureEditor.Notify.ExportComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                        NotificationDurations.Medium);
+                }
+                else
+                {
+                    Notifications.ShowError(
+                        Localize("TextureEditor.Notify.ExportFailed.Title", "Export failed"),
+                        saved.FirstError ?? string.Empty,
+                        NotificationDurations.Long);
+                }
+            }).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sheet export failed");
-            _notificationService.ShowError(
+            logger.LogError(ex, "Sheet export failed");
+            Notifications.ShowError(
                 Localize("TextureEditor.Notify.ExportFailed.Title", "Export failed"),
                 ex.Message,
                 NotificationDurations.Long);
         }
-        finally
+    }
+
+    [RelayCommand(CanExecute = nameof(HasAtlas))]
+    private void AddSlice()
+    {
+        if (AtlasBitmap is null)
         {
-            IsBusy = false;
+            return;
         }
+
+        var slice = new TextureSliceViewModel(new MappedImageDefinition(
+            UniqueSliceName($"Slice{Slices.Count + 1}"),
+            AtlasFileName,
+            AtlasBitmap.PixelSize.Width,
+            AtlasBitmap.PixelSize.Height,
+            0,
+            0,
+            Math.Min(64, AtlasBitmap.PixelSize.Width),
+            Math.Min(64, AtlasBitmap.PixelSize.Height)));
+        slice.UpdateZoom(Zoom);
+        TrackSlice(slice);
+        SelectedSlice = slice;
+        MarkDirty();
     }
 
     [RelayCommand]
-    private async Task AutoPackAsync()
+    private void ApplyPreset(string? preset)
+    {
+        if (SelectedSlice is null)
+        {
+            return;
+        }
+
+        var (width, height) = preset switch
+        {
+            "64x64" => (64, 64),
+            "128x128" => (128, 128),
+            "256x256" => (256, 256),
+            "fill-x" => (AtlasPixelWidth - SelectedSlice.Left, SelectedSlice.Height),
+            "fill-y" => (SelectedSlice.Width, AtlasPixelHeight - SelectedSlice.Top),
+            "fill" => (AtlasPixelWidth - SelectedSlice.Left, AtlasPixelHeight - SelectedSlice.Top),
+            _ => (SelectedSlice.Width, SelectedSlice.Height),
+        };
+
+        SelectedSlice.Right = SelectedSlice.Left + width;
+        SelectedSlice.Bottom = SelectedSlice.Top + height;
+    }
+
+    private FileExplorerViewModel CreateFileExplorer()
+    {
+        var explorer = new FileExplorerViewModel(logger);
+        explorer.FilePatterns = TextureEditorConstants.ExplorerFilePatterns;
+        explorer.ShowFileExtensions = true;
+        explorer.ExcludedDirectoryNames = [ModBuilderConstants.DefaultBuildDir, ModBuilderConstants.DefaultReleaseDir];
+        explorer.BrowseFolderAsync = BrowseExplorerFolderAsync;
+        explorer.FileActivated += OnExplorerFileActivated;
+        return explorer;
+    }
+
+    private async Task<string?> BrowseExplorerFolderAsync(CancellationToken cancellationToken)
     {
         var topLevel = GetTopLevel();
         if (topLevel is null)
         {
-            return;
+            return null;
         }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = Localize("TextureEditor.Dialog.PackFolder", "Select folder with loose images"),
+            Title = Localize("TextureEditor.Dialog.ExplorerFolder", "Select project folder"),
             AllowMultiple = false,
         }).ConfigureAwait(true);
-
         if (folders.Count == 0)
+        {
+            return null;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return folders[0].TryGetLocalPath();
+    }
+
+    private void OnExplorerFileActivated(object? sender, EditorFileTreeNodeViewModel node)
+    {
+        if (node.IsDirectory)
         {
             return;
         }
 
-        IsBusy = true;
-        try
+        string extension = Path.GetExtension(node.FullPath);
+        if (extension.Equals(TextureEditorConstants.MappedImagesExtension, StringComparison.OrdinalIgnoreCase))
         {
-            string sourceDir = folders[0].Path.LocalPath;
-            var request = new TextureAtlasBuildRequest(
-                sourceDir,
-                Path.Combine(sourceDir, "PackedAtlas.tga"),
-                Path.Combine(sourceDir, "PackedAtlas.ini"));
-            var built = await _packingService.BuildAtlasAsync(request, _imageLoader).ConfigureAwait(true);
-            if (built.Failed || built.Data is null)
-            {
-                _notificationService.ShowError(
-                    Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
-                    built.FirstError ?? string.Empty,
-                    NotificationDurations.Long);
-                return;
-            }
+            _ = ImportIniFileAsync(node.FullPath);
+            return;
+        }
 
-            await File.WriteAllBytesAsync(request.TargetTexture, built.Data.TextureBytes).ConfigureAwait(true);
-            await File.WriteAllTextAsync(request.TargetIni, built.Data.IniContent).ConfigureAwait(true);
-            OpenDecodedAtlas(built.Data.Sheet, request.TargetTexture);
-            ReplaceSlices(built.Data.MappedImages);
-            _notificationService.ShowSuccess(
-                Localize("TextureEditor.Notify.PackComplete.Title", "Atlas packed"),
-                Localize("TextureEditor.Notify.PackComplete.Message", "Packed {0} sprites into a {1}x{2} sheet.", built.Data.MappedImages.Count, built.Data.Sheet.Width, built.Data.Sheet.Height),
-                NotificationDurations.Medium);
-        }
-        catch (Exception ex)
+        if (TextureEditorConstants.TextureExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
         {
-            _logger.LogError(ex, "Auto-pack failed");
-            _notificationService.ShowError(
-                Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
-                ex.Message,
-                NotificationDurations.Long);
-        }
-        finally
-        {
-            IsBusy = false;
+            _ = LoadAtlasAsync(node.FullPath, CancellationToken.None);
         }
     }
 
-    private string Localize(string key, string fallback, params object?[] args)
+    private async Task LoadAtlasAsync(string path, CancellationToken cancellationToken)
     {
-        string template = _localizationService?.GetString(key) ?? fallback;
-        return args.Length == 0 ? template : string.Format(template, args);
-    }
+        if (!await ConfirmDiscardUnsavedAsync(cancellationToken).ConfigureAwait(true))
+        {
+            return;
+        }
 
-    private async Task LoadAtlasAsync(string path)
-    {
-        IsBusy = true;
         try
         {
-            var decoded = await _bitmapService.LoadDecodedAsync(path).ConfigureAwait(true);
-            if (decoded.Failed || decoded.Data is null)
+            await RunOperationAsync(async operationToken =>
             {
-                _notificationService.ShowError(
-                    Localize("TextureEditor.Notify.OpenFailed.Title", "Failed to open atlas"),
-                    decoded.FirstError ?? string.Empty,
-                    NotificationDurations.Long);
-                return;
-            }
+                var decoded = await bitmapService.LoadDecodedAsync(path, operationToken).ConfigureAwait(true);
+                if (decoded.Failed || decoded.Data is null)
+                {
+                    Notifications.ShowError(
+                        Localize("TextureEditor.Notify.OpenFailed.Title", "Failed to open atlas"),
+                        decoded.FirstError ?? string.Empty,
+                        NotificationDurations.Long);
+                    return;
+                }
 
-            OpenDecodedAtlas(decoded.Data, path);
-            LoadSlicesForAtlas();
+                OpenDecodedAtlas(decoded.Data, path);
+                await ImportSiblingIniAsync(path, operationToken).ConfigureAwait(true);
+                LoadSlicesForAtlas();
+                FileExplorer.CurrentPath = path;
+                MarkSaved();
+            }).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to open atlas {Path}", path);
-            _notificationService.ShowError(
+            logger.LogError(ex, "Failed to open atlas {Path}", path);
+            Notifications.ShowError(
                 Localize("TextureEditor.Notify.OpenFailed.Title", "Failed to open atlas"),
                 ex.Message,
                 NotificationDurations.Long);
         }
-        finally
+    }
+
+    private async Task ImportSiblingIniAsync(string atlasPath, CancellationToken cancellationToken)
+    {
+        string sibling = Path.Combine(
+            Path.GetDirectoryName(atlasPath) ?? string.Empty,
+            Path.GetFileNameWithoutExtension(atlasPath) + TextureEditorConstants.MappedImagesExtension);
+        if (!File.Exists(sibling))
         {
-            IsBusy = false;
+            return;
+        }
+
+        var parsed = await parser.ParseFileAsync(sibling, cancellationToken).ConfigureAwait(true);
+        if (parsed.Data is null || parsed.Data.Count == 0)
+        {
+            logger.LogWarning("Sibling INI {Path} holds no mapped images: {Error}", sibling, parsed.FirstError ?? "unknown");
+            return;
+        }
+
+        registry.ImportDefinitions(parsed.Data);
+        RefreshRegistryImages();
+    }
+
+    private async Task ImportIniFileAsync(string path)
+    {
+        try
+        {
+            await RunOperationAsync(async operationToken =>
+            {
+                var parsed = await parser.ParseFileAsync(path, operationToken).ConfigureAwait(true);
+                if (parsed.Data is null || parsed.Data.Count == 0)
+                {
+                    Notifications.ShowError(
+                        Localize("TextureEditor.Notify.ImportFailed.Title", "Import failed"),
+                        parsed.FirstError ?? Localize("TextureEditor.Notify.ImportFailed.Message", "No mapped images found."),
+                        NotificationDurations.Long);
+                    return;
+                }
+
+                registry.ImportDefinitions(parsed.Data);
+                RefreshRegistryImages();
+                if (AtlasBitmap is not null && Slices.Count == 0)
+                {
+                    LoadSlicesForAtlas();
+                    MarkSaved();
+                }
+
+                FileExplorer.CurrentPath = path;
+                Notifications.ShowSuccess(
+                    Localize("TextureEditor.Notify.ImportComplete.Title", "Import complete"),
+                    Localize("TextureEditor.Notify.ImportComplete.Message", "Imported {0} mapped images from {1}.", parsed.Data.Count, Path.GetFileName(path)),
+                    NotificationDurations.Medium);
+            }).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "INI import failed for {Path}", path);
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.ImportFailed.Title", "Import failed"),
+                ex.Message,
+                NotificationDurations.Long);
+        }
+    }
+
+    private void RefreshRegistryImages()
+    {
+        RegistryImages.Clear();
+        foreach (var image in registry.All)
+        {
+            RegistryImages.Add(image);
         }
     }
 
     private void OpenDecodedAtlas(DecodedTexture decoded, string path)
     {
-        var bitmap = _bitmapService.ToBitmap(decoded);
+        var bitmap = bitmapService.ToBitmap(decoded);
         if (bitmap.Failed || bitmap.Data is null)
         {
-            _notificationService.ShowError(
+            Notifications.ShowError(
                 Localize("TextureEditor.Notify.OpenFailed.Title", "Failed to open atlas"),
                 bitmap.FirstError ?? string.Empty,
                 NotificationDurations.Long);
@@ -627,7 +975,7 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
             return;
         }
 
-        var matches = _registry.GetByTexture(AtlasFileName);
+        var matches = registry.GetByTexture(AtlasFileName);
         if (matches.Count == 0)
         {
             return;
@@ -648,18 +996,72 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
         foreach (var definition in definitions)
         {
             var slice = new TextureSliceViewModel(definition);
+            if (AtlasBitmap is not null)
+            {
+                slice.UpdateTexture(AtlasFileName, AtlasBitmap.PixelSize.Width, AtlasBitmap.PixelSize.Height);
+            }
+
             slice.UpdateZoom(Zoom);
-            AddSlice(slice);
+            TrackSlice(slice);
         }
 
         SelectedSlice = Slices.FirstOrDefault();
     }
 
-    private void AddSlice(TextureSliceViewModel slice)
+    private void TrackSlice(TextureSliceViewModel slice)
     {
         slice.PropertyChanged += OnSlicePropertyChanged;
         slice.Thumbnail = CreateThumbnail(slice);
         Slices.Add(slice);
+    }
+
+    private void DeleteSlice(TextureSliceViewModel slice)
+    {
+        slice.PropertyChanged -= OnSlicePropertyChanged;
+        DisposeThumbnail(slice.Thumbnail);
+        Slices.Remove(slice);
+        if (ReferenceEquals(SelectedSlice, slice))
+        {
+            SelectedSlice = Slices.FirstOrDefault();
+        }
+    }
+
+    private void InsertSliceCopy(MappedImageDefinition source)
+    {
+        if (AtlasBitmap is null)
+        {
+            return;
+        }
+
+        int width = source.Right - source.Left;
+        int height = source.Bottom - source.Top;
+        int left = Math.Clamp(source.Left + TextureEditorConstants.PasteOffset, 0, Math.Max(0, AtlasBitmap.PixelSize.Width - width));
+        int top = Math.Clamp(source.Top + TextureEditorConstants.PasteOffset, 0, Math.Max(0, AtlasBitmap.PixelSize.Height - height));
+        var slice = new TextureSliceViewModel(new MappedImageDefinition(
+            UniqueSliceName(source.Name + TextureEditorConstants.DuplicateNameSuffix),
+            AtlasFileName,
+            AtlasBitmap.PixelSize.Width,
+            AtlasBitmap.PixelSize.Height,
+            left,
+            top,
+            left + width,
+            top + height));
+        slice.UpdateZoom(Zoom);
+        TrackSlice(slice);
+        SelectedSlice = slice;
+    }
+
+    private string UniqueSliceName(string baseName)
+    {
+        string candidate = baseName;
+        int counter = 2;
+        while (Slices.Any(slice => slice.Name.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
+        {
+            candidate = $"{baseName}{counter}";
+            counter++;
+        }
+
+        return candidate;
     }
 
     private void ClearAtlas()
@@ -676,44 +1078,54 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
         AtlasBitmap = null;
         _atlasDecoded = null;
         AtlasPath = string.Empty;
+        _savedIniPath = null;
+        _copiedSlice = null;
+        _isCutOperation = false;
     }
 
-    private async Task ExportIniToPathAsync(string path)
+    private async Task<bool> TryWriteMappedImagesAsync(string path, CancellationToken cancellationToken)
     {
-        IsBusy = true;
-        try
+        var invalid = Slices.FirstOrDefault(slice => !slice.IsWithinTexture);
+        if (invalid is not null)
         {
-            var invalid = Slices.FirstOrDefault(slice => !slice.IsWithinTexture);
-            if (invalid is not null)
-            {
-                _logger.LogWarning("INI export aborted: slice {Slice} is outside the texture bounds", invalid.Name);
-                _notificationService.ShowError(
-                    Localize("TextureEditor.Notify.ExportInvalid.Title", "Cannot export slices"),
-                    Localize("TextureEditor.Notify.ExportInvalid.Message", "Slice '{0}' extends outside the texture bounds.", invalid.Name),
-                    NotificationDurations.Long);
-                return;
-            }
-
-            var definitions = Slices.Select(slice => slice.ToDefinition()).ToList();
-            string content = _parser.Serialize(definitions, $"Generated by GenHub {TextureEditorConstants.ToolName} from {AtlasFileName}");
-            await File.WriteAllTextAsync(path, content).ConfigureAwait(true);
-            _notificationService.ShowSuccess(
-                Localize("TextureEditor.Notify.ExportComplete.Title", "Export complete"),
-                Localize("TextureEditor.Notify.ExportComplete.Message", "Saved {0}.", Path.GetFileName(path)),
-                NotificationDurations.Medium);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "INI export failed");
-            _notificationService.ShowError(
-                Localize("TextureEditor.Notify.ExportFailed.Title", "Export failed"),
-                ex.Message,
+            logger.LogWarning("INI save aborted: slice {Slice} is outside the texture bounds", invalid.Name);
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.ExportInvalid.Title", "Cannot export slices"),
+                Localize("TextureEditor.Notify.ExportInvalid.Message", "Slice '{0}' extends outside the texture bounds.", invalid.Name),
                 NotificationDurations.Long);
+            return false;
         }
-        finally
+
+        var definitions = Slices.Select(slice => slice.ToDefinition()).ToList();
+        string content = parser.Serialize(definitions, $"Generated by GenHub {TextureEditorConstants.ToolName} from {AtlasFileName}");
+        await AtomicFile.WriteAllTextAsync(path, content, cancellationToken).ConfigureAwait(true);
+        return true;
+    }
+
+    private async Task<bool> ConfirmOverwriteAsync(TextureAtlasBuildRequest request, CancellationToken cancellationToken)
+    {
+        var existing = new List<string>();
+        if (File.Exists(request.TargetTexture))
         {
-            IsBusy = false;
+            existing.Add(Path.GetFileName(request.TargetTexture));
         }
+
+        if (File.Exists(request.TargetIni))
+        {
+            existing.Add(Path.GetFileName(request.TargetIni));
+        }
+
+        if (existing.Count == 0)
+        {
+            return true;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return await Dialogs.ShowConfirmationAsync(
+            Localize("TextureEditor.Dialog.Overwrite.Title", "Overwrite packed atlas?"),
+            Localize("TextureEditor.Dialog.Overwrite.Message", "{0} already exist. Overwrite them?", string.Join(", ", existing)),
+            Localize("TextureEditor.Dialog.Overwrite.Confirm", "Overwrite"),
+            Localize("TextureEditor.Dialog.Overwrite.Cancel", "Cancel")).ConfigureAwait(true);
     }
 
     private void OnSlicePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -723,30 +1135,50 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
             return;
         }
 
-        if (e.PropertyName is nameof(TextureSliceViewModel.Left) or nameof(TextureSliceViewModel.Top) or nameof(TextureSliceViewModel.Right) or nameof(TextureSliceViewModel.Bottom))
+        if (e.PropertyName is nameof(TextureSliceViewModel.Left) or nameof(TextureSliceViewModel.Top) or nameof(TextureSliceViewModel.Right) or nameof(TextureSliceViewModel.Bottom) or nameof(TextureSliceViewModel.Name))
         {
             DisposeThumbnail(slice.Thumbnail);
             slice.Thumbnail = CreateThumbnail(slice);
+            MarkDirty();
         }
     }
 
-    private IImage? CreateThumbnail(TextureSliceViewModel slice)
+    private Avalonia.Media.IImage? CreatePickerThumbnail(MappedImageDefinition definition)
+    {
+        if (AtlasBitmap is null || !definition.TextureFileName.Equals(AtlasFileName, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var slice = new TextureSliceViewModel(definition);
+        slice.UpdateZoom(1.0);
+        return CreateThumbnail(slice);
+    }
+
+    private Avalonia.Media.IImage? CreateThumbnail(TextureSliceViewModel slice)
     {
         if (AtlasBitmap is null)
         {
             return null;
         }
 
-        return TextureBitmapService.Crop(AtlasBitmap, slice.Left, slice.Top, slice.Width, slice.Height);
-    }
-
-    private IImage? CreatePickerThumbnail(MappedImageDefinition definition)
-    {
-        if (AtlasBitmap is null || !string.Equals(definition.TextureFileName, AtlasFileName, StringComparison.OrdinalIgnoreCase))
+        int left = Math.Clamp(slice.Left, 0, AtlasBitmap.PixelSize.Width);
+        int top = Math.Clamp(slice.Top, 0, AtlasBitmap.PixelSize.Height);
+        int right = Math.Clamp(slice.Right, left, AtlasBitmap.PixelSize.Width);
+        int bottom = Math.Clamp(slice.Bottom, top, AtlasBitmap.PixelSize.Height);
+        if (right <= left || bottom <= top)
         {
             return null;
         }
 
-        return TextureBitmapService.Crop(AtlasBitmap, definition.Left, definition.Top, definition.Width, definition.Height);
+        return new CroppedBitmap(AtlasBitmap, new PixelRect(left, top, right - left, bottom - top));
+    }
+
+    private void DisposeThumbnail(Avalonia.Media.IImage? thumbnail)
+    {
+        if (thumbnail is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
     }
 }

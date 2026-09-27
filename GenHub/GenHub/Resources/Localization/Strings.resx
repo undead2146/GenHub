@@ -7563,15 +7563,6 @@ GenHub supports four file linking strategies under **Settings -&gt; Game Configu
   <data name="Tools.WndEditor.Files.NoWndFilesMessage" xml:space="preserve">
     <value>No window definition (.wnd) files found in the selected folder.</value>
   </data>
-  <data name="Tools.WndEditor.Files.Browse" xml:space="preserve">
-    <value>Browse...</value>
-  </data>
-  <data name="Tools.WndEditor.Files.OpenBadge" xml:space="preserve">
-    <value>Open</value>
-  </data>
-  <data name="Tools.WndEditor.Files.Refresh" xml:space="preserve">
-    <value>Refresh</value>
-  </data>
   <data name="Tools.WndEditor.General.Callbacks.Draw" xml:space="preserve">
     <value>Draw</value>
   </data>
@@ -14747,4 +14738,127 @@ How do you want to apply this update?</value>
     <value>Edit in Texture Editor</value>
   </data>
 
+  <data name="Common.Editors.Files.Browse" xml:space="preserve">
+    <value>Browse</value>
+  </data>
+  <data name="Common.Editors.Files.Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Common.Editors.Files.ExpandAll" xml:space="preserve">
+    <value>Expand all</value>
+  </data>
+  <data name="Common.Editors.Files.CollapseAll" xml:space="preserve">
+    <value>Collapse all</value>
+  </data>
+  <data name="Common.Editors.Files.OpenBadge" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Title" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Message" xml:space="preserve">
+    <value>Discard unsaved changes?</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Discard" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Cut" xml:space="preserve">
+    <value>Cut</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Duplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Tools.WndEditor.Tree.Duplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="Tools.WndEditor.History.DuplicateWindow" xml:space="preserve">
+    <value>Duplicate window</value>
+  </data>
+  <data name="Tools.WndEditor.History.PasteWindow" xml:space="preserve">
+    <value>Paste window</value>
+  </data>
+  <data name="Tools.WndEditor.History.CutWindow" xml:space="preserve">
+    <value>Cut window</value>
+  </data>
+  <data name="TextureEditor.Tab.Files" xml:space="preserve">
+    <value>Files</value>
+  </data>
+  <data name="TextureEditor.Button.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="TextureEditor.Button.SaveAs" xml:space="preserve">
+    <value>Save As</value>
+  </data>
+  <data name="TextureEditor.Button.Duplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="TextureEditor.Tooltip.Save" xml:space="preserve">
+    <value>Save slices (Ctrl+S)</value>
+  </data>
+  <data name="TextureEditor.Tooltip.SaveAs" xml:space="preserve">
+    <value>Save slices under a new path</value>
+  </data>
+  <data name="TextureEditor.Tooltip.DuplicateSlice" xml:space="preserve">
+    <value>Duplicate selected slice</value>
+  </data>
+  <data name="TextureEditor.Dialog.SaveIni" xml:space="preserve">
+    <value>Save MappedImages INI</value>
+  </data>
+  <data name="TextureEditor.Dialog.ExplorerFolder" xml:space="preserve">
+    <value>Select project folder</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Title" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Message" xml:space="preserve">
+    <value>Discard unsaved slice changes?</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Discard" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Title" xml:space="preserve">
+    <value>Overwrite packed atlas?</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Message" xml:space="preserve">
+    <value>{0} already exist. Overwrite them?</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Confirm" xml:space="preserve">
+    <value>Overwrite</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="TextureEditor.Notify.SaveComplete.Title" xml:space="preserve">
+    <value>Slices saved</value>
+  </data>
+  <data name="TextureEditor.Notify.SaveComplete.Message" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="TextureEditor.Notify.SaveFailed.Title" xml:space="preserve">
+    <value>Save failed</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportComplete.Title" xml:space="preserve">
+    <value>Import complete</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportComplete.Message" xml:space="preserve">
+    <value>Imported {0} mapped images from {1}.</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportFailed.Title" xml:space="preserve">
+    <value>Import failed</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportFailed.Message" xml:space="preserve">
+    <value>No mapped images found.</value>
+  </data>
 </root>

@@ -46,6 +46,12 @@ public interface IMappedImageRegistry
     IReadOnlyList<MappedImageDefinition> GetByTexture(string textureFileName);
 
     /// <summary>
+    /// Imports parsed entries, overwriting same-named entries like a later SAGE load tier.
+    /// </summary>
+    /// <param name="images">The entries to import.</param>
+    void ImportDefinitions(IEnumerable<MappedImageDefinition> images);
+
+    /// <summary>
     /// Removes all indexed entries.
     /// </summary>
     void Clear();

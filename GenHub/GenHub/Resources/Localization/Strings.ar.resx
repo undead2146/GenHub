@@ -7465,15 +7465,6 @@ GenHub هو مشغل ومدير حديث لألعاب **Command &amp; Conquer: G
   <data name="Tools.WndEditor.Files.NoWndFilesMessage" xml:space="preserve">
     <value>لم يتم العثور على ملفات تعريف النوافذ (.wnd) في المجلد المحدد.</value>
   </data>
-  <data name="Tools.WndEditor.Files.Browse" xml:space="preserve">
-    <value>تصفح...</value>
-  </data>
-  <data name="Tools.WndEditor.Files.OpenBadge" xml:space="preserve">
-    <value>مفتوح</value>
-  </data>
-  <data name="Tools.WndEditor.Files.Refresh" xml:space="preserve">
-    <value>تحديث</value>
-  </data>
   <data name="Tools.WndEditor.General.Callbacks.Draw" xml:space="preserve">
     <value>الرسم</value>
   </data>
@@ -14649,4 +14640,127 @@ GameFilesEdited/Data/INI/**/*.ini</value>
     <value>تحرير في محرر القوام</value>
   </data>
 
+  <data name="Common.Editors.Files.Browse" xml:space="preserve">
+    <value>تصفح</value>
+  </data>
+  <data name="Common.Editors.Files.Refresh" xml:space="preserve">
+    <value>تحديث</value>
+  </data>
+  <data name="Common.Editors.Files.ExpandAll" xml:space="preserve">
+    <value>توسيع الكل</value>
+  </data>
+  <data name="Common.Editors.Files.CollapseAll" xml:space="preserve">
+    <value>طي الكل</value>
+  </data>
+  <data name="Common.Editors.Files.OpenBadge" xml:space="preserve">
+    <value>مفتوح</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Title" xml:space="preserve">
+    <value>تغييرات غير محفوظة</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Message" xml:space="preserve">
+    <value>تجاهل التغييرات غير المحفوظة؟</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Discard" xml:space="preserve">
+    <value>تجاهل</value>
+  </data>
+  <data name="Common.Editors.UnsavedChanges.Cancel" xml:space="preserve">
+    <value>إلغاء</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Copy" xml:space="preserve">
+    <value>نسخ</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Cut" xml:space="preserve">
+    <value>قص</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Duplicate" xml:space="preserve">
+    <value>تكرار</value>
+  </data>
+  <data name="Tools.WndEditor.Toolbar.Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="Tools.WndEditor.Tree.Duplicate" xml:space="preserve">
+    <value>تكرار</value>
+  </data>
+  <data name="Tools.WndEditor.History.DuplicateWindow" xml:space="preserve">
+    <value>تكرار النافذة</value>
+  </data>
+  <data name="Tools.WndEditor.History.PasteWindow" xml:space="preserve">
+    <value>لصق النافذة</value>
+  </data>
+  <data name="Tools.WndEditor.History.CutWindow" xml:space="preserve">
+    <value>قص النافذة</value>
+  </data>
+  <data name="TextureEditor.Tab.Files" xml:space="preserve">
+    <value>الملفات</value>
+  </data>
+  <data name="TextureEditor.Button.Save" xml:space="preserve">
+    <value>حفظ</value>
+  </data>
+  <data name="TextureEditor.Button.SaveAs" xml:space="preserve">
+    <value>حفظ باسم</value>
+  </data>
+  <data name="TextureEditor.Button.Duplicate" xml:space="preserve">
+    <value>تكرار</value>
+  </data>
+  <data name="TextureEditor.Tooltip.Save" xml:space="preserve">
+    <value>حفظ الشرائح (Ctrl+S)</value>
+  </data>
+  <data name="TextureEditor.Tooltip.SaveAs" xml:space="preserve">
+    <value>حفظ الشرائح تحت مسار جديد</value>
+  </data>
+  <data name="TextureEditor.Tooltip.DuplicateSlice" xml:space="preserve">
+    <value>تكرار الشريحة المحددة</value>
+  </data>
+  <data name="TextureEditor.Dialog.SaveIni" xml:space="preserve">
+    <value>حفظ ملف MappedImages INI</value>
+  </data>
+  <data name="TextureEditor.Dialog.ExplorerFolder" xml:space="preserve">
+    <value>اختيار مجلد المشروع</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Title" xml:space="preserve">
+    <value>تغييرات غير محفوظة</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Message" xml:space="preserve">
+    <value>تجاهل تغييرات الشرائح غير المحفوظة؟</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Discard" xml:space="preserve">
+    <value>تجاهل</value>
+  </data>
+  <data name="TextureEditor.Dialog.UnsavedChanges.Cancel" xml:space="preserve">
+    <value>إلغاء</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Title" xml:space="preserve">
+    <value>استبدال الأطلس المضغوط؟</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Message" xml:space="preserve">
+    <value>{0} موجودة مسبقاً. هل تريد استبدالها؟</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Confirm" xml:space="preserve">
+    <value>استبدال</value>
+  </data>
+  <data name="TextureEditor.Dialog.Overwrite.Cancel" xml:space="preserve">
+    <value>إلغاء</value>
+  </data>
+  <data name="TextureEditor.Notify.SaveComplete.Title" xml:space="preserve">
+    <value>تم حفظ الشرائح</value>
+  </data>
+  <data name="TextureEditor.Notify.SaveComplete.Message" xml:space="preserve">
+    <value>تم حفظ {0}.</value>
+  </data>
+  <data name="TextureEditor.Notify.SaveFailed.Title" xml:space="preserve">
+    <value>فشل الحفظ</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportComplete.Title" xml:space="preserve">
+    <value>اكتمل الاستيراد</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportComplete.Message" xml:space="preserve">
+    <value>تم استيراد {0} صورة معينة من {1}.</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportFailed.Title" xml:space="preserve">
+    <value>فشل الاستيراد</value>
+  </data>
+  <data name="TextureEditor.Notify.ImportFailed.Message" xml:space="preserve">
+    <value>لم يتم العثور على صور معينة.</value>
+  </data>
 </root>

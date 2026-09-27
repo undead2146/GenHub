@@ -247,6 +247,73 @@ public sealed class SageTextureCodecTests
     }
 
     /// <summary>
+    /// Verifies that dimensions decode from the true DDS_HEADER offsets, pinning the layout
+    /// against real files instead of only the shared test builder.
+    /// </summary>
+    [Fact]
+    public void Decode_UncompressedDds_ReadsSpecHeaderOffsets()
+    {
+        var data = new byte[4 + 124 + 8];
+        data[0] = (byte)'D';
+        data[1] = (byte)'D';
+        data[2] = (byte)'S';
+        data[3] = (byte)' ';
+        WriteInt32(data, 4, 124);
+        WriteInt32(data, 4 + 8, 1);
+        WriteInt32(data, 4 + 12, 2);
+        WriteInt32(data, 4 + 72, 32);
+        WriteInt32(data, 4 + 76, 0x41);
+        WriteInt32(data, 4 + 84, 32);
+        WriteInt32(data, 4 + 88, unchecked((int)0x00FF0000));
+        data[4 + 124] = 10;
+        data[4 + 125] = 20;
+        data[4 + 126] = 30;
+        data[4 + 127] = 40;
+        data[4 + 128] = 50;
+        data[4 + 129] = 60;
+        data[4 + 130] = 70;
+        data[4 + 131] = 80;
+
+        var result = _codec.Decode(data, ".dds", "spec");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(2, result.Data.Width);
+        Assert.Equal(1, result.Data.Height);
+        Assert.Equal([30, 20, 10, 40, 70, 60, 50, 80], result.Data.PixelData);
+    }
+
+    /// <summary>
+    /// Verifies that R8G8B8A8-layout DDS files decode without swapping red and blue channels.
+    /// </summary>
+    [Fact]
+    public void Decode_UncompressedDdsRgbaMasks_PreservesChannelOrder()
+    {
+        byte[] data = BuildDds(2, 1, 32, [200, 10, 20, 255, 30, 180, 40, 255], redMask: 0x000000FF);
+
+        var result = _codec.Decode(data, ".dds", "rgba");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal([200, 10, 20, 255, 30, 180, 40, 255], result.Data.PixelData);
+    }
+
+    /// <summary>
+    /// Verifies that A8R8G8B8-layout DDS files decode the BGRA memory order to RGBA.
+    /// </summary>
+    [Fact]
+    public void Decode_UncompressedDdsBgraMasks_SwapsToRgba()
+    {
+        byte[] data = BuildDds(1, 1, 32, [20, 10, 200, 255], redMask: 0x00FF0000);
+
+        var result = _codec.Decode(data, ".dds", "bgra");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal([200, 10, 20, 255], result.Data.PixelData);
+    }
+
+    /// <summary>
     /// Verifies that unknown extensions return failures.
     /// </summary>
     [Fact]
@@ -305,7 +372,7 @@ public sealed class SageTextureCodecTests
         return [.. header, .. pixels];
     }
 
-    private static byte[] BuildDds(int width, int height, int bitCount, byte[] pixels, uint fourCc = 0, int pitch = 0)
+    private static byte[] BuildDds(int width, int height, int bitCount, byte[] pixels, uint fourCc = 0, int pitch = 0, uint redMask = 0)
     {
         var data = new byte[4 + 124 + pixels.Length];
         data[0] = (byte)'D';
@@ -313,19 +380,20 @@ public sealed class SageTextureCodecTests
         data[2] = (byte)'S';
         data[3] = (byte)' ';
         WriteInt32(data, 4, 124);
-        WriteInt32(data, 4 + 8, pitch);
-        WriteInt32(data, 4 + 12, height);
-        WriteInt32(data, 4 + 16, width);
-        WriteInt32(data, 4 + 76, 32);
+        WriteInt32(data, 4 + 8, height);
+        WriteInt32(data, 4 + 12, width);
+        WriteInt32(data, 4 + 16, pitch);
+        WriteInt32(data, 4 + 72, 32);
         if (fourCc == 0)
         {
-            WriteInt32(data, 4 + 80, 0x41);
-            WriteInt32(data, 4 + 88, bitCount);
+            WriteInt32(data, 4 + 76, 0x41);
+            WriteInt32(data, 4 + 84, bitCount);
+            WriteInt32(data, 4 + 88, unchecked((int)redMask));
         }
         else
         {
-            WriteInt32(data, 4 + 80, 0x4);
-            WriteInt32(data, 4 + 84, unchecked((int)fourCc));
+            WriteInt32(data, 4 + 76, 0x4);
+            WriteInt32(data, 4 + 80, unchecked((int)fourCc));
         }
 
         Array.Copy(pixels, 0, data, 4 + 124, pixels.Length);

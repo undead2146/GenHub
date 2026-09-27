@@ -339,6 +339,35 @@ public sealed class SageMappedImageParserTests
     }
 
     /// <summary>
+    /// Verifies that error line numbers count blank lines like the source file.
+    /// </summary>
+    [Fact]
+    public void ParseText_BlankLinesBeforeError_ReportsSourceLineNumber()
+    {
+        const string ini = """
+            MappedImage First
+              Texture = bar.tga
+              TextureWidth = 64
+              TextureHeight = 64
+              Coords = Left:0 Top:0 Right:31 Bottom:31
+              Status = NONE
+            End
+
+
+            MappedImage Broken
+              Texture = bar.tga
+              Coords = malformed
+            End
+            """;
+
+        var result = _parser.ParseText(ini);
+
+        Assert.True(result.Failed);
+        Assert.NotEmpty(result.Errors);
+        Assert.Contains(result.Errors, error => error.Contains("Line 10", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Verifies that parsed entries detect out-of-bounds coordinates.
     /// </summary>
     [Fact]

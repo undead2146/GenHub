@@ -125,6 +125,7 @@ public sealed class AtlasPackingService(
 
         var files = Directory.GetFiles(request.SourceDirectory)
             .Where(IsSupportedSource)
+            .Where(file => !IsPackOutput(file, request))
             .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (files.Count == 0)
@@ -185,10 +186,12 @@ public sealed class AtlasPackingService(
     private static bool IsSupportedSource(string path)
     {
         string extension = Path.GetExtension(path);
-        return extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
-            extension.Equals(".tga", StringComparison.OrdinalIgnoreCase) ||
-            extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase);
+        return TextureEditorConstants.PackableSourceExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
     }
+
+    private static bool IsPackOutput(string file, TextureAtlasBuildRequest request) =>
+        string.Equals(Path.GetFullPath(file), Path.GetFullPath(request.TargetTexture), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Path.GetFullPath(file), Path.GetFullPath(request.TargetIni), StringComparison.OrdinalIgnoreCase);
 
     private static int NextPowerOfTwo(int value, int ceiling)
     {

@@ -4,11 +4,22 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:GenHub.Features.Tools.TextureEditor.ViewModels"
              xmlns:controls="clr-namespace:GenHub.Common.Controls"
+             xmlns:editors="clr-namespace:GenHub.Common.Editors"
              xmlns:localization="clr-namespace:GenHub.Common.Markup"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
              x:Class="GenHub.Features.Tools.TextureEditor.Views.TextureEditorView"
              x:DataType="vm:TextureEditorViewModel"
              x:Name="Root">
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileCommand}"/>
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCommand}"/>
+    <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAsCommand}"/>
+    <KeyBinding Gesture="Ctrl+C" Command="{Binding CopyCommand}"/>
+    <KeyBinding Gesture="Ctrl+X" Command="{Binding CutCommand}"/>
+    <KeyBinding Gesture="Ctrl+V" Command="{Binding PasteCommand}"/>
+    <KeyBinding Gesture="Ctrl+D" Command="{Binding DuplicateCommand}"/>
+    <KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}"/>
+  </UserControl.KeyBindings>
 
   <Grid RowDefinitions="Auto,*" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
     <!-- Header / Toolbar -->
@@ -17,7 +28,7 @@
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <PathIcon Data="{StaticResource ToolIcon.ImageOutline}" Width="22" Height="22" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
           <StackPanel Spacing="0" VerticalAlignment="Center">
-            <TextBlock Text="{Binding AtlasFileName}" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource TextPrimary}"
+            <TextBlock Text="{Binding DocumentTitle}" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource TextPrimary}"
                        IsVisible="{Binding HasAtlas}"/>
             <TextBlock Text="{localization:Localize TextureEditor.Header.NoAtlas}" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource TextPrimary}"
                        IsVisible="{Binding !HasAtlas}"/>
@@ -42,11 +53,25 @@
         </StackPanel>
 
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Button Command="{Binding OpenAtlasCommand}" Classes="Secondary" IsEnabled="{Binding !IsBusy}"
+          <Button Command="{Binding OpenFileCommand}" Classes="Secondary" IsEnabled="{Binding !IsBusy}"
                   ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.OpenAtlas}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Data="{StaticResource ToolIcon.FolderOpenOutline}" Width="16" Height="16"/>
               <TextBlock Text="{localization:Localize TextureEditor.Button.Open}" VerticalAlignment="Center" FontSize="12"/>
+            </StackPanel>
+          </Button>
+          <Button Command="{Binding SaveCommand}" Classes="Primary" IsEnabled="{Binding HasAtlas}"
+                  ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.Save}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource ToolIcon.ContentSaveOutline}" Width="16" Height="16"/>
+              <TextBlock Text="{localization:Localize TextureEditor.Button.Save}" VerticalAlignment="Center" FontSize="12"/>
+            </StackPanel>
+          </Button>
+          <Button Command="{Binding SaveAsCommand}" Classes="Secondary" IsEnabled="{Binding HasAtlas}"
+                  ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.SaveAs}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource ToolIcon.PencilOutline}" Width="16" Height="16"/>
+              <TextBlock Text="{localization:Localize TextureEditor.Button.SaveAs}" VerticalAlignment="Center" FontSize="12"/>
             </StackPanel>
           </Button>
           <Button Command="{Binding ScanRegistryCommand}" Classes="Secondary" IsEnabled="{Binding !IsBusy}"
@@ -63,7 +88,7 @@
               <TextBlock Text="{localization:Localize TextureEditor.Button.AutoPack}" VerticalAlignment="Center" FontSize="12"/>
             </StackPanel>
           </Button>
-          <Button Command="{Binding ExportIniCommand}" Classes="Primary" IsEnabled="{Binding HasAtlas}"
+          <Button Command="{Binding ExportIniCommand}" Classes="Secondary" IsEnabled="{Binding HasAtlas}"
                   ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.ExportIni}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Data="{StaticResource ToolIcon.TrayArrowDown}" Width="16" Height="16"/>
@@ -125,13 +150,16 @@
                 </ListBox.ItemTemplate>
               </ListBox>
             </TabItem>
+            <TabItem Header="{localization:Localize TextureEditor.Tab.Files}">
+              <editors:EditorFileExplorerControl DataContext="{Binding FileExplorer}"/>
+            </TabItem>
             <TabItem Header="{localization:Localize TextureEditor.Tab.Library}">
               <controls:MappedImagePickerControl Name="ImagePicker"
                                                 ItemsSource="{Binding RegistryImages}"
                                                 ThumbnailProvider="{Binding PickerThumbnailProvider}"/>
             </TabItem>
           </TabControl>
-          <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="0,8,0,0">
+          <Grid Grid.Row="2" ColumnDefinitions="*,*,*" Margin="0,8,0,0">
             <Button Grid.Column="0" Command="{Binding AddSliceCommand}" Classes="Secondary" Margin="0,0,4,0"
                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="{Binding HasAtlas}"
                     ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.AddSlice}">
@@ -140,7 +168,15 @@
                 <TextBlock Text="{localization:Localize TextureEditor.Button.Add}" VerticalAlignment="Center" FontSize="12"/>
               </StackPanel>
             </Button>
-            <Button Grid.Column="1" Command="{Binding DeleteSelectedSliceCommand}" Classes="Danger" Margin="4,0,0,0"
+            <Button Grid.Column="1" Command="{Binding DuplicateCommand}" Classes="Secondary" Margin="4,0,4,0"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="{Binding CanDuplicate}"
+                    ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.DuplicateSlice}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource ToolIcon.ContentCopy}" Width="14" Height="14"/>
+                <TextBlock Text="{localization:Localize TextureEditor.Button.Duplicate}" VerticalAlignment="Center" FontSize="12"/>
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Command="{Binding DeleteCommand}" Classes="Danger" Margin="4,0,0,0"
                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     IsEnabled="{Binding SelectedSlice, Converter={x:Static ObjectConverters.IsNotNull}}"
                     ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.DeleteSlice}">
@@ -196,7 +232,7 @@
                        Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center"/>
             <TextBlock Text="{localization:Localize TextureEditor.Empty.Description}" FontSize="12"
                        Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
-            <Button Command="{Binding OpenAtlasCommand}" Classes="Primary" HorizontalAlignment="Center" Margin="0,8,0,0">
+            <Button Command="{Binding OpenFileCommand}" Classes="Primary" HorizontalAlignment="Center" Margin="0,8,0,0">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="{StaticResource ToolIcon.FolderOpenOutline}" Width="16" Height="16"/>
                 <TextBlock Text="{localization:Localize TextureEditor.Button.OpenAtlas}" VerticalAlignment="Center"/>
@@ -216,6 +252,9 @@
                 <ProgressBar IsIndeterminate="True" Height="6" CornerRadius="3"
                              Foreground="{DynamicResource AccentBrush}"
                              Background="{DynamicResource SurfaceHoverBrush}"/>
+                <Button Command="{Binding CancelOperationCommand}" Classes="Secondary" HorizontalAlignment="Center">
+                  <TextBlock Text="{localization:Localize Common.Button.Cancel}" VerticalAlignment="Center" FontSize="12"/>
+                </Button>
               </StackPanel>
             </Border>
           </Border>

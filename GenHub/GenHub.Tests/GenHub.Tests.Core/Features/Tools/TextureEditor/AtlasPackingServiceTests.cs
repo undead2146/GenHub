@@ -329,6 +329,42 @@ public sealed class AtlasPackingServiceTests
         }
     }
 
+    /// <summary>
+    /// Verifies that re-running a pack over the same folder ignores the previous outputs.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task BuildAtlasAsync_PreviousOutputsInFolder_ExcludesTargetsAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "Alpha.png"), "fake");
+            File.WriteAllText(Path.Combine(directory, GenHub.Core.Constants.TextureEditorConstants.PackedAtlasTextureFileName), "previous");
+
+            var loader = new Mock<ITextureImageLoader>();
+            loader.Setup(loader => loader.LoadAsync(It.Is<string>(path => path.EndsWith("Alpha.png")), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(OperationResult<AtlasSourceImage>.CreateSuccess(new AtlasSourceImage("Alpha", new DecodedTexture(16, 16, new byte[16 * 16 * 4]))));
+
+            var request = new TextureAtlasBuildRequest(
+                directory,
+                Path.Combine(directory, GenHub.Core.Constants.TextureEditorConstants.PackedAtlasTextureFileName),
+                Path.Combine(directory, GenHub.Core.Constants.TextureEditorConstants.PackedAtlasIniFileName));
+            var result = await _service.BuildAtlasAsync(request, loader.Object);
+
+            Assert.True(result.Success);
+            Assert.NotNull(result.Data);
+            Assert.Single(result.Data.Placements);
+            Assert.Equal("Alpha", result.Data.Placements[0].Name);
+            loader.Verify(loader => loader.LoadAsync(It.Is<string>(path => path.EndsWith(".tga")), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     private static bool IsPowerOfTwo(int value) => value > 0 && (value & (value - 1)) == 0;
 
     private static void AssertNoOverlap(AtlasPackResult pack)

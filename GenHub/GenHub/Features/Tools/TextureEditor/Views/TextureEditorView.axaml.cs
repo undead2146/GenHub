@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
+using GenHub.Core.Constants;
 using GenHub.Features.Tools.TextureEditor.ViewModels;
 using System;
 
@@ -13,11 +14,11 @@ namespace GenHub.Features.Tools.TextureEditor.Views;
 /// </summary>
 public partial class TextureEditorView : UserControl
 {
+    private readonly ItemsControl? _overlay;
     private TextureSliceViewModel? _dragSlice;
     private Point _dragStart;
     private int _dragOriginLeft;
     private int _dragOriginTop;
-    private ItemsControl? _overlay;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TextureEditorView"/> class.
@@ -32,6 +33,7 @@ public partial class TextureEditorView : UserControl
             _overlay.PointerPressed += OnOverlayPointerPressed;
             _overlay.PointerMoved += OnOverlayPointerMoved;
             _overlay.PointerReleased += OnOverlayPointerReleased;
+            _overlay.PointerCaptureLost += OnOverlayPointerCaptureLost;
         }
 
         var scroll = this.Find<ScrollViewer>("CanvasScroll");
@@ -108,7 +110,7 @@ public partial class TextureEditorView : UserControl
             return;
         }
 
-        double zoom = Math.Max(0.25, viewModel.Zoom);
+        double zoom = Math.Max(EditorConstants.ZoomMin, viewModel.Zoom);
         var position = e.GetPosition(this);
         int deltaX = (int)Math.Round((position.X - _dragStart.X) / zoom);
         int deltaY = (int)Math.Round((position.Y - _dragStart.Y) / zoom);
@@ -127,6 +129,11 @@ public partial class TextureEditorView : UserControl
         _dragSlice = null;
     }
 
+    private void OnOverlayPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        _dragSlice = null;
+    }
+
     private void OnCanvasWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         if (DataContext is not TextureEditorViewModel viewModel || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -134,9 +141,15 @@ public partial class TextureEditorView : UserControl
             return;
         }
 
-        viewModel.Zoom = e.Delta.Y > 0
-            ? Math.Min(8, Math.Round(viewModel.Zoom + 0.25, 2))
-            : Math.Max(0.25, Math.Round(viewModel.Zoom - 0.25, 2));
+        if (e.Delta.Y > 0)
+        {
+            viewModel.ZoomInCommand.Execute(null);
+        }
+        else
+        {
+            viewModel.ZoomOutCommand.Execute(null);
+        }
+
         e.Handled = true;
     }
 }
