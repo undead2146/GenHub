@@ -252,6 +252,93 @@ public sealed class SageMappedImageParserTests
     }
 
     /// <summary>
+    /// Verifies that a tab after the block keyword still starts a mapped image block.
+    /// </summary>
+    [Fact]
+    public void ParseText_TabAfterBlockName_ParsesSuccessfully()
+    {
+        var result = _parser.ParseText("MappedImage\tTabButton\n  Texture = bar.tga\n  TextureWidth = 64\n  TextureHeight = 64\n  Coords = Left:0 Top:0 Right:32 Bottom:32\n  Status = NONE\nEnd\n");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Single(result.Data);
+        Assert.Equal("TabButton", result.Data[0].Name);
+    }
+
+    /// <summary>
+    /// Verifies that whitespace after the Coords colon still parses coordinates.
+    /// </summary>
+    [Fact]
+    public void ParseText_SpacedCoords_ParsesSuccessfully()
+    {
+        const string ini = """
+            MappedImage Spaced
+              Texture = bar.tga
+              TextureWidth = 64
+              TextureHeight = 64
+              Coords = Left: 0 Top: 0 Right: 32 Bottom: 32
+              Status = NONE
+            End
+            """;
+
+        var result = _parser.ParseText(ini);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Single(result.Data);
+        Assert.Equal(32, result.Data[0].Width);
+        Assert.Equal(32, result.Data[0].Height);
+    }
+
+    /// <summary>
+    /// Verifies that equals and comma separators still parse coordinates.
+    /// </summary>
+    [Fact]
+    public void ParseText_EqualsCommaCoords_ParsesSuccessfully()
+    {
+        const string ini = """
+            MappedImage Equals
+              Texture = bar.tga
+              TextureWidth = 64
+              TextureHeight = 64
+              Coords = Left=0,Top=0,Right=32,Bottom=32
+              Status = NONE
+            End
+            """;
+
+        var result = _parser.ParseText(ini);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Single(result.Data);
+        Assert.Equal(32, result.Data[0].Width);
+    }
+
+    /// <summary>
+    /// Verifies that an empty texture value fails the block instead of registering an entry.
+    /// </summary>
+    [Fact]
+    public void ParseText_EmptyTexture_ReturnsFailure()
+    {
+        const string ini = """
+            MappedImage Broken
+              Texture =
+              TextureWidth = 64
+              TextureHeight = 64
+              Coords = Left:0 Top:0 Right:31 Bottom:31
+              Status = NONE
+            End
+            """;
+
+        var result = _parser.ParseText(ini);
+
+        Assert.True(result.Failed);
+        Assert.NotEmpty(result.Errors);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data);
+    }
+
+    /// <summary>
     /// Verifies that parsed entries detect out-of-bounds coordinates.
     /// </summary>
     [Fact]

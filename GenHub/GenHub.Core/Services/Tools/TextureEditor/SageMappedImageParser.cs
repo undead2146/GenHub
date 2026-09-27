@@ -4,7 +4,9 @@ using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Tools.TextureEditor;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace GenHub.Core.Services.Tools.TextureEditor;
 
@@ -13,6 +15,10 @@ namespace GenHub.Core.Services.Tools.TextureEditor;
 /// </summary>
 public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger) : ISageMappedImageParser
 {
+    private static readonly Regex CoordsPattern = new(
+        @"\b(Left|Top|Right|Bottom)\s*[:=]\s*(-?\d+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     /// <inheritdoc />
     public OperationResult<IReadOnlyList<MappedImageDefinition>> ParseText(string content, string? sourcePath = null)
     {
@@ -150,7 +156,9 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
     }
 
     private static bool IsBlockStart(string line) =>
-        line.StartsWith(TextureEditorConstants.IniBlockName + " ", StringComparison.OrdinalIgnoreCase);
+        line.StartsWith(TextureEditorConstants.IniBlockName, StringComparison.OrdinalIgnoreCase) &&
+        (line.Length == TextureEditorConstants.IniBlockName.Length ||
+            char.IsWhiteSpace(line[TextureEditorConstants.IniBlockName.Length]));
 
     private static bool IsBlockEnd(string line) =>
         line.Equals(TextureEditorConstants.IniBlockEnd, StringComparison.OrdinalIgnoreCase);
@@ -233,7 +241,7 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 
         public MappedImageDefinition? Build(string? sourcePath)
         {
-            if (Name.Length == 0 || Texture is null || !HasCoords)
+            if (Name.Length == 0 || string.IsNullOrWhiteSpace(Texture) || !HasCoords)
             {
                 return null;
             }
@@ -246,52 +254,27 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 
         private void ApplyCoords(string value)
         {
-            int? left = null;
-            int? top = null;
-            int? right = null;
-            int? bottom = null;
-
-            foreach (var part in value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            var coords = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (Match match in CoordsPattern.Matches(value))
             {
-                int separator = part.IndexOf(':');
-                if (separator < 0)
+                if (int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
                 {
-                    continue;
-                }
-
-                var key = part.Substring(0, separator);
-                if (!int.TryParse(part.Substring(separator + 1), out int number))
-                {
-                    continue;
-                }
-
-                if (key.Equals("Left", StringComparison.OrdinalIgnoreCase))
-                {
-                    left = number;
-                }
-                else if (key.Equals("Top", StringComparison.OrdinalIgnoreCase))
-                {
-                    top = number;
-                }
-                else if (key.Equals("Right", StringComparison.OrdinalIgnoreCase))
-                {
-                    right = number;
-                }
-                else if (key.Equals("Bottom", StringComparison.OrdinalIgnoreCase))
-                {
-                    bottom = number;
+                    coords[match.Groups[1].Value] = number;
                 }
             }
 
-            if (left is null || top is null || right is null || bottom is null)
+            if (!coords.TryGetValue("Left", out int left) ||
+                !coords.TryGetValue("Top", out int top) ||
+                !coords.TryGetValue("Right", out int right) ||
+                !coords.TryGetValue("Bottom", out int bottom))
             {
                 return;
             }
 
-            Left = left.Value;
-            Top = top.Value;
-            Right = right.Value;
-            Bottom = bottom.Value;
+            Left = left;
+            Top = top;
+            Right = right;
+            Bottom = bottom;
             HasCoords = true;
         }
     }

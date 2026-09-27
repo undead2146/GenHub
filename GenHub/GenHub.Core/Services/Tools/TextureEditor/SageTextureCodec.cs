@@ -13,6 +13,8 @@ namespace GenHub.Core.Services.Tools.TextureEditor;
 /// </summary>
 public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTextureCodec
 {
+    private sealed record DdsUncompressedRequest(byte[] Data, int Offset, int Width, int Height, int BytesPerPixel, int Pitch, string SourceName, long Started);
+
     private const int TgaHeaderSize = 18;
     private const int TgaTypeUncompressed = 2;
     private const int TgaTypeRle = 10;
@@ -89,12 +91,14 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
         var started = Stopwatch.GetTimestamp();
         ArgumentNullException.ThrowIfNull(texture);
 
-        if (texture.Width <= 0 || texture.Height <= 0)
+        long total = (long)texture.Width * texture.Height * 4;
+        if (texture.Width <= 0 || texture.Height <= 0 ||
+            texture.Width > ushort.MaxValue || texture.Height > ushort.MaxValue)
         {
-            return OperationResult<byte[]>.CreateFailure("Texture dimensions must be positive.", Stopwatch.GetElapsedTime(started));
+            return OperationResult<byte[]>.CreateFailure("Texture dimensions must be positive and fit in 16-bit TGA headers.", Stopwatch.GetElapsedTime(started));
         }
 
-        if (texture.PixelData.Length != texture.Width * texture.Height * 4)
+        if (texture.PixelData.Length != total || total > int.MaxValue - TgaHeaderSize)
         {
             return OperationResult<byte[]>.CreateFailure("Pixel data length does not match texture dimensions.", Stopwatch.GetElapsedTime(started));
         }
@@ -323,6 +327,61 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
         }
     }
 
+    private static OperationResult<DecodedTexture> DecodeDdsUncompressed(DdsUncompressedRequest request)
+    {
+        long rowBytes = (long)request.Width * request.BytesPerPixel;
+        long stride = request.Pitch >= rowBytes ? request.Pitch : rowBytes;
+        long expected = (stride * (request.Height - 1)) + rowBytes;
+        long pixelBytes = (long)request.Width * request.Height * 4;
+        if (expected > int.MaxValue || pixelBytes > int.MaxValue || request.Data.Length - request.Offset < expected)
+        {
+            return OperationResult<DecodedTexture>.CreateFailure($"Truncated DDS pixel data: {request.SourceName}", Stopwatch.GetElapsedTime(request.Started));
+        }
+
+        var rgba = new byte[(int)pixelBytes];
+        int destIndex = 0;
+        for (int y = 0; y < request.Height; y++)
+        {
+            int srcIndex = request.Offset + (int)(y * stride);
+            for (int x = 0; x < request.Width; x++)
+            {
+                rgba[destIndex] = request.Data[srcIndex + 2];
+                rgba[destIndex + 1] = request.Data[srcIndex + 1];
+                rgba[destIndex + 2] = request.Data[srcIndex];
+                rgba[destIndex + 3] = request.BytesPerPixel == 4 ? request.Data[srcIndex + 3] : (byte)255;
+                srcIndex += request.BytesPerPixel;
+                destIndex += 4;
+            }
+        }
+
+        return OperationResult<DecodedTexture>.CreateSuccess(new DecodedTexture(request.Width, request.Height, rgba), Stopwatch.GetElapsedTime(request.Started));
+    }
+
+    private static OperationResult<DecodedTexture> DecodeDdsDxt1(byte[] data, int offset, int width, int height, string sourceName, long started)
+    {
+        long blocksX = ((long)width + 3) / 4;
+        long blocksY = ((long)height + 3) / 4;
+        long expected = blocksX * blocksY * 8;
+        long pixelBytes = (long)width * height * 4;
+        if (pixelBytes > int.MaxValue || expected > int.MaxValue || data.Length - offset < expected)
+        {
+            return OperationResult<DecodedTexture>.CreateFailure($"Truncated DDS DXT1 data: {sourceName}", Stopwatch.GetElapsedTime(started));
+        }
+
+        var rgba = new byte[(int)pixelBytes];
+        int blockIndex = 0;
+        for (long blockY = 0; blockY < blocksY; blockY++)
+        {
+            for (long blockX = 0; blockX < blocksX; blockX++)
+            {
+                DecodeDxt1Block(data, offset + (blockIndex * 8), rgba, width, height, (int)blockX, (int)blockY);
+                blockIndex++;
+            }
+        }
+
+        return OperationResult<DecodedTexture>.CreateSuccess(new DecodedTexture(width, height, rgba), Stopwatch.GetElapsedTime(started));
+    }
+
     private OperationResult<DecodedTexture> DecodeTga(byte[] data, string sourceName, long started)
     {
         if (data.Length < TgaHeaderSize)
@@ -419,65 +478,10 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
         if (!hasFourCc && (rgbBitCount == 32 || rgbBitCount == 24))
         {
             int pitch = ReadInt32(data, headerOffset + DdsPitchOffset);
-            return DecodeDdsUncompressed(data, dataOffset, width, height, rgbBitCount / 8, pitch, sourceName, started);
+            return DecodeDdsUncompressed(new DdsUncompressedRequest(data, dataOffset, width, height, rgbBitCount / 8, pitch, sourceName, started));
         }
 
         logger.LogWarning("Unsupported DDS pixel format in {Source}", sourceName);
         return OperationResult<DecodedTexture>.CreateFailure($"Unsupported DDS pixel format: {sourceName}", Stopwatch.GetElapsedTime(started));
-    }
-
-    private OperationResult<DecodedTexture> DecodeDdsUncompressed(byte[] data, int offset, int width, int height, int bytesPerPixel, int pitch, string sourceName, long started)
-    {
-        long rowBytes = (long)width * bytesPerPixel;
-        long stride = pitch >= rowBytes ? pitch : rowBytes;
-        long expected = (stride * (height - 1)) + rowBytes;
-        long pixelBytes = (long)width * height * 4;
-        if (expected > int.MaxValue || pixelBytes > int.MaxValue || data.Length - offset < expected)
-        {
-            return OperationResult<DecodedTexture>.CreateFailure($"Truncated DDS pixel data: {sourceName}", Stopwatch.GetElapsedTime(started));
-        }
-
-        var rgba = new byte[(int)pixelBytes];
-        int destIndex = 0;
-        for (int y = 0; y < height; y++)
-        {
-            int srcIndex = offset + (int)(y * stride);
-            for (int x = 0; x < width; x++)
-            {
-                rgba[destIndex] = data[srcIndex + 2];
-                rgba[destIndex + 1] = data[srcIndex + 1];
-                rgba[destIndex + 2] = data[srcIndex];
-                rgba[destIndex + 3] = bytesPerPixel == 4 ? data[srcIndex + 3] : (byte)255;
-                srcIndex += bytesPerPixel;
-                destIndex += 4;
-            }
-        }
-
-        return OperationResult<DecodedTexture>.CreateSuccess(new DecodedTexture(width, height, rgba), Stopwatch.GetElapsedTime(started));
-    }
-
-    private OperationResult<DecodedTexture> DecodeDdsDxt1(byte[] data, int offset, int width, int height, string sourceName, long started)
-    {
-        long blocksX = ((long)width + 3) / 4;
-        long blocksY = ((long)height + 3) / 4;
-        long expected = blocksX * blocksY * 8;
-        long pixelBytes = (long)width * height * 4;
-        if (pixelBytes > int.MaxValue || expected > int.MaxValue || data.Length - offset < expected)
-        {
-            return OperationResult<DecodedTexture>.CreateFailure($"Truncated DDS DXT1 data: {sourceName}", Stopwatch.GetElapsedTime(started));
-        }
-
-        var rgba = new byte[(int)pixelBytes];
-        int blockIndex = 0;
-        for (long blockY = 0; blockY < blocksY; blockY++)
-        {
-            for (long blockX = 0; blockX < blocksX; blockX++)
-            {
-                DecodeDxt1Block(data, offset + (blockIndex * 8), rgba, width, height, (int)blockX, (int)blockY);
-                blockIndex++;
-            }
-        }
-
-        return OperationResult<DecodedTexture>.CreateSuccess(new DecodedTexture(width, height, rgba), Stopwatch.GetElapsedTime(started));
     }
 }

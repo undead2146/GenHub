@@ -43,6 +43,17 @@ public sealed class MappedImageDefinitionTests
     }
 
     /// <summary>
+    /// Verifies that zero-area regions are not within the texture.
+    /// </summary>
+    [Fact]
+    public void IsWithinTexture_ZeroArea_ReturnsFalse()
+    {
+        var definition = new MappedImageDefinition("Empty", "a.tga", 64, 64, 10, 10, 10, 20);
+
+        Assert.False(definition.IsWithinTexture);
+    }
+
+    /// <summary>
     /// Verifies that edges exactly at the texture size are valid like shipped atlas files.
     /// </summary>
     [Fact]

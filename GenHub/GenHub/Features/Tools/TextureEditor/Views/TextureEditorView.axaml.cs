@@ -17,6 +17,7 @@ public partial class TextureEditorView : UserControl
     private Point _dragStart;
     private int _dragOriginLeft;
     private int _dragOriginTop;
+    private ItemsControl? _overlay;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TextureEditorView"/> class.
@@ -25,12 +26,12 @@ public partial class TextureEditorView : UserControl
     {
         InitializeComponent();
 
-        var overlay = this.Find<ItemsControl>("SliceOverlay");
-        if (overlay is not null)
+        _overlay = this.Find<ItemsControl>("SliceOverlay");
+        if (_overlay is not null)
         {
-            overlay.PointerPressed += OnOverlayPointerPressed;
-            overlay.PointerMoved += OnOverlayPointerMoved;
-            overlay.PointerReleased += OnOverlayPointerReleased;
+            _overlay.PointerPressed += OnOverlayPointerPressed;
+            _overlay.PointerMoved += OnOverlayPointerMoved;
+            _overlay.PointerReleased += OnOverlayPointerReleased;
         }
 
         var scroll = this.Find<ScrollViewer>("CanvasScroll");
@@ -92,6 +93,11 @@ public partial class TextureEditorView : UserControl
         _dragStart = e.GetPosition(this);
         _dragOriginLeft = slice.Left;
         _dragOriginTop = slice.Top;
+        if (_overlay is not null)
+        {
+            e.Pointer.Capture(_overlay);
+        }
+
         e.Handled = true;
     }
 
@@ -117,6 +123,7 @@ public partial class TextureEditorView : UserControl
 
     private void OnOverlayPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        e.Pointer.Capture(null);
         _dragSlice = null;
     }
 

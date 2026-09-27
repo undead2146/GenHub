@@ -92,6 +92,17 @@ public sealed class TextureSliceViewModelTests
     }
 
     /// <summary>
+    /// Verifies that zero-area coordinates are reported as outside the texture.
+    /// </summary>
+    [Fact]
+    public void Coordinates_ZeroArea_ReportsOutOfBounds()
+    {
+        var slice = new TextureSliceViewModel(new MappedImageDefinition("Solo", "a.tga", 64, 64, 10, 10, 10, 10));
+
+        Assert.False(slice.IsWithinTexture);
+    }
+
+    /// <summary>
     /// Verifies that edited state round-trips through definitions.
     /// </summary>
     [Fact]

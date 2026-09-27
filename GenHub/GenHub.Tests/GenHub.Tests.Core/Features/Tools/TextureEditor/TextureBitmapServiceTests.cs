@@ -171,6 +171,18 @@ public sealed class TextureBitmapServiceTests
     }
 
     /// <summary>
+    /// Verifies that bitmap conversion rejects pixel data whose length mismatches the dimensions.
+    /// </summary>
+    [Fact]
+    public void ToBitmap_MismatchedPixels_ReturnsFailure()
+    {
+        var result = _service.ToBitmap(new DecodedTexture(2, 2, [1, 2, 3]));
+
+        Assert.True(result.Failed);
+        Assert.NotEmpty(result.Errors);
+    }
+
+    /// <summary>
     /// Verifies that PNG saves reject pixel data whose length mismatches the dimensions.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>

@@ -115,6 +115,41 @@ public sealed class AtlasPackingServiceTests
     }
 
     /// <summary>
+    /// Verifies that case-variant duplicate names fail like exact duplicates.
+    /// </summary>
+    [Fact]
+    public void Pack_CaseVariantDuplicateNames_ReturnsFailure()
+    {
+        var sources = new[]
+        {
+            new AtlasSourceImage("Icon", new DecodedTexture(16, 16, new byte[16 * 16 * 4])),
+            new AtlasSourceImage("icon", new DecodedTexture(8, 8, new byte[8 * 8 * 4])),
+        };
+
+        var result = _service.Pack(sources);
+
+        Assert.True(result.Failed);
+        Assert.Contains("Icon", result.FirstError ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Verifies that composing with a short pixel buffer fails instead of throwing.
+    /// </summary>
+    [Fact]
+    public void ComposeSheet_ShortPixelBuffer_ReturnsFailureNamingSource()
+    {
+        var sources = new[] { new AtlasSourceImage("Short", new DecodedTexture(8, 8, new byte[4])) };
+        var packed = _service.Pack(sources);
+        Assert.True(packed.Success);
+        Assert.NotNull(packed.Data);
+
+        var result = _service.ComposeSheet(sources, packed.Data);
+
+        Assert.True(result.Failed);
+        Assert.Contains("Short", result.FirstError ?? string.Empty);
+    }
+
+    /// <summary>
     /// Verifies that a sprite wider than the capped sheet row fails with its name instead of overrunning.
     /// </summary>
     [Fact]

@@ -93,6 +93,8 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
         OnPropertyChanged(nameof(DisplayWidth));
         OnPropertyChanged(nameof(DisplayHeight));
         OnPropertyChanged(nameof(AtlasDimensions));
+        OnPropertyChanged(nameof(AtlasPixelWidth));
+        OnPropertyChanged(nameof(AtlasPixelHeight));
     }
 
     partial void OnAtlasPathChanged(string value) => OnPropertyChanged(nameof(AtlasFileName));
@@ -157,6 +159,16 @@ public sealed partial class TextureEditorViewModel : ObservableObject, IDisposab
     public string AtlasDimensions => AtlasBitmap is null
         ? string.Empty
         : $"{AtlasBitmap.PixelSize.Width} x {AtlasBitmap.PixelSize.Height} px";
+
+    /// <summary>
+    /// Gets the atlas width in pixels for inspector bounds, defaulting to the SAGE maximum.
+    /// </summary>
+    public int AtlasPixelWidth => AtlasBitmap?.PixelSize.Width ?? TextureEditorConstants.MaxTextureDimension;
+
+    /// <summary>
+    /// Gets the atlas height in pixels for inspector bounds, defaulting to the SAGE maximum.
+    /// </summary>
+    public int AtlasPixelHeight => AtlasBitmap?.PixelSize.Height ?? TextureEditorConstants.MaxTextureDimension;
 
     /// <summary>
     /// Gets the thumbnail provider for the shared mapped image picker.

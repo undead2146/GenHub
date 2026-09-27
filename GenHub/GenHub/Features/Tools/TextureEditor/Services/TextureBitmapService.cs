@@ -119,7 +119,7 @@ public sealed class TextureBitmapService(ISageTextureCodec codec, ILogger<Textur
             return OperationResult<Bitmap>.CreateFailure("Texture dimensions must be positive.", Stopwatch.GetElapsedTime(started));
         }
 
-        if (texture.PixelData.Length != texture.Width * texture.Height * 4)
+        if ((long)texture.Width * texture.Height * 4 != texture.PixelData.Length)
         {
             return OperationResult<Bitmap>.CreateFailure("Pixel data length does not match texture dimensions.", Stopwatch.GetElapsedTime(started));
         }

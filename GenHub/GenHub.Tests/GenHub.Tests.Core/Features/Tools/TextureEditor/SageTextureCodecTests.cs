@@ -129,6 +129,18 @@ public sealed class SageTextureCodecTests
     }
 
     /// <summary>
+    /// Verifies that dimensions beyond the 16-bit TGA range return a failure instead of truncating.
+    /// </summary>
+    [Fact]
+    public void EncodeTga_OversizedDimensions_ReturnsFailure()
+    {
+        var result = _codec.EncodeTga(new DecodedTexture(65536, 64, []));
+
+        Assert.True(result.Failed);
+        Assert.NotEmpty(result.Errors);
+    }
+
+    /// <summary>
     /// Verifies that encoding rejects pixel data whose length mismatches the dimensions.
     /// </summary>
     [Fact]

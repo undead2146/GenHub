@@ -81,7 +81,7 @@ public sealed partial class TextureSliceViewModel : ObservableObject
     /// </summary>
     public bool IsWithinTexture =>
         Left >= 0 && Top >= 0 &&
-        Right >= Left && Bottom >= Top &&
+        Right > Left && Bottom > Top &&
         _textureWidth > 0 && _textureHeight > 0 &&
         Right <= _textureWidth && Bottom <= _textureHeight;
 

@@ -45,7 +45,7 @@ public sealed record MappedImageDefinition(
     /// </summary>
     public bool IsWithinTexture =>
         Left >= 0 && Top >= 0 &&
-        Right >= Left && Bottom >= Top &&
+        Right > Left && Bottom > Top &&
         TextureWidth > 0 && TextureHeight > 0 &&
         Right <= TextureWidth && Bottom <= TextureHeight;
 

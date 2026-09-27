@@ -236,13 +236,13 @@
               </StackPanel>
               <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{localization:Localize TextureEditor.Label.Left}" FontSize="12" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,4,4"/>
-                <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding SelectedSlice.Left, Mode=TwoWay}" Minimum="0" Maximum="2048" Increment="1" Margin="0,0,0,4"/>
+                <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding SelectedSlice.Left, Mode=TwoWay}" Minimum="0" Maximum="{Binding AtlasPixelWidth}" Increment="1" Margin="0,0,0,4"/>
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="{localization:Localize TextureEditor.Label.Top}" FontSize="12" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,4,4"/>
-                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SelectedSlice.Top, Mode=TwoWay}" Minimum="0" Maximum="2048" Increment="1" Margin="0,0,0,4"/>
+                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SelectedSlice.Top, Mode=TwoWay}" Minimum="0" Maximum="{Binding AtlasPixelHeight}" Increment="1" Margin="0,0,0,4"/>
                 <TextBlock Grid.Row="2" Grid.Column="0" Text="{localization:Localize TextureEditor.Label.Right}" FontSize="12" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,4,4"/>
-                <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding SelectedSlice.Right, Mode=TwoWay}" Minimum="0" Maximum="2048" Increment="1" Margin="0,0,0,4"/>
+                <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding SelectedSlice.Right, Mode=TwoWay}" Minimum="0" Maximum="{Binding AtlasPixelWidth}" Increment="1" Margin="0,0,0,4"/>
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="{localization:Localize TextureEditor.Label.Bottom}" FontSize="12" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding SelectedSlice.Bottom, Mode=TwoWay}" Minimum="0" Maximum="2048" Increment="1"/>
+                <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding SelectedSlice.Bottom, Mode=TwoWay}" Minimum="0" Maximum="{Binding AtlasPixelHeight}" Increment="1"/>
               </Grid>
               <StackPanel Spacing="4">
                 <StackPanel Orientation="Horizontal" Spacing="4">

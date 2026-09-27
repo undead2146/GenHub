@@ -32,7 +32,7 @@ public sealed class AtlasPackingService(
         }
 
         var duplicate = sources
-            .GroupBy(source => source.Name, StringComparer.Ordinal)
+            .GroupBy(source => source.Name, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicate is not null)
         {
@@ -93,6 +93,12 @@ public sealed class AtlasPackingService(
             if (!string.Equals(source.Name, placement.Name, StringComparison.Ordinal))
             {
                 return OperationResult<DecodedTexture>.CreateFailure($"Placement order mismatch at index {i}.", Stopwatch.GetElapsedTime(started));
+            }
+
+            long expectedBytes = (long)source.Texture.Width * source.Texture.Height * 4;
+            if (source.Texture.PixelData.Length < expectedBytes)
+            {
+                return OperationResult<DecodedTexture>.CreateFailure($"Source '{source.Name}' pixel data is shorter than its declared dimensions.", Stopwatch.GetElapsedTime(started));
             }
 
             Blit(source.Texture, sheet, pack.SheetWidth, placement);
