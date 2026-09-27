@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -51,6 +52,45 @@ public class TelemetryServiceTests : IDisposable
     public void Dispose()
     {
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Verifies that a null logger fails fast at construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithNullLogger_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new TelemetryService(
+            null!,
+            _sanitizer,
+            _mockUserSettingsService.Object,
+            [_mockSink.Object]));
+    }
+
+    /// <summary>
+    /// Verifies that a null sanitizer fails fast at construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithNullSanitizer_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new TelemetryService(
+            _mockLogger.Object,
+            null!,
+            _mockUserSettingsService.Object,
+            [_mockSink.Object]));
+    }
+
+    /// <summary>
+    /// Verifies that a null user settings service fails fast at construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithNullUserSettingsService_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new TelemetryService(
+            _mockLogger.Object,
+            _sanitizer,
+            null!,
+            [_mockSink.Object]));
     }
 
     /// <summary>
@@ -181,5 +221,56 @@ public class TelemetryServiceTests : IDisposable
 
         Assert.True(result.Success);
         _mockSink.Verify(s => s.FlushAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that synchronous Dispose signals shutdown without waiting for in-flight sink work.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenSinkWorkIsInFlight_ReturnsWithoutBlocking()
+    {
+        _settings.TelemetryPreference = TelemetryLevel.AnonymousMetrics;
+
+        using var enteredEmit = new ManualResetEventSlim(false);
+        var releaseEmit = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blockingSink = new Mock<ITelemetrySink>();
+        blockingSink.Setup(s => s.CanHandle(It.IsAny<TelemetryEvent>())).Returns(true);
+        blockingSink
+            .Setup(s => s.EmitAsync(It.IsAny<TelemetryEvent>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                enteredEmit.Set();
+                await releaseEmit.Task;
+                return OperationResult<bool>.CreateSuccess(true);
+            });
+        blockingSink
+            .Setup(s => s.FlushAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        var service = new TelemetryService(
+            _mockLogger.Object,
+            _sanitizer,
+            _mockUserSettingsService.Object,
+            [blockingSink.Object]);
+
+        try
+        {
+            service.TrackEvent(TelemetryConstants.Events.GameSessionStarted);
+
+            Assert.True(enteredEmit.Wait(TimeSpan.FromSeconds(10)));
+
+            var stopwatch = Stopwatch.StartNew();
+            service.Dispose();
+            stopwatch.Stop();
+
+            Assert.True(
+                stopwatch.Elapsed < TimeSpan.FromSeconds(TelemetryConstants.FlushTimeoutSeconds),
+                $"Dispose blocked for {stopwatch.Elapsed}, expected less than the flush timeout.");
+        }
+        finally
+        {
+            releaseEmit.TrySetResult(true);
+            service.Dispose();
+        }
     }
 }
