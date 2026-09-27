@@ -304,10 +304,15 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
                 }
             }
 
+            // Sonar S2583 false positive: the engine models the Matches loop as never
+            // assigning, but the mixed-case and unordered Coords parser tests prove all
+            // four keys assign. The guard is required to reject incomplete Coords lines.
+#pragma warning disable S2583
             if (left is null || top is null || right is null || bottom is null)
             {
                 return;
             }
+#pragma warning restore S2583
 
             Left = left.Value;
             Top = top.Value;
