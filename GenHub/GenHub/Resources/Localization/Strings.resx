@@ -1404,6 +1404,9 @@
   <data name="Maps.Column.Size" xml:space="preserve">
     <value>Size</value>
   </data>
+  <data name="Maps.Column.Players" xml:space="preserve">
+    <value># of Players</value>
+  </data>
   <data name="Maps.Column.Type" xml:space="preserve">
     <value>Type</value>
   </data>
@@ -5017,6 +5020,9 @@ This will modify game files and configuration settings at:
   </data>
   <data name="Tools.ReplayManager.Column.Map" xml:space="preserve">
     <value>Map</value>
+  </data>
+  <data name="Tools.ReplayManager.Column.Players" xml:space="preserve">
+    <value># of Players</value>
   </data>
   <data name="Tools.ReplayManager.Column.ClientBuild" xml:space="preserve">
     <value>Client / Build</value>
@@ -9840,6 +9846,21 @@ Do you want to download and inspect this profile package?</value>
   <data name="GameProfiles.Launcher.Notify.ImportErrorFormat" xml:space="preserve">
     <value>An error occurred during profile import: {0}</value>
   </data>
+  <data name="GameProfiles.Resources.IconFormat" xml:space="preserve">
+    <value>{0} Icon</value>
+  </data>
+  <data name="GameProfiles.Resources.LogoFormat" xml:space="preserve">
+    <value>{0} Logo</value>
+  </data>
+  <data name="GameProfiles.Resources.CoverFormat" xml:space="preserve">
+    <value>{0} Cover</value>
+  </data>
+  <data name="GameProfiles.Resources.CoverAltFormat" xml:space="preserve">
+    <value>{0} Cover (Alt)</value>
+  </data>
+  <data name="GameProfiles.Resources.DefaultBackground" xml:space="preserve">
+    <value>Default Background</value>
+  </data>
   <data name="GameProfiles.Launcher.Notify.SelectProfileFileFailedFormat" xml:space="preserve">
     <value>Failed to select profile file: {0}</value>
   </data>
@@ -14454,6 +14475,63 @@ How do you want to apply this update?</value>
   </data>
   <data name="Settings.Profiles.DeletedMessage" xml:space="preserve">
     <value>Deleted {0} profile(s) successfully.</value>
+  </data>
+  <data name="GameProfiles.Card.Tooltip.MoveLeft" xml:space="preserve">
+    <value>Move Left</value>
+  </data>
+  <data name="GameProfiles.Card.Tooltip.MoveRight" xml:space="preserve">
+    <value>Move Right</value>
+  </data>
+  <data name="GameProfiles.Launcher.Tooltip.Sort" xml:space="preserve">
+    <value>Sort Profiles</value>
+  </data>
+  <data name="GameProfiles.Sort.LastPlayed" xml:space="preserve">
+    <value>Recently Played</value>
+  </data>
+  <data name="GameProfiles.Sort.DateCreated" xml:space="preserve">
+    <value>Date Created</value>
+  </data>
+  <data name="GameProfiles.Sort.Alphabetical" xml:space="preserve">
+    <value>Name (A to Z)</value>
+  </data>
+  <data name="GameProfiles.Sort.AlphabeticalDesc" xml:space="preserve">
+    <value>Name (Z to A)</value>
+  </data>
+  <data name="GameProfiles.Sort.Free" xml:space="preserve">
+    <value>Custom Order</value>
+  </data>
+  <data name="GameProfiles.Settings.CustomImage.InvalidFile.Title" xml:space="preserve">
+    <value>Invalid image file</value>
+  </data>
+  <data name="GameProfiles.Settings.CustomImage.InvalidFile.Message" xml:space="preserve">
+    <value>Please select a valid image file (PNG, JPG, JPEG, WEBP, BMP, GIF, ICO).</value>
+  </data>
+  <data name="GameProfiles.Notification.ReorderFailed.Title" xml:space="preserve">
+    <value>Failed to save profile order</value>
+  </data>
+  <data name="GameProfiles.Notification.ReorderFailed.Message" xml:space="preserve">
+    <value>The new profile order could not be saved and the previous order was restored.</value>
+  </data>
+  <data name="GameProfiles.Status.ContentServicesUnavailable" xml:space="preserve">
+    <value>Content services unavailable</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedStatus" xml:space="preserve">
+    <value>Added {0}</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedTitle" xml:space="preserve">
+    <value>Content Added</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedMessage" xml:space="preserve">
+    <value>"{0}" has been added successfully.</value>
+  </data>
+  <data name="GameProfiles.Settings.Save.DropImportInProgress.Title" xml:space="preserve">
+    <value>Import in progress</value>
+  </data>
+  <data name="GameProfiles.Settings.Save.DropImportInProgress.Message" xml:space="preserve">
+    <value>Please wait for the dropped content import to finish before saving.</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.ImportError" xml:space="preserve">
+    <value>Error importing dropped files</value>
   </data>
   <data name="Tools.Plugin.texture-editor.Name" xml:space="preserve">
     <value>Texture Editor</value>

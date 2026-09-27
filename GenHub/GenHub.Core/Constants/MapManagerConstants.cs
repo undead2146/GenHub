@@ -11,6 +11,13 @@ public static class MapManagerConstants
     public const long MaxMapSizeBytes = 10 * 1024 * 1024;
 
     /// <summary>
+    /// Maximum file size admitted to the map text scan in bytes (10 MB), also bounding
+    /// the bytes scanned from a single file. Kept separate from the import validation
+    /// limit so retuning imports never silently changes which files the parser reads.
+    /// </summary>
+    public const long MaxPlayerCountScanBytes = 10 * 1024 * 1024;
+
+    /// <summary>
     /// Maximum allowed entries in a map ZIP archive.
     /// </summary>
     public const int MaxZipEntries = 500;

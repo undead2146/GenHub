@@ -1400,6 +1400,9 @@
   <data name="Maps.Column.Size" xml:space="preserve">
     <value>Размер</value>
   </data>
+  <data name="Maps.Column.Players" xml:space="preserve">
+    <value>Количество игроков</value>
+  </data>
   <data name="Maps.Column.Type" xml:space="preserve">
     <value>Тип</value>
   </data>
@@ -5013,6 +5016,9 @@
   </data>
   <data name="Tools.ReplayManager.Column.Map" xml:space="preserve">
     <value>Карта</value>
+  </data>
+  <data name="Tools.ReplayManager.Column.Players" xml:space="preserve">
+    <value>Количество игроков</value>
   </data>
   <data name="Tools.ReplayManager.Column.ClientBuild" xml:space="preserve">
     <value>Клиент / Сборка</value>
@@ -9742,6 +9748,21 @@ GenHub передает официальный идентификатор AppID 
   <data name="GameProfiles.Launcher.Notify.ImportErrorFormat" xml:space="preserve">
     <value>Произошла ошибка во время импорта профиля: {0}</value>
   </data>
+  <data name="GameProfiles.Resources.IconFormat" xml:space="preserve">
+    <value>Значок {0}</value>
+  </data>
+  <data name="GameProfiles.Resources.LogoFormat" xml:space="preserve">
+    <value>Логотип {0}</value>
+  </data>
+  <data name="GameProfiles.Resources.CoverFormat" xml:space="preserve">
+    <value>Обложка {0}</value>
+  </data>
+  <data name="GameProfiles.Resources.CoverAltFormat" xml:space="preserve">
+    <value>Обложка {0} (альт.)</value>
+  </data>
+  <data name="GameProfiles.Resources.DefaultBackground" xml:space="preserve">
+    <value>Фон по умолчанию</value>
+  </data>
   <data name="GameProfiles.Launcher.Notify.SelectProfileFileFailedFormat" xml:space="preserve">
     <value>Не удалось выбрать файл профиля: {0}</value>
   </data>
@@ -14356,6 +14377,63 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Settings.Profiles.DeletedMessage" xml:space="preserve">
     <value>Успешно удалено профилей: {0}.</value>
+  </data>
+  <data name="GameProfiles.Card.Tooltip.MoveLeft" xml:space="preserve">
+    <value>Переместить влево</value>
+  </data>
+  <data name="GameProfiles.Card.Tooltip.MoveRight" xml:space="preserve">
+    <value>Переместить вправо</value>
+  </data>
+  <data name="GameProfiles.Launcher.Tooltip.Sort" xml:space="preserve">
+    <value>Сортировка профилей</value>
+  </data>
+  <data name="GameProfiles.Sort.LastPlayed" xml:space="preserve">
+    <value>Недавно запущенные</value>
+  </data>
+  <data name="GameProfiles.Sort.DateCreated" xml:space="preserve">
+    <value>По дате создания</value>
+  </data>
+  <data name="GameProfiles.Sort.Alphabetical" xml:space="preserve">
+    <value>По имени (А-Я)</value>
+  </data>
+  <data name="GameProfiles.Sort.AlphabeticalDesc" xml:space="preserve">
+    <value>По имени (Я-А)</value>
+  </data>
+  <data name="GameProfiles.Sort.Free" xml:space="preserve">
+    <value>Пользовательский порядок</value>
+  </data>
+  <data name="GameProfiles.Settings.CustomImage.InvalidFile.Title" xml:space="preserve">
+    <value>Недопустимый файл изображения</value>
+  </data>
+  <data name="GameProfiles.Settings.CustomImage.InvalidFile.Message" xml:space="preserve">
+    <value>Выберите допустимый файл изображения (PNG, JPG, JPEG, WEBP, BMP, GIF, ICO).</value>
+  </data>
+  <data name="GameProfiles.Notification.ReorderFailed.Title" xml:space="preserve">
+    <value>Не удалось сохранить порядок профилей</value>
+  </data>
+  <data name="GameProfiles.Notification.ReorderFailed.Message" xml:space="preserve">
+    <value>Не удалось сохранить новый порядок профилей, предыдущий порядок был восстановлен.</value>
+  </data>
+  <data name="GameProfiles.Status.ContentServicesUnavailable" xml:space="preserve">
+    <value>Службы контента недоступны</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedStatus" xml:space="preserve">
+    <value>Добавлено: {0}</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedTitle" xml:space="preserve">
+    <value>Контент добавлен</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedMessage" xml:space="preserve">
+    <value>"{0}" успешно добавлен.</value>
+  </data>
+  <data name="GameProfiles.Settings.Save.DropImportInProgress.Title" xml:space="preserve">
+    <value>Импорт выполняется</value>
+  </data>
+  <data name="GameProfiles.Settings.Save.DropImportInProgress.Message" xml:space="preserve">
+    <value>Дождитесь завершения импорта перетаскиваемого содержимого перед сохранением.</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.ImportError" xml:space="preserve">
+    <value>Ошибка при импорте перетащенных файлов</value>
   </data>
   <data name="Tools.Plugin.texture-editor.Name" xml:space="preserve">
     <value>Редактор текстур</value>
