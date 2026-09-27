@@ -28,6 +28,21 @@ public sealed class IniBlock
     public List<IniBlock> Children { get; } = [];
 
     /// <summary>
+    /// Gets full line comments written immediately before the opening line.
+    /// </summary>
+    public List<string> LeadingComments { get; } = [];
+
+    /// <summary>
+    /// Gets full line comments written after the last field or child, before <c>End</c>.
+    /// </summary>
+    public List<string> TrailingComments { get; } = [];
+
+    /// <summary>
+    /// Gets or sets the inline comment from the opening line, when present.
+    /// </summary>
+    public string? TrailingComment { get; set; }
+
+    /// <summary>
     /// Gets or sets the 1-based line number where the block starts, when known.
     /// </summary>
     public int LineNumber { get; set; }

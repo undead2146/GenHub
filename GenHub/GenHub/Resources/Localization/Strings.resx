@@ -14888,9 +14888,6 @@ How do you want to apply this update?</value>
   <data name="Tools.IniEditor.Toolbar.New" xml:space="preserve">
     <value>New</value>
   </data>
-  <data name="Tools.IniEditor.Toolbar.Open" xml:space="preserve">
-    <value>Open</value>
-  </data>
   <data name="Tools.IniEditor.Toolbar.OpenFolder" xml:space="preserve">
     <value>Open Folder</value>
   </data>
@@ -15171,6 +15168,720 @@ How do you want to apply this update?</value>
     <value>Edit in INI Editor</value>
   </data>
   <data name="Tools.ModBuilder.FileManager.TooltipEditIni" xml:space="preserve">
-    <value>Open the selected .ini file in the INI editor</value>
+    <value>Open the first selected .ini file in the INI editor</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.Object" xml:space="preserve">
+    <value>Playable or static game object: health, cost, armor, weapons, upgrades, and art.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.DisplayName" xml:space="preserve">
+    <value>String table label shown in the UI.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Side" xml:space="preserve">
+    <value>Faction side for the object.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.EditorSorting" xml:space="preserve">
+    <value>Object editor category and sort key.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.BuildCost" xml:space="preserve">
+    <value>Command center build cost.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.BuildTime" xml:space="preserve">
+    <value>Build time in seconds.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Health" xml:space="preserve">
+    <value>Hit points.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.MaxHealth" xml:space="preserve">
+    <value>Maximum hit points.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.ArmorSet" xml:space="preserve">
+    <value>Armor set condition reference.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.WeaponSet" xml:space="preserve">
+    <value>Weapon set condition reference.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.CommandSet" xml:space="preserve">
+    <value>Command set shown on the command bar.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Upgrades" xml:space="preserve">
+    <value>Required or granted upgrades.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Prerequisites" xml:space="preserve">
+    <value>Required objects or science.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Science" xml:space="preserve">
+    <value>Required science.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.TransportSlotCount" xml:space="preserve">
+    <value>Passenger slots.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.VisionRange" xml:space="preserve">
+    <value>Sight range.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.ShroudClearingRange" xml:space="preserve">
+    <value>Shroud clearing range.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.MaxSimultaneousOfType" xml:space="preserve">
+    <value>Build limit.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Scale" xml:space="preserve">
+    <value>Model scale.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Speed" xml:space="preserve">
+    <value>Locomotor speed override.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.TurnRate" xml:space="preserve">
+    <value>Turn rate.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.CrusherLevel" xml:space="preserve">
+    <value>Crush level versus infantry.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.CrushableLevel" xml:space="preserve">
+    <value>Crushability of this object.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.KindOf" xml:space="preserve">
+    <value>Object kind flags.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Body" xml:space="preserve">
+    <value>Body module reference.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Behavior" xml:space="preserve">
+    <value>Behavior module declaration.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Draw" xml:space="preserve">
+    <value>Draw module declaration.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.ClientUpdate" xml:space="preserve">
+    <value>Client update module declaration.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Geometry" xml:space="preserve">
+    <value>Geometry and shadow settings.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.GeometryMajorRadius" xml:space="preserve">
+    <value>Selection geometry radius.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.VoiceSelect" xml:space="preserve">
+    <value>Selection voice.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.VoiceMove" xml:space="preserve">
+    <value>Move order voice.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.VoiceAttack" xml:space="preserve">
+    <value>Attack order voice.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.UnitSpecificSounds" xml:space="preserve">
+    <value>Unit sound set.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Armor" xml:space="preserve">
+    <value>Inline armor table reference.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.Icon" xml:space="preserve">
+    <value>Command bar icon reference.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.ButtonImage" xml:space="preserve">
+    <value>Command button image.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.UpgradeCameo1" xml:space="preserve">
+    <value>Upgrade cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.UpgradeCameo2" xml:space="preserve">
+    <value>Upgrade cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.UpgradeCameo3" xml:space="preserve">
+    <value>Upgrade cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.UpgradeCameo4" xml:space="preserve">
+    <value>Upgrade cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Object.UpgradeCameo5" xml:space="preserve">
+    <value>Upgrade cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.Weapon" xml:space="preserve">
+    <value>Weapon definition: damage, range, rate of fire, and effects.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.PrimaryDamage" xml:space="preserve">
+    <value>Base damage per hit.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.PrimaryDamageRadius" xml:space="preserve">
+    <value>Splash radius.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.SecondaryDamage" xml:space="preserve">
+    <value>Secondary damage.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.SecondaryDamageRadius" xml:space="preserve">
+    <value>Secondary splash radius.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.AttackRange" xml:space="preserve">
+    <value>Maximum range.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.MinimumAttackRange" xml:space="preserve">
+    <value>Minimum range.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.DelayBetweenShots" xml:space="preserve">
+    <value>Delay between shots in milliseconds.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.ClipSize" xml:space="preserve">
+    <value>Shots per clip.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.ClipReloadTime" xml:space="preserve">
+    <value>Clip reload time in milliseconds.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.AutoReloadsClip" xml:space="preserve">
+    <value>Automatic clip reload behavior.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.DamageType" xml:space="preserve">
+    <value>Damage type applied on hit.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.DeathType" xml:space="preserve">
+    <value>Death type applied on kill.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.WeaponSpeed" xml:space="preserve">
+    <value>Projectile speed.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.RadiusDamageAffects" xml:space="preserve">
+    <value>Which objects splash affects.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.DamageScalar" xml:space="preserve">
+    <value>Damage scalar versus armor.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.AntiAirborneVehicle" xml:space="preserve">
+    <value>Anti-air tuning.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.AntiAirborneInfantry" xml:space="preserve">
+    <value>Anti-air versus infantry.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.AntiGround" xml:space="preserve">
+    <value>Anti-ground tuning.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.ProjectileObject" xml:space="preserve">
+    <value>Projectile object fired.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.FireFX" xml:space="preserve">
+    <value>Muzzle effect.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.HitGroundFX" xml:space="preserve">
+    <value>Ground hit effect.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.HitObjectFX" xml:space="preserve">
+    <value>Object hit effect.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.LaserName" xml:space="preserve">
+    <value>Laser effect.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.WeaponBonus" xml:space="preserve">
+    <value>Weapon bonus versus target type.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.HistoricBonusTime" xml:space="preserve">
+    <value>Veterancy bonus window.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.HistoricBonusCount" xml:space="preserve">
+    <value>Veterancy bonus kills.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.HistoricBonusMultiplier" xml:space="preserve">
+    <value>Veterancy bonus multiplier.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.ScatterRadius" xml:space="preserve">
+    <value>Scatter radius.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Weapon.AcceptableAimDelta" xml:space="preserve">
+    <value>Aim tolerance.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.Armor" xml:space="preserve">
+    <value>Armor table: damage multiplier per damage type.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Armor.DamageMultiplier" xml:space="preserve">
+    <value>Damage multiplier versus {0}.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.ArmorSet" xml:space="preserve">
+    <value>Armor set: selects an Armor table when conditions hold.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ArmorSet.Conditions" xml:space="preserve">
+    <value>Veterancy and upgrade conditions.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ArmorSet.Armor" xml:space="preserve">
+    <value>Armor table used when conditions hold.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ArmorSet.DamageFX" xml:space="preserve">
+    <value>Damage effect set.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.WeaponSet" xml:space="preserve">
+    <value>Weapon set: selects weapon slots when conditions hold.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.WeaponSet.Conditions" xml:space="preserve">
+    <value>Veterancy and upgrade conditions.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.WeaponSet.Weapon" xml:space="preserve">
+    <value>Weapon selected when conditions hold.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.WeaponSet.AutoChooseSources" xml:space="preserve">
+    <value>Automatic weapon source selection.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.WeaponSet.PreferredAgainst" xml:space="preserve">
+    <value>Preferred target category for this set.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.WeaponSet.ShareWeaponReloadTime" xml:space="preserve">
+    <value>Reload timing shared across weapon sets.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.WeaponSet.WeaponLockSharedAcrossSets" xml:space="preserve">
+    <value>Weapon lock shared across weapon sets.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.CommandButton" xml:space="preserve">
+    <value>Command bar button: icon, label, and triggered action.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Command" xml:space="preserve">
+    <value>Button action.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Object" xml:space="preserve">
+    <value>Object created or targeted.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Upgrade" xml:space="preserve">
+    <value>Upgrade researched or required.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Science" xml:space="preserve">
+    <value>Science researched or required.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.SpecialPower" xml:space="preserve">
+    <value>Special power triggered.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.TextLabel" xml:space="preserve">
+    <value>String table label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.ButtonImage" xml:space="preserve">
+    <value>Button icon texture.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.ButtonBorderType" xml:space="preserve">
+    <value>Button border art.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.DescriptLabel" xml:space="preserve">
+    <value>Description string table label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Radial" xml:space="preserve">
+    <value>Radial button behavior.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.InPalantir" xml:space="preserve">
+    <value>Palantir visibility.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.NeedUpgrade" xml:space="preserve">
+    <value>Required upgrade.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.NeedScience" xml:space="preserve">
+    <value>Required science.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Options" xml:space="preserve">
+    <value>Button options.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Cursor" xml:space="preserve">
+    <value>Cursor shown while targeting.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.InvalidCursor" xml:space="preserve">
+    <value>Cursor for invalid targets.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.LacksPrerequisiteLabel" xml:space="preserve">
+    <value>Missing prerequisite label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.CommandSet" xml:space="preserve">
+    <value>Command set: ordered command bar buttons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.1" xml:space="preserve">
+    <value>Command bar slot 1.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.2" xml:space="preserve">
+    <value>Command bar slot 2.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.3" xml:space="preserve">
+    <value>Command bar slot 3.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.4" xml:space="preserve">
+    <value>Command bar slot 4.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.5" xml:space="preserve">
+    <value>Command bar slot 5.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.6" xml:space="preserve">
+    <value>Command bar slot 6.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.7" xml:space="preserve">
+    <value>Command bar slot 7.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.8" xml:space="preserve">
+    <value>Command bar slot 8.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.9" xml:space="preserve">
+    <value>Command bar slot 9.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.10" xml:space="preserve">
+    <value>Command bar slot 10.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.11" xml:space="preserve">
+    <value>Command bar slot 11.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.12" xml:space="preserve">
+    <value>Command bar slot 12.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.13" xml:space="preserve">
+    <value>Command bar slot 13.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.CommandSet.14" xml:space="preserve">
+    <value>Command bar slot 14.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.Upgrade" xml:space="preserve">
+    <value>Upgrade: researchable technology gating objects and weapons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.Type" xml:space="preserve">
+    <value>Upgrade scope.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.BuildCost" xml:space="preserve">
+    <value>Research cost.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.BuildTime" xml:space="preserve">
+    <value>Research time in seconds.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.DisplayName" xml:space="preserve">
+    <value>String table label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.ButtonImage" xml:space="preserve">
+    <value>Research button icon.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.UpgradeCameo1" xml:space="preserve">
+    <value>Cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.UpgradeCameo2" xml:space="preserve">
+    <value>Cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.UpgradeCameo3" xml:space="preserve">
+    <value>Cameo icons.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.ResearchSound" xml:space="preserve">
+    <value>Research sound.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.UnitSpecificSounds" xml:space="preserve">
+    <value>Unit sound set.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.SkirmishAIHeuristic" xml:space="preserve">
+    <value>AI research weight.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Upgrade.PersistsInCampaign" xml:space="preserve">
+    <value>Campaign persistence.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.Science" xml:space="preserve">
+    <value>Science: faction technology prerequisite.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Science.DisplayName" xml:space="preserve">
+    <value>String table label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Science.Description" xml:space="preserve">
+    <value>String table description.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Science.PrerequisiteSciences" xml:space="preserve">
+    <value>Required sciences.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Science.SciencePurchasePointCost" xml:space="preserve">
+    <value>Science point cost.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Science.IsGrantable" xml:space="preserve">
+    <value>Grantable to other players.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Science.ButtonImage" xml:space="preserve">
+    <value>Science button icon.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.SpecialPower" xml:space="preserve">
+    <value>Special power: targeted superweapon or support ability.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ReloadTime" xml:space="preserve">
+    <value>Recharge time in milliseconds.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.RadiusCursor" xml:space="preserve">
+    <value>Targeting cursor radius.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.DisplayName" xml:space="preserve">
+    <value>String table label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ButtonImage" xml:space="preserve">
+    <value>Button icon.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.Cursor" xml:space="preserve">
+    <value>Targeting cursor.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.InvalidCursor" xml:space="preserve">
+    <value>Invalid target cursor.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ViewObject" xml:space="preserve">
+    <value>View object.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.OCL" xml:space="preserve">
+    <value>Object creation list.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ChangeWeapon" xml:space="preserve">
+    <value>Weapon swap while active.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.PublicTimer" xml:space="preserve">
+    <value>Shared timer behavior.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.SharedSyncedTimer" xml:space="preserve">
+    <value>Synced timer behavior.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ShortcutPower" xml:space="preserve">
+    <value>Shortcut power.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.Locomotor" xml:space="preserve">
+    <value>Locomotor: movement speeds and terrain handling.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.Speed" xml:space="preserve">
+    <value>Top speed.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.MinSpeed" xml:space="preserve">
+    <value>Minimum speed.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.Acceleration" xml:space="preserve">
+    <value>Acceleration.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.Braking" xml:space="preserve">
+    <value>Braking rate.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.TurnRate" xml:space="preserve">
+    <value>Turn rate.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.MaxTurnRate" xml:space="preserve">
+    <value>Maximum turn rate.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.Lift" xml:space="preserve">
+    <value>Hover lift.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.HoverHeight" xml:space="preserve">
+    <value>Hover height.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.CrusherLevel" xml:space="preserve">
+    <value>Crush level.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.CrushableLevel" xml:space="preserve">
+    <value>Crushability.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.CanMoveOverRubber" xml:space="preserve">
+    <value>Rubble traversal.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.Appearance" xml:space="preserve">
+    <value>Movement appearance.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.AccelerationPitch" xml:space="preserve">
+    <value>Pitch under acceleration.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.AllowAirborne" xml:space="preserve">
+    <value>Airborne movement.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.Surfaces" xml:space="preserve">
+    <value>Allowed surfaces.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.GroupMovement" xml:space="preserve">
+    <value>Group movement behavior.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.StickToGround" xml:space="preserve">
+    <value>Ground sticking.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.ObjectCreationList" xml:space="preserve">
+    <value>Object creation list: nuggets spawning objects and effects.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.CreateObject" xml:space="preserve">
+    <value>Object spawned by the list.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.Disposition" xml:space="preserve">
+    <value>Spawn disposition.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.Count" xml:space="preserve">
+    <value>Spawn count.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.SpreadFormation" xml:space="preserve">
+    <value>Formation spread.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.MinDistanceA" xml:space="preserve">
+    <value>Minimum distance.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceA" xml:space="preserve">
+    <value>Maximum distance.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetA" xml:space="preserve">
+    <value>Spawn offset.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.MinDistanceB" xml:space="preserve">
+    <value>Secondary minimum distance.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceB" xml:space="preserve">
+    <value>Secondary maximum distance.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetB" xml:space="preserve">
+    <value>Secondary offset.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnorePrimaryObstacles" xml:space="preserve">
+    <value>Obstacle handling.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnoreSecondaryObstacles" xml:space="preserve">
+    <value>Secondary obstacle handling.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.StartingWeapon" xml:space="preserve">
+    <value>Starting weapon override.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.InheritVeterancy" xml:space="preserve">
+    <value>Veterancy inheritance.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.DeliverPayload" xml:space="preserve">
+    <value>Payload delivery.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.DamageFX" xml:space="preserve">
+    <value>Damage effects: throb, particles, and detail for damage states.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.Throb" xml:space="preserve">
+    <value>Throb behavior.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.ThrobRate" xml:space="preserve">
+    <value>Throb rate.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.ThrobIntensity" xml:space="preserve">
+    <value>Throb intensity.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.Particle" xml:space="preserve">
+    <value>Damage particle.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.DamageParticle" xml:space="preserve">
+    <value>Damage particle system.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.Fire" xml:space="preserve">
+    <value>Fire effect.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.Smoke" xml:space="preserve">
+    <value>Smoke effect.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.Sparks" xml:space="preserve">
+    <value>Spark effect.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.DamageTypes" xml:space="preserve">
+    <value>Damage types covered.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.DamageFX.Veterancy" xml:space="preserve">
+    <value>Veterancy level.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.PlayerTemplate" xml:space="preserve">
+    <value>Player template: starting units, money, and faction defaults.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.Side" xml:space="preserve">
+    <value>Faction side.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.PlayableSide" xml:space="preserve">
+    <value>Playable side flag.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartMoney" xml:space="preserve">
+    <value>Starting money.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.PreferredColor" xml:space="preserve">
+    <value>Preferred color.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingBuilding" xml:space="preserve">
+    <value>Starting building.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnit0" xml:space="preserve">
+    <value>Starting units.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnit1" xml:space="preserve">
+    <value>Starting units.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnit2" xml:space="preserve">
+    <value>Starting units.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnitTanks" xml:space="preserve">
+    <value>Starting tanks.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnitAir" xml:space="preserve">
+    <value>Starting aircraft.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.SciencePurchasePoints" xml:space="preserve">
+    <value>Science points.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.DisplayName" xml:space="preserve">
+    <value>String table label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingTaunt" xml:space="preserve">
+    <value>Starting taunt.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.FactionTemplate" xml:space="preserve">
+    <value>Faction template: arms dealer and superweapon defaults.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.DisplayName" xml:space="preserve">
+    <value>String table label.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.ArmsDealer" xml:space="preserve">
+    <value>Arms dealer template.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.StartingBuilding" xml:space="preserve">
+    <value>Starting building.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.Superweapon" xml:space="preserve">
+    <value>Superweapon.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.ExperienceLevels" xml:space="preserve">
+    <value>Experience levels: veterancy thresholds and multipliers.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level1" xml:space="preserve">
+    <value>Experience threshold for level 1.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level2" xml:space="preserve">
+    <value>Experience threshold for level 2.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level3" xml:space="preserve">
+    <value>Experience threshold for level 3.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level4" xml:space="preserve">
+    <value>Experience threshold for level 4.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level5" xml:space="preserve">
+    <value>Experience threshold for level 5.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level6" xml:space="preserve">
+    <value>Experience threshold for level 6.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level7" xml:space="preserve">
+    <value>Experience threshold for level 7.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.Level8" xml:space="preserve">
+    <value>Experience threshold for level 8.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.ExperienceScalar" xml:space="preserve">
+    <value>Experience scalar.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.ExperienceLevels.InformSecondLevel" xml:space="preserve">
+    <value>Second level notification.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Blocks.Veterancy" xml:space="preserve">
+    <value>Veterancy multipliers for a damage or armor context.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Veterancy.VETERAN" xml:space="preserve">
+    <value>Veteran multipliers.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Veterancy.ELITE" xml:space="preserve">
+    <value>Elite multipliers.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Veterancy.HEROIC" xml:space="preserve">
+    <value>Heroic multipliers.</value>
+  </data>
+  <data name="Tools.IniEditor.AddBlock.EmptyNameTitle" xml:space="preserve">
+    <value>Name required</value>
+  </data>
+  <data name="Tools.IniEditor.AddBlock.EmptyNameMessage" xml:space="preserve">
+    <value>Enter a name for the new {0} block.</value>
+  </data>
+  <data name="Tools.IniEditor.AddBlock.DuplicateTitle" xml:space="preserve">
+    <value>Duplicate block</value>
+  </data>
+  <data name="Tools.IniEditor.AddBlock.DuplicateMessage" xml:space="preserve">
+    <value>A {0} block named '{1}' already exists.</value>
+  </data>
+  <data name="Tools.IniEditor.Template.SkippedTitle" xml:space="preserve">
+    <value>Template already applied</value>
+  </data>
+  <data name="Tools.IniEditor.Template.SkippedMessage" xml:space="preserve">
+    <value>The selected block already defines these fields.</value>
+  </data>
+  <data name="Tools.IniEditor.Plugin.LoadError" xml:space="preserve">
+    <value>Error loading INI Editor</value>
+  </data>
+  <data name="Tools.IniEditor.History.EditField" xml:space="preserve">
+    <value>Edit field</value>
   </data>
 </root>

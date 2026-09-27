@@ -33,16 +33,6 @@ public static class IniConstants
     }
 
     /// <summary>
-    /// File level constants. The extension itself is reused from
-    /// <see cref="ModBuilderConstants.FileExtensions.Ini"/>; no duplicate literal lives here.
-    /// </summary>
-    public static class File
-    {
-        /// <summary>Search pattern for INI data files.</summary>
-        public const string SearchPattern = "*.ini";
-    }
-
-    /// <summary>
     /// Well known INI block types parsed with schema assistance.
     /// Unknown block types are preserved and edited generically.
     /// </summary>
@@ -116,38 +106,58 @@ public static class IniConstants
     public static class DamageTypes
     {
         /// <summary>
-        /// All damage types in engine canonical order.
+        /// All Zero Hour damage types in engine order, matching
+        /// <c>DamageTypeFlags::s_bitNameList</c> in the public game code.
+        /// Original Generals additionally defines <c>FLESHY_SNIPER</c>.
         /// </summary>
         public static readonly string[] All =
         [
             "EXPLOSION", "CRUSH", "ARMOR_PIERCING", "SMALL_ARMS", "GATTLING",
             "RADIATION", "FLAME", "LASER", "SNIPER", "POISON", "HEALING",
             "UNRESISTABLE", "WATER", "DEPLOY", "SURRENDER", "HACK", "KILL_PILOT",
-            "PLOW", "MELEE", "FALLING", "VIS", "PARTICLE_BEAM", "IGNITION",
-            "NUKE", "MINE", "BOOBY_TRAP", "HAZARD", "STEALTH", "LAND_MINE",
-            "AIRCRAFT_MISSILE", "JET_MISSILES", "CANNON", "ROCKET", "GUN",
-            "RIFLE", "PISTOL", "HAND_GUN",
+            "PENALTY", "FALLING", "MELEE", "DISARM", "HAZARD_CLEANUP",
+            "PARTICLE_BEAM", "TOPPLING", "INFANTRY_MISSILE", "AURORA_BOMB",
+            "LAND_MINE", "JET_MISSILES", "STEALTHJET_MISSILES", "MOLOTOV_COCKTAIL",
+            "COMANCHE_VULCAN", "SUBDUAL_MISSILE", "SUBDUAL_VEHICLE",
+            "SUBDUAL_BUILDING", "SUBDUAL_UNRESISTABLE", "MICROWAVE",
+            "KILL_GARRISONED", "STATUS",
         ];
     }
 
     /// <summary>
-    /// Weapon slot names used inside WeaponSet conditions.
+    /// Well known INI field keys shared by the schema and the editor.
     /// </summary>
-    public static class WeaponSlots
+    public static class FieldKeys
     {
-        /// <summary>Primary weapon slot.</summary>
-        public const string Primary = "PRIMARY";
+        /// <summary>Display name key.</summary>
+        public const string DisplayName = "DisplayName";
 
-        /// <summary>Secondary weapon slot.</summary>
-        public const string Secondary = "SECONDARY";
+        /// <summary>Button image key.</summary>
+        public const string ButtonImage = "ButtonImage";
 
-        /// <summary>Tertiary weapon slot.</summary>
-        public const string Tertiary = "TERTIARY";
+        /// <summary>Build cost key.</summary>
+        public const string BuildCost = "BuildCost";
 
-        /// <summary>
-        /// All weapon slots.
-        /// </summary>
-        public static readonly string[] All = [Primary, Secondary, Tertiary];
+        /// <summary>Build time key.</summary>
+        public const string BuildTime = "BuildTime";
+
+        /// <summary>Damage type key.</summary>
+        public const string DamageType = "DamageType";
+
+        /// <summary>Primary damage key.</summary>
+        public const string PrimaryDamage = "PrimaryDamage";
+
+        /// <summary>Primary damage radius key.</summary>
+        public const string PrimaryDamageRadius = "PrimaryDamageRadius";
+
+        /// <summary>Death type key.</summary>
+        public const string DeathType = "DeathType";
+
+        /// <summary>Upgrade key.</summary>
+        public const string Upgrade = "Upgrade";
+
+        /// <summary>Triggered by key.</summary>
+        public const string TriggeredBy = "TriggeredBy";
     }
 
     /// <summary>
@@ -157,5 +167,14 @@ public static class IniConstants
     {
         /// <summary>Maximum undo history entries.</summary>
         public const int MaxUndoHistory = 200;
+
+        /// <summary>Maximum explorer depth when listing INI files.</summary>
+        public const int MaxExplorerDepth = 20;
+
+        /// <summary>Debounce delay before refreshing previews after an edit, in milliseconds.</summary>
+        public const int PreviewRefreshDebounceMs = 250;
+
+        /// <summary>Debounce delay before applying the block filter, in milliseconds.</summary>
+        public const int FilterDebounceMs = 200;
     }
 }

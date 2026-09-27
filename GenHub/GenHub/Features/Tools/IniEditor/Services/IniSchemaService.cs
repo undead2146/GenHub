@@ -1,8 +1,10 @@
 using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Tools.IniEditor;
 using GenHub.Core.Models.Tools.IniEditor;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 
 namespace GenHub.Features.Tools.IniEditor.Services;
@@ -14,313 +16,332 @@ namespace GenHub.Features.Tools.IniEditor.Services;
 /// </summary>
 public sealed class IniSchemaService : IIniSchemaService
 {
-    private readonly Dictionary<string, IniBlockSchema> _schemas;
+    private sealed record SchemaFieldEntry(string Key, string DescriptionKey, bool IsNumeric);
+
+    private sealed record SchemaBlockEntry(
+        string BlockType,
+        string DescriptionKey,
+        SchemaFieldEntry[] Fields,
+        string? GeneratedDescriptionKey = null);
+
+    private static readonly SchemaBlockEntry[] SchemaTables =
+    [
+            new(
+                IniConstants.BlockTypes.Object,
+                "Tools.IniEditor.Schema.Blocks.Object",
+                [
+                    new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.Object.DisplayName", false),
+                    new("Side", "Tools.IniEditor.Schema.Fields.Object.Side", false),
+                    new("EditorSorting", "Tools.IniEditor.Schema.Fields.Object.EditorSorting", false),
+                    new(IniConstants.FieldKeys.BuildCost, "Tools.IniEditor.Schema.Fields.Object.BuildCost", true),
+                    new(IniConstants.FieldKeys.BuildTime, "Tools.IniEditor.Schema.Fields.Object.BuildTime", true),
+                    new("Health", "Tools.IniEditor.Schema.Fields.Object.Health", true),
+                    new("MaxHealth", "Tools.IniEditor.Schema.Fields.Object.MaxHealth", true),
+                    new("ArmorSet", "Tools.IniEditor.Schema.Fields.Object.ArmorSet", false),
+                    new("WeaponSet", "Tools.IniEditor.Schema.Fields.Object.WeaponSet", false),
+                    new("CommandSet", "Tools.IniEditor.Schema.Fields.Object.CommandSet", false),
+                    new("Upgrades", "Tools.IniEditor.Schema.Fields.Object.Upgrades", false),
+                    new("Prerequisites", "Tools.IniEditor.Schema.Fields.Object.Prerequisites", false),
+                    new("Science", "Tools.IniEditor.Schema.Fields.Object.Science", false),
+                    new("TransportSlotCount", "Tools.IniEditor.Schema.Fields.Object.TransportSlotCount", true),
+                    new("VisionRange", "Tools.IniEditor.Schema.Fields.Object.VisionRange", true),
+                    new("ShroudClearingRange", "Tools.IniEditor.Schema.Fields.Object.ShroudClearingRange", true),
+                    new("MaxSimultaneousOfType", "Tools.IniEditor.Schema.Fields.Object.MaxSimultaneousOfType", true),
+                    new("Scale", "Tools.IniEditor.Schema.Fields.Object.Scale", true),
+                    new("Speed", "Tools.IniEditor.Schema.Fields.Object.Speed", true),
+                    new("TurnRate", "Tools.IniEditor.Schema.Fields.Object.TurnRate", true),
+                    new("CrusherLevel", "Tools.IniEditor.Schema.Fields.Object.CrusherLevel", true),
+                    new("CrushableLevel", "Tools.IniEditor.Schema.Fields.Object.CrushableLevel", true),
+                    new("KindOf", "Tools.IniEditor.Schema.Fields.Object.KindOf", false),
+                    new("Body", "Tools.IniEditor.Schema.Fields.Object.Body", false),
+                    new("Behavior", "Tools.IniEditor.Schema.Fields.Object.Behavior", false),
+                    new("Draw", "Tools.IniEditor.Schema.Fields.Object.Draw", false),
+                    new("ClientUpdate", "Tools.IniEditor.Schema.Fields.Object.ClientUpdate", false),
+                    new("Geometry", "Tools.IniEditor.Schema.Fields.Object.Geometry", false),
+                    new("GeometryMajorRadius", "Tools.IniEditor.Schema.Fields.Object.GeometryMajorRadius", true),
+                    new("VoiceSelect", "Tools.IniEditor.Schema.Fields.Object.VoiceSelect", false),
+                    new("VoiceMove", "Tools.IniEditor.Schema.Fields.Object.VoiceMove", false),
+                    new("VoiceAttack", "Tools.IniEditor.Schema.Fields.Object.VoiceAttack", false),
+                    new("UnitSpecificSounds", "Tools.IniEditor.Schema.Fields.Object.UnitSpecificSounds", false),
+                    new("Armor", "Tools.IniEditor.Schema.Fields.Object.Armor", false),
+                    new("Icon", "Tools.IniEditor.Schema.Fields.Object.Icon", false),
+                    new(IniConstants.FieldKeys.ButtonImage, "Tools.IniEditor.Schema.Fields.Object.ButtonImage", false),
+                    new("UpgradeCameo1", "Tools.IniEditor.Schema.Fields.Object.UpgradeCameo1", false),
+                    new("UpgradeCameo2", "Tools.IniEditor.Schema.Fields.Object.UpgradeCameo2", false),
+                    new("UpgradeCameo3", "Tools.IniEditor.Schema.Fields.Object.UpgradeCameo3", false),
+                    new("UpgradeCameo4", "Tools.IniEditor.Schema.Fields.Object.UpgradeCameo4", false),
+                    new("UpgradeCameo5", "Tools.IniEditor.Schema.Fields.Object.UpgradeCameo5", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.Weapon,
+                "Tools.IniEditor.Schema.Blocks.Weapon",
+                [
+                    new(IniConstants.FieldKeys.PrimaryDamage, "Tools.IniEditor.Schema.Fields.Weapon.PrimaryDamage", true),
+                    new(IniConstants.FieldKeys.PrimaryDamageRadius, "Tools.IniEditor.Schema.Fields.Weapon.PrimaryDamageRadius", true),
+                    new("SecondaryDamage", "Tools.IniEditor.Schema.Fields.Weapon.SecondaryDamage", true),
+                    new("SecondaryDamageRadius", "Tools.IniEditor.Schema.Fields.Weapon.SecondaryDamageRadius", true),
+                    new("AttackRange", "Tools.IniEditor.Schema.Fields.Weapon.AttackRange", true),
+                    new("MinimumAttackRange", "Tools.IniEditor.Schema.Fields.Weapon.MinimumAttackRange", true),
+                    new("DelayBetweenShots", "Tools.IniEditor.Schema.Fields.Weapon.DelayBetweenShots", true),
+                    new("ClipSize", "Tools.IniEditor.Schema.Fields.Weapon.ClipSize", true),
+                    new("ClipReloadTime", "Tools.IniEditor.Schema.Fields.Weapon.ClipReloadTime", true),
+                    new("AutoReloadsClip", "Tools.IniEditor.Schema.Fields.Weapon.AutoReloadsClip", false),
+                    new(IniConstants.FieldKeys.DamageType, "Tools.IniEditor.Schema.Fields.Weapon.DamageType", false),
+                    new(IniConstants.FieldKeys.DeathType, "Tools.IniEditor.Schema.Fields.Weapon.DeathType", false),
+                    new("WeaponSpeed", "Tools.IniEditor.Schema.Fields.Weapon.WeaponSpeed", true),
+                    new("RadiusDamageAffects", "Tools.IniEditor.Schema.Fields.Weapon.RadiusDamageAffects", false),
+                    new("DamageScalar", "Tools.IniEditor.Schema.Fields.Weapon.DamageScalar", true),
+                    new("AntiAirborneVehicle", "Tools.IniEditor.Schema.Fields.Weapon.AntiAirborneVehicle", false),
+                    new("AntiAirborneInfantry", "Tools.IniEditor.Schema.Fields.Weapon.AntiAirborneInfantry", false),
+                    new("AntiGround", "Tools.IniEditor.Schema.Fields.Weapon.AntiGround", false),
+                    new("ProjectileObject", "Tools.IniEditor.Schema.Fields.Weapon.ProjectileObject", false),
+                    new("FireFX", "Tools.IniEditor.Schema.Fields.Weapon.FireFX", false),
+                    new("HitGroundFX", "Tools.IniEditor.Schema.Fields.Weapon.HitGroundFX", false),
+                    new("HitObjectFX", "Tools.IniEditor.Schema.Fields.Weapon.HitObjectFX", false),
+                    new("LaserName", "Tools.IniEditor.Schema.Fields.Weapon.LaserName", false),
+                    new("WeaponBonus", "Tools.IniEditor.Schema.Fields.Weapon.WeaponBonus", false),
+                    new("HistoricBonusTime", "Tools.IniEditor.Schema.Fields.Weapon.HistoricBonusTime", true),
+                    new("HistoricBonusCount", "Tools.IniEditor.Schema.Fields.Weapon.HistoricBonusCount", true),
+                    new("HistoricBonusMultiplier", "Tools.IniEditor.Schema.Fields.Weapon.HistoricBonusMultiplier", true),
+                    new("ScatterRadius", "Tools.IniEditor.Schema.Fields.Weapon.ScatterRadius", true),
+                    new("AcceptableAimDelta", "Tools.IniEditor.Schema.Fields.Weapon.AcceptableAimDelta", true),
+                ]),
+            new(
+                IniConstants.BlockTypes.Armor,
+                "Tools.IniEditor.Schema.Blocks.Armor",
+                [],
+                "Tools.IniEditor.Schema.Fields.Armor.DamageMultiplier"),
+            new(
+                IniConstants.BlockTypes.ArmorSet,
+                "Tools.IniEditor.Schema.Blocks.ArmorSet",
+                [
+                    new("Conditions", "Tools.IniEditor.Schema.Fields.ArmorSet.Conditions", false),
+                    new("Armor", "Tools.IniEditor.Schema.Fields.ArmorSet.Armor", false),
+                    new("DamageFX", "Tools.IniEditor.Schema.Fields.ArmorSet.DamageFX", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.WeaponSet,
+                "Tools.IniEditor.Schema.Blocks.WeaponSet",
+                [
+                    new("Conditions", "Tools.IniEditor.Schema.Fields.WeaponSet.Conditions", false),
+                    new("Weapon", "Tools.IniEditor.Schema.Fields.WeaponSet.Weapon", false),
+                    new("AutoChooseSources", "Tools.IniEditor.Schema.Fields.WeaponSet.AutoChooseSources", false),
+                    new("PreferredAgainst", "Tools.IniEditor.Schema.Fields.WeaponSet.PreferredAgainst", false),
+                    new("ShareWeaponReloadTime", "Tools.IniEditor.Schema.Fields.WeaponSet.ShareWeaponReloadTime", false),
+                    new("WeaponLockSharedAcrossSets", "Tools.IniEditor.Schema.Fields.WeaponSet.WeaponLockSharedAcrossSets", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.CommandButton,
+                "Tools.IniEditor.Schema.Blocks.CommandButton",
+                [
+                    new("Command", "Tools.IniEditor.Schema.Fields.CommandButton.Command", false),
+                    new("Object", "Tools.IniEditor.Schema.Fields.CommandButton.Object", false),
+                    new(IniConstants.FieldKeys.Upgrade, "Tools.IniEditor.Schema.Fields.CommandButton.Upgrade", false),
+                    new("Science", "Tools.IniEditor.Schema.Fields.CommandButton.Science", false),
+                    new("SpecialPower", "Tools.IniEditor.Schema.Fields.CommandButton.SpecialPower", false),
+                    new("TextLabel", "Tools.IniEditor.Schema.Fields.CommandButton.TextLabel", false),
+                    new(IniConstants.FieldKeys.ButtonImage, "Tools.IniEditor.Schema.Fields.CommandButton.ButtonImage", false),
+                    new("ButtonBorderType", "Tools.IniEditor.Schema.Fields.CommandButton.ButtonBorderType", false),
+                    new("DescriptLabel", "Tools.IniEditor.Schema.Fields.CommandButton.DescriptLabel", false),
+                    new("Radial", "Tools.IniEditor.Schema.Fields.CommandButton.Radial", false),
+                    new("InPalantir", "Tools.IniEditor.Schema.Fields.CommandButton.InPalantir", false),
+                    new("NeedUpgrade", "Tools.IniEditor.Schema.Fields.CommandButton.NeedUpgrade", false),
+                    new("NeedScience", "Tools.IniEditor.Schema.Fields.CommandButton.NeedScience", false),
+                    new("Options", "Tools.IniEditor.Schema.Fields.CommandButton.Options", false),
+                    new("Cursor", "Tools.IniEditor.Schema.Fields.CommandButton.Cursor", false),
+                    new("InvalidCursor", "Tools.IniEditor.Schema.Fields.CommandButton.InvalidCursor", false),
+                    new("LacksPrerequisiteLabel", "Tools.IniEditor.Schema.Fields.CommandButton.LacksPrerequisiteLabel", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.CommandSet,
+                "Tools.IniEditor.Schema.Blocks.CommandSet",
+                [
+                    new("1", "Tools.IniEditor.Schema.Fields.CommandSet.1", false),
+                    new("2", "Tools.IniEditor.Schema.Fields.CommandSet.2", false),
+                    new("3", "Tools.IniEditor.Schema.Fields.CommandSet.3", false),
+                    new("4", "Tools.IniEditor.Schema.Fields.CommandSet.4", false),
+                    new("5", "Tools.IniEditor.Schema.Fields.CommandSet.5", false),
+                    new("6", "Tools.IniEditor.Schema.Fields.CommandSet.6", false),
+                    new("7", "Tools.IniEditor.Schema.Fields.CommandSet.7", false),
+                    new("8", "Tools.IniEditor.Schema.Fields.CommandSet.8", false),
+                    new("9", "Tools.IniEditor.Schema.Fields.CommandSet.9", false),
+                    new("10", "Tools.IniEditor.Schema.Fields.CommandSet.10", false),
+                    new("11", "Tools.IniEditor.Schema.Fields.CommandSet.11", false),
+                    new("12", "Tools.IniEditor.Schema.Fields.CommandSet.12", false),
+                    new("13", "Tools.IniEditor.Schema.Fields.CommandSet.13", false),
+                    new("14", "Tools.IniEditor.Schema.Fields.CommandSet.14", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.Upgrade,
+                "Tools.IniEditor.Schema.Blocks.Upgrade",
+                [
+                    new("Type", "Tools.IniEditor.Schema.Fields.Upgrade.Type", false),
+                    new(IniConstants.FieldKeys.BuildCost, "Tools.IniEditor.Schema.Fields.Upgrade.BuildCost", true),
+                    new(IniConstants.FieldKeys.BuildTime, "Tools.IniEditor.Schema.Fields.Upgrade.BuildTime", true),
+                    new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.Upgrade.DisplayName", false),
+                    new(IniConstants.FieldKeys.ButtonImage, "Tools.IniEditor.Schema.Fields.Upgrade.ButtonImage", false),
+                    new("UpgradeCameo1", "Tools.IniEditor.Schema.Fields.Upgrade.UpgradeCameo1", false),
+                    new("UpgradeCameo2", "Tools.IniEditor.Schema.Fields.Upgrade.UpgradeCameo2", false),
+                    new("UpgradeCameo3", "Tools.IniEditor.Schema.Fields.Upgrade.UpgradeCameo3", false),
+                    new("ResearchSound", "Tools.IniEditor.Schema.Fields.Upgrade.ResearchSound", false),
+                    new("UnitSpecificSounds", "Tools.IniEditor.Schema.Fields.Upgrade.UnitSpecificSounds", false),
+                    new("SkirmishAIHeuristic", "Tools.IniEditor.Schema.Fields.Upgrade.SkirmishAIHeuristic", false),
+                    new("PersistsInCampaign", "Tools.IniEditor.Schema.Fields.Upgrade.PersistsInCampaign", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.Science,
+                "Tools.IniEditor.Schema.Blocks.Science",
+                [
+                    new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.Science.DisplayName", false),
+                    new("Description", "Tools.IniEditor.Schema.Fields.Science.Description", false),
+                    new("PrerequisiteSciences", "Tools.IniEditor.Schema.Fields.Science.PrerequisiteSciences", false),
+                    new("SciencePurchasePointCost", "Tools.IniEditor.Schema.Fields.Science.SciencePurchasePointCost", true),
+                    new("IsGrantable", "Tools.IniEditor.Schema.Fields.Science.IsGrantable", false),
+                    new(IniConstants.FieldKeys.ButtonImage, "Tools.IniEditor.Schema.Fields.Science.ButtonImage", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.SpecialPower,
+                "Tools.IniEditor.Schema.Blocks.SpecialPower",
+                [
+                    new("ReloadTime", "Tools.IniEditor.Schema.Fields.SpecialPower.ReloadTime", true),
+                    new("RadiusCursor", "Tools.IniEditor.Schema.Fields.SpecialPower.RadiusCursor", true),
+                    new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.SpecialPower.DisplayName", false),
+                    new(IniConstants.FieldKeys.ButtonImage, "Tools.IniEditor.Schema.Fields.SpecialPower.ButtonImage", false),
+                    new("Cursor", "Tools.IniEditor.Schema.Fields.SpecialPower.Cursor", false),
+                    new("InvalidCursor", "Tools.IniEditor.Schema.Fields.SpecialPower.InvalidCursor", false),
+                    new("ViewObject", "Tools.IniEditor.Schema.Fields.SpecialPower.ViewObject", false),
+                    new("OCL", "Tools.IniEditor.Schema.Fields.SpecialPower.OCL", false),
+                    new("ChangeWeapon", "Tools.IniEditor.Schema.Fields.SpecialPower.ChangeWeapon", false),
+                    new("PublicTimer", "Tools.IniEditor.Schema.Fields.SpecialPower.PublicTimer", false),
+                    new("SharedSyncedTimer", "Tools.IniEditor.Schema.Fields.SpecialPower.SharedSyncedTimer", false),
+                    new("ShortcutPower", "Tools.IniEditor.Schema.Fields.SpecialPower.ShortcutPower", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.Locomotor,
+                "Tools.IniEditor.Schema.Blocks.Locomotor",
+                [
+                    new("Speed", "Tools.IniEditor.Schema.Fields.Locomotor.Speed", true),
+                    new("MinSpeed", "Tools.IniEditor.Schema.Fields.Locomotor.MinSpeed", true),
+                    new("Acceleration", "Tools.IniEditor.Schema.Fields.Locomotor.Acceleration", true),
+                    new("Braking", "Tools.IniEditor.Schema.Fields.Locomotor.Braking", true),
+                    new("TurnRate", "Tools.IniEditor.Schema.Fields.Locomotor.TurnRate", true),
+                    new("MaxTurnRate", "Tools.IniEditor.Schema.Fields.Locomotor.MaxTurnRate", true),
+                    new("Lift", "Tools.IniEditor.Schema.Fields.Locomotor.Lift", true),
+                    new("HoverHeight", "Tools.IniEditor.Schema.Fields.Locomotor.HoverHeight", true),
+                    new("CrusherLevel", "Tools.IniEditor.Schema.Fields.Locomotor.CrusherLevel", true),
+                    new("CrushableLevel", "Tools.IniEditor.Schema.Fields.Locomotor.CrushableLevel", true),
+                    new("CanMoveOverRubber", "Tools.IniEditor.Schema.Fields.Locomotor.CanMoveOverRubber", false),
+                    new("Appearance", "Tools.IniEditor.Schema.Fields.Locomotor.Appearance", false),
+                    new("AccelerationPitch", "Tools.IniEditor.Schema.Fields.Locomotor.AccelerationPitch", true),
+                    new("AllowAirborne", "Tools.IniEditor.Schema.Fields.Locomotor.AllowAirborne", false),
+                    new("Surfaces", "Tools.IniEditor.Schema.Fields.Locomotor.Surfaces", false),
+                    new("GroupMovement", "Tools.IniEditor.Schema.Fields.Locomotor.GroupMovement", false),
+                    new("StickToGround", "Tools.IniEditor.Schema.Fields.Locomotor.StickToGround", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.ObjectCreationList,
+                "Tools.IniEditor.Schema.Blocks.ObjectCreationList",
+                [
+                    new("CreateObject", "Tools.IniEditor.Schema.Fields.ObjectCreationList.CreateObject", false),
+                    new("Disposition", "Tools.IniEditor.Schema.Fields.ObjectCreationList.Disposition", false),
+                    new("Count", "Tools.IniEditor.Schema.Fields.ObjectCreationList.Count", true),
+                    new("SpreadFormation", "Tools.IniEditor.Schema.Fields.ObjectCreationList.SpreadFormation", false),
+                    new("MinDistanceA", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MinDistanceA", true),
+                    new("MaxDistanceA", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceA", true),
+                    new("OffsetA", "Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetA", false),
+                    new("MinDistanceB", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MinDistanceB", true),
+                    new("MaxDistanceB", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceB", true),
+                    new("OffsetB", "Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetB", false),
+                    new("IgnorePrimaryObstacles", "Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnorePrimaryObstacles", false),
+                    new("IgnoreSecondaryObstacles", "Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnoreSecondaryObstacles", false),
+                    new("StartingWeapon", "Tools.IniEditor.Schema.Fields.ObjectCreationList.StartingWeapon", false),
+                    new("InheritVeterancy", "Tools.IniEditor.Schema.Fields.ObjectCreationList.InheritVeterancy", false),
+                    new("DeliverPayload", "Tools.IniEditor.Schema.Fields.ObjectCreationList.DeliverPayload", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.DamageFX,
+                "Tools.IniEditor.Schema.Blocks.DamageFX",
+                [
+                    new("Throb", "Tools.IniEditor.Schema.Fields.DamageFX.Throb", false),
+                    new("ThrobRate", "Tools.IniEditor.Schema.Fields.DamageFX.ThrobRate", true),
+                    new("ThrobIntensity", "Tools.IniEditor.Schema.Fields.DamageFX.ThrobIntensity", true),
+                    new("Particle", "Tools.IniEditor.Schema.Fields.DamageFX.Particle", false),
+                    new("DamageParticle", "Tools.IniEditor.Schema.Fields.DamageFX.DamageParticle", false),
+                    new("Fire", "Tools.IniEditor.Schema.Fields.DamageFX.Fire", false),
+                    new("Smoke", "Tools.IniEditor.Schema.Fields.DamageFX.Smoke", false),
+                    new("Sparks", "Tools.IniEditor.Schema.Fields.DamageFX.Sparks", false),
+                    new("DamageTypes", "Tools.IniEditor.Schema.Fields.DamageFX.DamageTypes", false),
+                    new("Veterancy", "Tools.IniEditor.Schema.Fields.DamageFX.Veterancy", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.PlayerTemplate,
+                "Tools.IniEditor.Schema.Blocks.PlayerTemplate",
+                [
+                    new("Side", "Tools.IniEditor.Schema.Fields.PlayerTemplate.Side", false),
+                    new("PlayableSide", "Tools.IniEditor.Schema.Fields.PlayerTemplate.PlayableSide", false),
+                    new("StartMoney", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartMoney", true),
+                    new("PreferredColor", "Tools.IniEditor.Schema.Fields.PlayerTemplate.PreferredColor", false),
+                    new("StartingBuilding", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingBuilding", false),
+                    new("StartingUnit0", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnit0", false),
+                    new("StartingUnit1", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnit1", false),
+                    new("StartingUnit2", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnit2", false),
+                    new("StartingUnitTanks", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnitTanks", false),
+                    new("StartingUnitAir", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingUnitAir", false),
+                    new("SciencePurchasePoints", "Tools.IniEditor.Schema.Fields.PlayerTemplate.SciencePurchasePoints", true),
+                    new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.PlayerTemplate.DisplayName", false),
+                    new("StartingTaunt", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingTaunt", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.FactionTemplate,
+                "Tools.IniEditor.Schema.Blocks.FactionTemplate",
+                [
+                    new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.FactionTemplate.DisplayName", false),
+                    new("ArmsDealer", "Tools.IniEditor.Schema.Fields.FactionTemplate.ArmsDealer", false),
+                    new("StartingBuilding", "Tools.IniEditor.Schema.Fields.FactionTemplate.StartingBuilding", false),
+                    new("Superweapon", "Tools.IniEditor.Schema.Fields.FactionTemplate.Superweapon", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.ExperienceLevels,
+                "Tools.IniEditor.Schema.Blocks.ExperienceLevels",
+                [
+                    new("Level1", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level1", true),
+                    new("Level2", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level2", true),
+                    new("Level3", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level3", true),
+                    new("Level4", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level4", true),
+                    new("Level5", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level5", true),
+                    new("Level6", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level6", true),
+                    new("Level7", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level7", true),
+                    new("Level8", "Tools.IniEditor.Schema.Fields.ExperienceLevels.Level8", true),
+                    new("ExperienceScalar", "Tools.IniEditor.Schema.Fields.ExperienceLevels.ExperienceScalar", true),
+                    new("InformSecondLevel", "Tools.IniEditor.Schema.Fields.ExperienceLevels.InformSecondLevel", false),
+                ]),
+            new(
+                IniConstants.BlockTypes.Veterancy,
+                "Tools.IniEditor.Schema.Blocks.Veterancy",
+                [
+                    new("VETERAN", "Tools.IniEditor.Schema.Fields.Veterancy.VETERAN", false),
+                    new("ELITE", "Tools.IniEditor.Schema.Fields.Veterancy.ELITE", false),
+                    new("HEROIC", "Tools.IniEditor.Schema.Fields.Veterancy.HEROIC", false),
+                ]),
+    ];
+
+    private readonly ILocalizationService _localizationService;
+    private Dictionary<string, IniBlockSchema> _schemas = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<IniBlockSchema> _blockSchemas = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IniSchemaService"/> class.
     /// </summary>
-    public IniSchemaService()
+    /// <param name="localizationService">The localization service resolving schema descriptions.</param>
+    public IniSchemaService(ILocalizationService localizationService)
     {
-        var schemas = new List<IniBlockSchema>
-        {
-            new(
-                IniConstants.BlockTypes.Object,
-                "Playable or static game object: health, cost, armor, weapons, upgrades, and art.",
-                [
-                    new("DisplayName", "String table label shown in the UI.", false),
-                    new("Side", "Faction side for the object.", false),
-                    new("EditorSorting", "Object editor category and sort key.", false),
-                    new("BuildCost", "Command center build cost.", true),
-                    new("BuildTime", "Build time in seconds.", true),
-                    new("Health", "Hit points.", true),
-                    new("MaxHealth", "Maximum hit points.", true),
-                    new("ArmorSet", "Armor set condition reference.", false),
-                    new("WeaponSet", "Weapon set condition reference.", false),
-                    new("CommandSet", "Command set shown on the command bar.", false),
-                    new("Upgrades", "Required or granted upgrades.", false),
-                    new("Prerequisites", "Required objects or science.", false),
-                    new("Science", "Required science.", false),
-                    new("TransportSlotCount", "Passenger slots.", true),
-                    new("VisionRange", "Sight range.", true),
-                    new("ShroudClearingRange", "Shroud clearing range.", true),
-                    new("MaxSimultaneousOfType", "Build limit.", true),
-                    new("Scale", "Model scale.", true),
-                    new("Speed", "Locomotor speed override.", true),
-                    new("TurnRate", "Turn rate.", true),
-                    new("CrusherLevel", "Crush level versus infantry.", true),
-                    new("CrushableLevel", "Crushability of this object.", true),
-                    new("KindOf", "Object kind flags.", false),
-                    new("Body", "Body module reference.", false),
-                    new("Behavior", "Behavior module declaration.", false),
-                    new("Draw", "Draw module declaration.", false),
-                    new("ClientUpdate", "Client update module declaration.", false),
-                    new("Geometry", "Geometry and shadow settings.", false),
-                    new("GeometryMajorRadius", "Selection geometry radius.", true),
-                    new("VoiceSelect", "Selection voice.", false),
-                    new("VoiceMove", "Move order voice.", false),
-                    new("VoiceAttack", "Attack order voice.", false),
-                    new("UnitSpecificSounds", "Unit sound set.", false),
-                    new("Armor", "Inline armor table reference.", false),
-                    new("Icon", "Command bar icon reference.", false),
-                    new("ButtonImage", "Command button image.", false),
-                    new("UpgradeCameo1", "Upgrade cameo icons.", false),
-                    new("UpgradeCameo2", "Upgrade cameo icons.", false),
-                    new("UpgradeCameo3", "Upgrade cameo icons.", false),
-                    new("UpgradeCameo4", "Upgrade cameo icons.", false),
-                    new("UpgradeCameo5", "Upgrade cameo icons.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.Weapon,
-                "Weapon definition: damage, range, rate of fire, and effects.",
-                [
-                    new("PrimaryDamage", "Base damage per hit.", true),
-                    new("PrimaryDamageRadius", "Splash radius.", true),
-                    new("SecondaryDamage", "Secondary damage.", true),
-                    new("SecondaryDamageRadius", "Secondary splash radius.", true),
-                    new("AttackRange", "Maximum range.", true),
-                    new("MinimumAttackRange", "Minimum range.", true),
-                    new("DelayBetweenShots", "Delay between shots in milliseconds.", true),
-                    new("ClipSize", "Shots per clip.", true),
-                    new("ClipReloadTime", "Clip reload time in milliseconds.", true),
-                    new("AutoReloadsClip", "Automatic clip reload behavior.", false),
-                    new("DamageType", "Damage type applied on hit.", false),
-                    new("DeathType", "Death type applied on kill.", false),
-                    new("WeaponSpeed", "Projectile speed.", true),
-                    new("RadiusDamageAffects", "Which objects splash affects.", false),
-                    new("DamageScalar", "Damage scalar versus armor.", true),
-                    new("AntiAirborneVehicle", "Anti-air tuning.", false),
-                    new("AntiAirborneInfantry", "Anti-air versus infantry.", false),
-                    new("AntiGround", "Anti-ground tuning.", false),
-                    new("ProjectileObject", "Projectile object fired.", false),
-                    new("FireFX", "Muzzle effect.", false),
-                    new("HitGroundFX", "Ground hit effect.", false),
-                    new("HitObjectFX", "Object hit effect.", false),
-                    new("LaserName", "Laser effect.", false),
-                    new("WeaponBonus", "Weapon bonus versus target type.", false),
-                    new("HistoricBonusTime", "Veterancy bonus window.", true),
-                    new("HistoricBonusCount", "Veterancy bonus kills.", true),
-                    new("HistoricBonusMultiplier", "Veterancy bonus multiplier.", true),
-                    new("ScatterRadius", "Scatter radius.", true),
-                    new("AcceptableAimDelta", "Aim tolerance.", true),
-                ]),
-            new(
-                IniConstants.BlockTypes.Armor,
-                "Armor table: damage multiplier per damage type.",
-                IniConstants.DamageTypes.All.Select(type => new IniFieldSchema(type, $"Damage multiplier versus {type}.", true)).ToArray()),
-            new(
-                IniConstants.BlockTypes.ArmorSet,
-                "Armor set: selects an Armor table when conditions hold.",
-                [
-                    new("Conditions", "Veterancy and upgrade conditions.", false),
-                    new("Armor", "Armor table used when conditions hold.", false),
-                    new("DamageFX", "Damage effect set.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.WeaponSet,
-                "Weapon set: selects weapon slots when conditions hold.",
-                [
-                    new("Conditions", "Veterancy and upgrade conditions.", false),
-                    new("PRIMARY", "Primary weapon slot.", false),
-                    new("SECONDARY", "Secondary weapon slot.", false),
-                    new("TERTIARY", "Tertiary weapon slot.", false),
-                    new("WeaponLock", "Locked weapon behavior.", false),
-                    new("AutoChooseSources", "Automatic weapon source selection.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.CommandButton,
-                "Command bar button: icon, label, and triggered action.",
-                [
-                    new("Command", "Button action.", false),
-                    new("Object", "Object created or targeted.", false),
-                    new("Upgrade", "Upgrade researched or required.", false),
-                    new("Science", "Science researched or required.", false),
-                    new("SpecialPower", "Special power triggered.", false),
-                    new("TextLabel", "String table label.", false),
-                    new("ButtonImage", "Button icon texture.", false),
-                    new("ButtonBorderType", "Button border art.", false),
-                    new("DescriptLabel", "Description string table label.", false),
-                    new("Radial", "Radial button behavior.", false),
-                    new("InPalantir", "Palantir visibility.", false),
-                    new("NeedUpgrade", "Required upgrade.", false),
-                    new("NeedScience", "Required science.", false),
-                    new("Options", "Button options.", false),
-                    new("Cursor", "Cursor shown while targeting.", false),
-                    new("InvalidCursor", "Cursor for invalid targets.", false),
-                    new("LacksPrerequisiteLabel", "Missing prerequisite label.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.CommandSet,
-                "Command set: ordered command bar buttons.",
-                [
-                    new("1", "Command bar slot 1.", false),
-                    new("2", "Command bar slot 2.", false),
-                    new("3", "Command bar slot 3.", false),
-                    new("4", "Command bar slot 4.", false),
-                    new("5", "Command bar slot 5.", false),
-                    new("6", "Command bar slot 6.", false),
-                    new("7", "Command bar slot 7.", false),
-                    new("8", "Command bar slot 8.", false),
-                    new("9", "Command bar slot 9.", false),
-                    new("10", "Command bar slot 10.", false),
-                    new("11", "Command bar slot 11.", false),
-                    new("12", "Command bar slot 12.", false),
-                    new("13", "Command bar slot 13.", false),
-                    new("14", "Command bar slot 14.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.Upgrade,
-                "Upgrade: researchable technology gating objects and weapons.",
-                [
-                    new("Type", "Upgrade scope.", false),
-                    new("BuildCost", "Research cost.", true),
-                    new("BuildTime", "Research time in seconds.", true),
-                    new("DisplayName", "String table label.", false),
-                    new("ButtonImage", "Research button icon.", false),
-                    new("UpgradeCameo1", "Cameo icons.", false),
-                    new("UpgradeCameo2", "Cameo icons.", false),
-                    new("UpgradeCameo3", "Cameo icons.", false),
-                    new("ResearchSound", "Research sound.", false),
-                    new("UnitSpecificSounds", "Unit sound set.", false),
-                    new("SkirmishAIHeuristic", "AI research weight.", false),
-                    new("PersistsInCampaign", "Campaign persistence.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.Science,
-                "Science: faction technology prerequisite.",
-                [
-                    new("DisplayName", "String table label.", false),
-                    new("Description", "String table description.", false),
-                    new("PrerequisiteSciences", "Required sciences.", false),
-                    new("SciencePurchasePointCost", "Science point cost.", true),
-                    new("IsGrantable", "Grantable to other players.", false),
-                    new("ButtonImage", "Science button icon.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.SpecialPower,
-                "Special power: targeted superweapon or support ability.",
-                [
-                    new("ReloadTime", "Recharge time in milliseconds.", true),
-                    new("RadiusCursor", "Targeting cursor radius.", true),
-                    new("DisplayName", "String table label.", false),
-                    new("ButtonImage", "Button icon.", false),
-                    new("Cursor", "Targeting cursor.", false),
-                    new("InvalidCursor", "Invalid target cursor.", false),
-                    new("ViewObject", "View object.", false),
-                    new("OCL", "Object creation list.", false),
-                    new("ChangeWeapon", "Weapon swap while active.", false),
-                    new("PublicTimer", "Shared timer behavior.", false),
-                    new("SharedSyncedTimer", "Synced timer behavior.", false),
-                    new("ShortcutPower", "Shortcut power.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.Locomotor,
-                "Locomotor: movement speeds and terrain handling.",
-                [
-                    new("Speed", "Top speed.", true),
-                    new("MinSpeed", "Minimum speed.", true),
-                    new("Acceleration", "Acceleration.", true),
-                    new("Braking", "Braking rate.", true),
-                    new("TurnRate", "Turn rate.", true),
-                    new("MaxTurnRate", "Maximum turn rate.", true),
-                    new("Lift", "Hover lift.", true),
-                    new("HoverHeight", "Hover height.", true),
-                    new("CrusherLevel", "Crush level.", true),
-                    new("CrushableLevel", "Crushability.", true),
-                    new("CanMoveOverRubber", "Rubble traversal.", false),
-                    new("Appearance", "Movement appearance.", false),
-                    new("AccelerationPitch", "Pitch under acceleration.", true),
-                    new("AllowAirborne", "Airborne movement.", false),
-                    new("Surfaces", "Allowed surfaces.", false),
-                    new("GroupMovement", "Group movement behavior.", false),
-                    new("StickToGround", "Ground sticking.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.ObjectCreationList,
-                "Object creation list: nuggets spawning objects and effects.",
-                [
-                    new("CreateObject", "Object spawned by the list.", false),
-                    new("Disposition", "Spawn disposition.", false),
-                    new("Count", "Spawn count.", true),
-                    new("SpreadFormation", "Formation spread.", false),
-                    new("MinDistanceA", "Minimum distance.", true),
-                    new("MaxDistanceA", "Maximum distance.", true),
-                    new("OffsetA", "Spawn offset.", false),
-                    new("MinDistanceB", "Secondary minimum distance.", true),
-                    new("MaxDistanceB", "Secondary maximum distance.", true),
-                    new("OffsetB", "Secondary offset.", false),
-                    new("IgnorePrimaryObstacles", "Obstacle handling.", false),
-                    new("IgnoreSecondaryObstacles", "Secondary obstacle handling.", false),
-                    new("StartingWeapon", "Starting weapon override.", false),
-                    new("InheritVeterancy", "Veterancy inheritance.", false),
-                    new("DeliverPayload", "Payload delivery.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.DamageFX,
-                "Damage effects: throb, particles, and detail for damage states.",
-                [
-                    new("Throb", "Throb behavior.", false),
-                    new("ThrobRate", "Throb rate.", true),
-                    new("ThrobIntensity", "Throb intensity.", true),
-                    new("Particle", "Damage particle.", false),
-                    new("DamageParticle", "Damage particle system.", false),
-                    new("Fire", "Fire effect.", false),
-                    new("Smoke", "Smoke effect.", false),
-                    new("Sparks", "Spark effect.", false),
-                    new("DamageTypes", "Damage types covered.", false),
-                    new("Veterancy", "Veterancy level.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.PlayerTemplate,
-                "Player template: starting units, money, and faction defaults.",
-                [
-                    new("Side", "Faction side.", false),
-                    new("PlayableSide", "Playable side flag.", false),
-                    new("StartMoney", "Starting money.", true),
-                    new("PreferredColor", "Preferred color.", false),
-                    new("StartingBuilding", "Starting building.", false),
-                    new("StartingUnit0", "Starting units.", false),
-                    new("StartingUnit1", "Starting units.", false),
-                    new("StartingUnit2", "Starting units.", false),
-                    new("StartingUnitTanks", "Starting tanks.", false),
-                    new("StartingUnitAir", "Starting aircraft.", false),
-                    new("SciencePurchasePoints", "Science points.", true),
-                    new("DisplayName", "String table label.", false),
-                    new("StartingTaunt", "Starting taunt.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.FactionTemplate,
-                "Faction template: arms dealer and superweapon defaults.",
-                [
-                    new("DisplayName", "String table label.", false),
-                    new("ArmsDealer", "Arms dealer template.", false),
-                    new("StartingBuilding", "Starting building.", false),
-                    new("Superweapon", "Superweapon.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.ExperienceLevels,
-                "Experience levels: veterancy thresholds and multipliers.",
-                [
-                    new("1", "Level 1 experience.", false),
-                    new("2", "Level 2 experience.", false),
-                    new("3", "Level 3 experience.", false),
-                    new("ExperienceScalar", "Experience scalar.", true),
-                    new("InformSecondLevel", "Second level notification.", false),
-                ]),
-            new(
-                IniConstants.BlockTypes.Veterancy,
-                "Veterancy multipliers for a damage or armor context.",
-                [
-                    new("VETERAN", "Veteran multipliers.", false),
-                    new("ELITE", "Elite multipliers.", false),
-                    new("HEROIC", "Heroic multipliers.", false),
-                ]),
-        };
-
-        _schemas = schemas.ToDictionary(schema => schema.BlockType, StringComparer.OrdinalIgnoreCase);
+        _localizationService = localizationService;
+        RebuildSchemas();
+        localizationService.PropertyChanged += OnLocalizationPropertyChanged;
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<IniBlockSchema> BlockSchemas => _schemas.Values.ToList();
+    public IReadOnlyList<IniBlockSchema> BlockSchemas => _blockSchemas;
 
     /// <inheritdoc />
     public IniBlockSchema? GetBlockSchema(string blockType)
@@ -340,15 +361,45 @@ public sealed class IniSchemaService : IIniSchemaService
             return false;
         }
 
-        foreach (var field in block.Fields)
+        schema = block.Fields.FirstOrDefault(field => string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase));
+        return schema != null;
+    }
+
+    private void OnLocalizationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ILocalizationService.CurrentCulture))
         {
-            if (string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase))
-            {
-                schema = field;
-                return true;
-            }
+            RebuildSchemas();
+        }
+    }
+
+    private void RebuildSchemas()
+    {
+        var schemas = new List<IniBlockSchema>(SchemaTables.Length);
+        foreach (var table in SchemaTables)
+        {
+            schemas.Add(BuildBlockSchema(table));
         }
 
-        return false;
+        _blockSchemas = schemas;
+        _schemas = schemas.ToDictionary(schema => schema.BlockType, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private IniBlockSchema BuildBlockSchema(SchemaBlockEntry table)
+    {
+        var description = _localizationService.GetString(table.DescriptionKey);
+        if (string.Equals(table.BlockType, IniConstants.BlockTypes.Armor, StringComparison.Ordinal) &&
+            table.GeneratedDescriptionKey != null)
+        {
+            var armorFields = IniConstants.DamageTypes.All
+                .Select(type => new IniFieldSchema(type, _localizationService.GetString(table.GeneratedDescriptionKey, type), true))
+                .ToArray();
+            return new IniBlockSchema(table.BlockType, description, armorFields);
+        }
+
+        var fields = table.Fields
+            .Select(entry => new IniFieldSchema(entry.Key, _localizationService.GetString(entry.DescriptionKey), entry.IsNumeric))
+            .ToArray();
+        return new IniBlockSchema(table.BlockType, description, fields);
     }
 }

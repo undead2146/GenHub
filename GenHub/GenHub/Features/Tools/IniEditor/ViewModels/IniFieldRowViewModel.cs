@@ -12,6 +12,8 @@ public sealed partial class IniFieldRowViewModel : ObservableObject
     private readonly IniBlock _block;
     private readonly int _fieldIndex;
     private readonly Action _onChanged;
+    private readonly Action<string, string> _onEditCommitted;
+    private readonly string _editBase;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IniFieldRowViewModel"/> class.
@@ -21,14 +23,17 @@ public sealed partial class IniFieldRowViewModel : ObservableObject
     /// <param name="description">Schema description, when known.</param>
     /// <param name="isKnown">Whether the field is covered by the schema.</param>
     /// <param name="onChanged">Callback invoked when the value changes.</param>
-    public IniFieldRowViewModel(IniBlock block, int fieldIndex, string? description, bool isKnown, Action onChanged)
+    /// <param name="onEditCommitted">Callback invoked with the pre-edit and current value for undo tracking.</param>
+    public IniFieldRowViewModel(IniBlock block, int fieldIndex, string? description, bool isKnown, Action onChanged, Action<string, string> onEditCommitted)
     {
         _block = block;
         _fieldIndex = fieldIndex;
         Description = description;
         IsKnown = isKnown;
         _onChanged = onChanged;
+        _onEditCommitted = onEditCommitted;
         _value = block.Fields[fieldIndex].Value;
+        _editBase = _value;
     }
 
     /// <summary>
@@ -57,5 +62,6 @@ public sealed partial class IniFieldRowViewModel : ObservableObject
         var current = _block.Fields[_fieldIndex];
         _block.Fields[_fieldIndex] = current with { Value = value };
         _onChanged();
+        _onEditCommitted(_editBase, value);
     }
 }

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
@@ -9,10 +10,12 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools.IniEditor;
 using GenHub.Core.Models.Tools.IniEditor;
+using GenHub.Features.Tools.IniEditor.Services;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -41,12 +44,30 @@ public sealed partial class IniEditorViewModel(
         RecurseSubdirectories = false,
     };
 
+    private static readonly (string Key, string Value)[] UpgradeHookupTemplate =
+    [
+        (IniConstants.FieldKeys.Upgrade, "Upgrade_"),
+        (IniConstants.FieldKeys.TriggeredBy, "Upgrade_"),
+    ];
+
+    private static readonly (string Key, string Value)[] DamageProfileTemplate =
+    [
+        (IniConstants.FieldKeys.DamageType, "EXPLOSION"),
+        (IniConstants.FieldKeys.PrimaryDamage, "50.0"),
+        (IniConstants.FieldKeys.PrimaryDamageRadius, "20.0"),
+        (IniConstants.FieldKeys.DeathType, "EXPLODED"),
+    ];
+
     private readonly Stack<IniEditAction> _undoStack = new();
     private readonly Stack<IniEditAction> _redoStack = new();
     private IniDocument? _document;
     private int _historyVersion;
     private int _savedHistoryVersion;
     private bool _disposed;
+    private bool _cultureSubscribed;
+    private CancellationTokenSource? _refreshCts;
+    private CancellationTokenSource? _previewCts;
+    private CancellationTokenSource? _filterCts;
 
     /// <summary>
     /// Gets the root block nodes of the edited document.
@@ -151,6 +172,7 @@ public sealed partial class IniEditorViewModel(
     /// <summary>
     /// Gets the available block types for the add-block input.
     /// </summary>
+    [SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Bound from XAML; instance member required for binding.")]
     public IReadOnlyList<string> AvailableBlockTypes => IniConstants.BlockTypes.All;
 
     /// <summary>
@@ -177,7 +199,7 @@ public sealed partial class IniEditorViewModel(
             return false;
         }
 
-        AdoptDocument(result.Data, filePath);
+        await AdoptDocumentAsync(result.Data, filePath, cancellationToken).ConfigureAwait(false);
         logger.LogInformation("Opened INI file {Path}", filePath);
         return true;
     }
@@ -196,7 +218,7 @@ public sealed partial class IniEditorViewModel(
         }
 
         FilesDirectory = folderPath;
-        RefreshFiles();
+        await RefreshFilesAsync(cancellationToken).ConfigureAwait(false);
 
         var first = FindFirstIniFilePath(Files);
         if (!string.IsNullOrEmpty(first))
@@ -220,16 +242,38 @@ public sealed partial class IniEditorViewModel(
         }
 
         _disposed = true;
+        if (_cultureSubscribed)
+        {
+            localizationService.PropertyChanged -= OnLocalizationPropertyChanged;
+        }
+
+        CancelDeferred(ref _refreshCts);
+        CancelDeferred(ref _previewCts);
+        CancelDeferred(ref _filterCts);
     }
 
     /// <summary>
     /// Normalizes a source file path for consistent handling.
+    /// Falls back to the raw path when normalization fails so the open
+    /// surfaces a normal parse failure instead of an unhandled exception.
     /// </summary>
     /// <param name="filePath">The raw file path.</param>
     /// <returns>The normalized absolute path.</returns>
     internal static string NormalizeSourceFilePath(string filePath)
     {
-        return Path.GetFullPath(filePath.Trim().Trim('"'));
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return filePath;
+        }
+
+        try
+        {
+            return Path.GetFullPath(filePath.Trim().Trim('"'));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException)
+        {
+            return filePath;
+        }
     }
 
     private static bool MatchesFilter(IniBlock block, string? filter)
@@ -281,22 +325,22 @@ public sealed partial class IniEditorViewModel(
     {
         if (string.Equals(blockType, IniConstants.BlockTypes.Object, StringComparison.OrdinalIgnoreCase))
         {
-            return ["Health", "BuildCost", "BuildTime", "Side", "DisplayName", "ArmorSet", "WeaponSet", "CommandSet", "Icon", "ButtonImage"];
+            return ["Health", IniConstants.FieldKeys.BuildCost, IniConstants.FieldKeys.BuildTime, "Side", IniConstants.FieldKeys.DisplayName, IniConstants.BlockTypes.ArmorSet, IniConstants.BlockTypes.WeaponSet, IniConstants.BlockTypes.CommandSet, "Icon", IniConstants.FieldKeys.ButtonImage];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.Weapon, StringComparison.OrdinalIgnoreCase))
         {
-            return ["PrimaryDamage", "PrimaryDamageRadius", "AttackRange", "DamageType", "DeathType", "WeaponSpeed"];
+            return [IniConstants.FieldKeys.PrimaryDamage, IniConstants.FieldKeys.PrimaryDamageRadius, "AttackRange", IniConstants.FieldKeys.DamageType, IniConstants.FieldKeys.DeathType, "WeaponSpeed"];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.CommandButton, StringComparison.OrdinalIgnoreCase))
         {
-            return ["Command", "Object", "Upgrade", "TextLabel", "ButtonImage"];
+            return ["Command", "Object", IniConstants.FieldKeys.Upgrade, "TextLabel", IniConstants.FieldKeys.ButtonImage];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.Upgrade, StringComparison.OrdinalIgnoreCase))
         {
-            return ["Type", "BuildCost", "BuildTime", "DisplayName", "ButtonImage"];
+            return ["Type", IniConstants.FieldKeys.BuildCost, IniConstants.FieldKeys.BuildTime, IniConstants.FieldKeys.DisplayName, IniConstants.FieldKeys.ButtonImage];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.Locomotor, StringComparison.OrdinalIgnoreCase))
@@ -304,44 +348,36 @@ public sealed partial class IniEditorViewModel(
             return ["Speed", "TurnRate", "Lift", "Appearance"];
         }
 
-        return ["DisplayName", "ButtonImage", "Icon"];
+        return [IniConstants.FieldKeys.DisplayName, IniConstants.FieldKeys.ButtonImage, "Icon"];
     }
 
     private static string? FindFieldValue(IniBlock block, string key)
     {
-        foreach (var field in block.Fields)
-        {
-            if (string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase))
-            {
-                return field.Value;
-            }
-        }
-
-        return null;
+        return block.Fields.FirstOrDefault(field => string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase))?.Value;
     }
 
     private static void SeedBlockTemplate(IniBlock block)
     {
         if (string.Equals(block.BlockType, IniConstants.BlockTypes.Object, StringComparison.OrdinalIgnoreCase))
         {
-            block.Fields.Add(new IniField("DisplayName", "OBJECT:Name"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.DisplayName, "OBJECT:Name"));
             block.Fields.Add(new IniField("Side", "USA"));
-            block.Fields.Add(new IniField("BuildCost", "100"));
-            block.Fields.Add(new IniField("BuildTime", "5.0"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildCost, "100"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildTime, "5.0"));
             block.Fields.Add(new IniField("Health", "100.0"));
         }
         else if (string.Equals(block.BlockType, IniConstants.BlockTypes.Weapon, StringComparison.OrdinalIgnoreCase))
         {
-            block.Fields.Add(new IniField("PrimaryDamage", "50.0"));
-            block.Fields.Add(new IniField("PrimaryDamageRadius", "20.0"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.PrimaryDamage, "50.0"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.PrimaryDamageRadius, "20.0"));
             block.Fields.Add(new IniField("AttackRange", "200.0"));
-            block.Fields.Add(new IniField("DamageType", "EXPLOSION"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.DamageType, "EXPLOSION"));
         }
         else if (string.Equals(block.BlockType, IniConstants.BlockTypes.Upgrade, StringComparison.OrdinalIgnoreCase))
         {
             block.Fields.Add(new IniField("Type", "OBJECT"));
-            block.Fields.Add(new IniField("BuildCost", "500"));
-            block.Fields.Add(new IniField("BuildTime", "30.0"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildCost, "500"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildTime, "30.0"));
         }
     }
 
@@ -374,6 +410,125 @@ public sealed partial class IniEditorViewModel(
         return null;
     }
 
+    private static bool IsWithinDirectory(string directory, string? root)
+    {
+        if (string.IsNullOrEmpty(root))
+        {
+            return false;
+        }
+
+        try
+        {
+            var rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)) + Path.DirectorySeparatorChar;
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            return (directory + Path.DirectorySeparatorChar).StartsWith(rootPath, comparison);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static void ExpandAncestors(IniTreeNodeViewModel node)
+    {
+        for (var current = node.Parent; current != null; current = current.Parent)
+        {
+            current.IsExpanded = true;
+        }
+
+        node.IsExpanded = true;
+    }
+
+    private static void SetFieldValueByKey(IniBlock block, string key, string value)
+    {
+        var index = block.Fields.FindIndex(field => string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (index >= 0)
+        {
+            block.Fields[index] = block.Fields[index] with { Value = value };
+        }
+    }
+
+    private static void RemoveAddedField(IniBlock block, int index, string key)
+    {
+        if (index >= 0 &&
+            index < block.Fields.Count &&
+            string.Equals(block.Fields[index].Key, key, StringComparison.OrdinalIgnoreCase))
+        {
+            block.Fields.RemoveAt(index);
+            return;
+        }
+
+        RemoveFieldByKey(block, key);
+    }
+
+    private static void RemoveFieldByKey(IniBlock block, string key)
+    {
+        var match = block.Fields.FirstOrDefault(field => string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (match != null)
+        {
+            block.Fields.Remove(match);
+        }
+    }
+
+    private static List<IniField> BuildMissingTemplateFields(IniBlock block, (string Key, string Value)[] desired)
+    {
+        var missing = new List<IniField>(desired.Length);
+        foreach (var (key, value) in desired)
+        {
+            if (FindFieldValue(block, key) == null)
+            {
+                missing.Add(new IniField(key, value));
+            }
+        }
+
+        return missing;
+    }
+
+    private static bool AllowsEmptyName(string blockType)
+    {
+        return string.Equals(blockType, IniConstants.BlockTypes.ExperienceLevels, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldSkipDirectory(DirectoryInfo directoryInfo, IniFileTreeNodeViewModel? parent)
+    {
+        return parent != null &&
+            (directoryInfo.Name.StartsWith('.') ||
+            string.Equals(directoryInfo.Name, ModBuilderConstants.DefaultBuildDir, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(directoryInfo.Name, ModBuilderConstants.DefaultReleaseDir, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void CancelDeferred(ref CancellationTokenSource? slot)
+    {
+        slot?.Cancel();
+        slot?.Dispose();
+        slot = null;
+    }
+
+    private static async Task InvokeOnUIThreadAsync(Action action)
+    {
+        if (Application.Current == null || Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+            await Task.CompletedTask.ConfigureAwait(false);
+        }
+        else
+        {
+            await Dispatcher.UIThread.InvokeAsync(action);
+        }
+    }
+
+    private static void PostToUIThread(Action action)
+    {
+        if (Application.Current == null || Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(action);
+        }
+    }
+
     /// <summary>
     /// Creates a new empty document.
     /// </summary>
@@ -385,7 +540,7 @@ public sealed partial class IniEditorViewModel(
             return;
         }
 
-        AdoptDocument(new IniDocument(), null);
+        await AdoptDocumentAsync(new IniDocument(), null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -603,19 +758,20 @@ public sealed partial class IniEditorViewModel(
             return;
         }
 
-        var block = new IniBlock
+        var block = CreateValidatedBlock();
+        if (block == null)
         {
-            BlockType = NewBlockType.Trim(),
-            Name = NewBlockName.Trim(),
-            LineNumber = 0,
-        };
+            return;
+        }
+
         SeedBlockTemplate(block);
+        var index = _document.Blocks.Count;
         _document.Blocks.Add(block);
         PushUndo(new IniEditAction(
             localizationService.GetString("Tools.IniEditor.History.AddBlock"),
             () =>
             {
-                _document.Blocks.Add(block);
+                _document.Blocks.Insert(Math.Min(index, _document.Blocks.Count), block);
                 RebuildAll();
             },
             () =>
@@ -643,7 +799,13 @@ public sealed partial class IniEditorViewModel(
         var node = SelectedNode;
         var siblings = node.Parent == null ? _document.Blocks : node.Parent.Block.Children;
         var index = siblings.IndexOf(node.Block);
-        siblings.Remove(node.Block);
+        if (index < 0)
+        {
+            SelectedNode = null;
+            return;
+        }
+
+        siblings.RemoveAt(index);
         PushUndo(new IniEditAction(
             localizationService.GetString("Tools.IniEditor.History.DeleteBlock"),
             () =>
@@ -673,17 +835,18 @@ public sealed partial class IniEditorViewModel(
 
         var block = SelectedNode.Block;
         var field = new IniField(NewFieldKey.Trim(), NewFieldValue.Trim());
+        var index = block.Fields.Count;
         block.Fields.Add(field);
         PushUndo(new IniEditAction(
             localizationService.GetString("Tools.IniEditor.History.AddField"),
             () =>
             {
-                block.Fields.Add(field);
+                block.Fields.Insert(Math.Min(index, block.Fields.Count), field);
                 RebuildAll();
             },
             () =>
             {
-                block.Fields.Remove(field);
+                RemoveAddedField(block, index, field.Key);
                 RebuildAll();
             }));
         _historyVersion++;
@@ -713,11 +876,17 @@ public sealed partial class IniEditorViewModel(
             return;
         }
 
-        var added = new List<IniField>
+        var added = BuildMissingTemplateFields(block, UpgradeHookupTemplate);
+        if (added.Count == 0)
         {
-            new("Upgrade", "Upgrade_"),
-            new("TriggeredBy", "Upgrade_"),
-        };
+            notificationService.ShowInfo(
+                localizationService.GetString("Tools.IniEditor.Template.SkippedTitle"),
+                localizationService.GetString("Tools.IniEditor.Template.SkippedMessage"),
+                NotificationDurations.Short);
+            return;
+        }
+
+        var startIndex = block.Fields.Count;
         foreach (var field in added)
         {
             block.Fields.Add(field);
@@ -727,18 +896,18 @@ public sealed partial class IniEditorViewModel(
             localizationService.GetString("Tools.IniEditor.History.AddUpgrade"),
             () =>
             {
-                foreach (var field in added)
+                for (var i = 0; i < added.Count; i++)
                 {
-                    block.Fields.Add(field);
+                    block.Fields.Insert(Math.Min(startIndex + i, block.Fields.Count), added[i]);
                 }
 
                 RebuildAll();
             },
             () =>
             {
-                foreach (var field in added)
+                for (var i = added.Count - 1; i >= 0; i--)
                 {
-                    block.Fields.Remove(field);
+                    RemoveAddedField(block, startIndex + i, added[i].Key);
                 }
 
                 RebuildAll();
@@ -768,13 +937,17 @@ public sealed partial class IniEditorViewModel(
             return;
         }
 
-        var added = new List<IniField>
+        var added = BuildMissingTemplateFields(block, DamageProfileTemplate);
+        if (added.Count == 0)
         {
-            new("DamageType", "EXPLOSION"),
-            new("PrimaryDamage", "50.0"),
-            new("PrimaryDamageRadius", "20.0"),
-            new("DeathType", "EXPLODED"),
-        };
+            notificationService.ShowInfo(
+                localizationService.GetString("Tools.IniEditor.Template.SkippedTitle"),
+                localizationService.GetString("Tools.IniEditor.Template.SkippedMessage"),
+                NotificationDurations.Short);
+            return;
+        }
+
+        var startIndex = block.Fields.Count;
         foreach (var field in added)
         {
             block.Fields.Add(field);
@@ -784,18 +957,18 @@ public sealed partial class IniEditorViewModel(
             localizationService.GetString("Tools.IniEditor.History.AddDamage"),
             () =>
             {
-                foreach (var field in added)
+                for (var i = 0; i < added.Count; i++)
                 {
-                    block.Fields.Add(field);
+                    block.Fields.Insert(Math.Min(startIndex + i, block.Fields.Count), added[i]);
                 }
 
                 RebuildAll();
             },
             () =>
             {
-                foreach (var field in added)
+                for (var i = added.Count - 1; i >= 0; i--)
                 {
-                    block.Fields.Remove(field);
+                    RemoveAddedField(block, startIndex + i, added[i].Key);
                 }
 
                 RebuildAll();
@@ -808,59 +981,87 @@ public sealed partial class IniEditorViewModel(
     /// Refreshes the file explorer listing.
     /// </summary>
     [RelayCommand]
-    private void RefreshFiles()
+    private async Task RefreshFilesAsync(CancellationToken cancellationToken = default)
     {
-        Files.Clear();
-        if (string.IsNullOrEmpty(FilesDirectory) || !Directory.Exists(FilesDirectory))
+        CancelDeferred(ref _refreshCts);
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _refreshCts = cts;
+
+        var directory = FilesDirectory;
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
         {
+            await InvokeOnUIThreadAsync(Files.Clear).ConfigureAwait(false);
             return;
         }
 
         try
         {
-            var rootDirInfo = new DirectoryInfo(FilesDirectory);
-            var rootNode = BuildDirectoryNode(rootDirInfo, null, 0);
-            if (rootNode != null)
+            var root = await Task.Run(() => BuildDirectoryNode(new DirectoryInfo(directory), null, 0, cts.Token), cts.Token).ConfigureAwait(false);
+            cts.Token.ThrowIfCancellationRequested();
+            await InvokeOnUIThreadAsync(() =>
             {
-                Files.Add(rootNode);
-            }
+                Files.Clear();
+                if (root != null)
+                {
+                    Files.Add(root);
+                }
+            }).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer refresh or disposed.
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            logger.LogWarning(ex, "Failed to list INI files in {Directory}", FilesDirectory);
+            logger.LogWarning(ex, "Failed to list INI files in {Directory}", directory);
         }
     }
 
     /// <summary>
-    /// Opens a file chosen in the explorer.
+    /// Opens a file chosen in the explorer, or expands a directory node.
     /// </summary>
     /// <param name="file">The file tree node to open.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [RelayCommand]
     private async Task OpenExplorerFileAsync(IniFileTreeNodeViewModel? file, CancellationToken cancellationToken = default)
     {
-        if (file == null || file.IsDirectory)
+        if (file == null)
         {
+            return;
+        }
+
+        if (file.IsDirectory)
+        {
+            file.IsExpanded = !file.IsExpanded;
             return;
         }
 
         await OpenFileAsync(file.FullPath, cancellationToken);
     }
 
-    private void AdoptDocument(IniDocument document, string? filePath)
+    private async Task AdoptDocumentAsync(IniDocument document, string? filePath, CancellationToken cancellationToken)
     {
+        EnsureCultureSubscription();
         _document = document;
-        FilePath = filePath;
         _undoStack.Clear();
         _redoStack.Clear();
         _historyVersion = 0;
         _savedHistoryVersion = 0;
-        DocumentTitle = string.IsNullOrEmpty(filePath)
+        await InvokeOnUIThreadAsync(() =>
+        {
+            FilePath = filePath;
+            UpdateDocumentTitle();
+            UpdateFilesDirectoryFromFile(filePath);
+            RebuildAll();
+        }).ConfigureAwait(false);
+        await RefreshFilesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void UpdateDocumentTitle()
+    {
+        DocumentTitle = string.IsNullOrEmpty(FilePath)
             ? localizationService.GetString("Tools.IniEditor.Document.Untitled")
-            : Path.GetFileName(filePath);
-        UpdateFilesDirectoryFromFile(filePath);
-        RefreshFiles();
-        RebuildAll();
+            : Path.GetFileName(FilePath);
     }
 
     private void UpdateFilesDirectoryFromFile(string? filePath)
@@ -871,10 +1072,17 @@ public sealed partial class IniEditorViewModel(
         }
 
         var directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
         {
-            FilesDirectory = directory;
+            return;
         }
+
+        if (IsWithinDirectory(directory, FilesDirectory))
+        {
+            return;
+        }
+
+        FilesDirectory = directory;
     }
 
     private void RebuildAll()
@@ -911,15 +1119,20 @@ public sealed partial class IniEditorViewModel(
             RootNodes.Add(BuildTreeNode(block, null));
         }
 
-        if (selectedBlock != null)
+        if (selectedBlock == null)
         {
-            var match = FindNode(RootNodes, selectedBlock);
-            if (match != null)
-            {
-                match.IsExpanded = true;
-                SelectedNode = match;
-            }
+            return;
         }
+
+        var match = FindNode(RootNodes, selectedBlock);
+        if (match == null)
+        {
+            SelectedNode = null;
+            return;
+        }
+
+        ExpandAncestors(match);
+        SelectedNode = match;
     }
 
     private void RebuildFieldRows()
@@ -934,8 +1147,15 @@ public sealed partial class IniEditorViewModel(
         for (var i = 0; i < block.Fields.Count; i++)
         {
             var key = block.Fields[i].Key;
+            var fieldIndex = i;
             var known = schemaService.TryGetField(block.BlockType, key, out var schema);
-            FieldRows.Add(new IniFieldRowViewModel(block, i, schema?.Description, known, MarkDirty));
+            FieldRows.Add(new IniFieldRowViewModel(
+                block,
+                fieldIndex,
+                schema?.Description,
+                known,
+                MarkDirty,
+                (oldValue, newValue) => PushFieldValueUndo(block, key, fieldIndex, oldValue, newValue)));
         }
     }
 
@@ -975,48 +1195,61 @@ public sealed partial class IniEditorViewModel(
             }
         }
 
-        if (string.Equals(block.BlockType, IniConstants.BlockTypes.Object, StringComparison.OrdinalIgnoreCase))
+        AddObjectCanvasLinks(block);
+        AddWeaponCanvasDamage(block);
+    }
+
+    private void AddObjectCanvasLinks(IniBlock block)
+    {
+        if (!string.Equals(block.BlockType, IniConstants.BlockTypes.Object, StringComparison.OrdinalIgnoreCase))
         {
-            var weaponSet = FindFieldValue(block, "WeaponSet");
-            if (weaponSet != null)
-            {
-                foreach (var weapon in FindBlocks(IniConstants.BlockTypes.WeaponSet, weaponSet))
-                {
-                    CanvasSummary.Add(new IniCanvasSummaryRow(
-                        localizationService.GetString("Tools.IniEditor.Canvas.LinkedWeapon"),
-                        $"{weapon.Name} ({weapon.Fields.Count})"));
-                }
-            }
+            return;
+        }
 
-            var commandSet = FindFieldValue(block, "CommandSet");
-            if (commandSet != null)
+        var weaponSet = FindFieldValue(block, IniConstants.BlockTypes.WeaponSet);
+        if (weaponSet != null)
+        {
+            foreach (var weapon in FindBlocks(IniConstants.BlockTypes.WeaponSet, weaponSet))
             {
                 CanvasSummary.Add(new IniCanvasSummaryRow(
-                    localizationService.GetString("Tools.IniEditor.Canvas.LinkedCommandSet"),
-                    commandSet));
-            }
-
-            var upgrades = block.Fields.Where(field =>
-                string.Equals(field.Key, "Upgrade", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(field.Key, "Upgrades", StringComparison.OrdinalIgnoreCase)).ToList();
-            if (upgrades.Count > 0)
-            {
-                CanvasSummary.Add(new IniCanvasSummaryRow(
-                    localizationService.GetString("Tools.IniEditor.Canvas.Upgrades"),
-                    string.Join(", ", upgrades.Select(field => field.Value))));
+                    localizationService.GetString("Tools.IniEditor.Canvas.LinkedWeapon"),
+                    $"{weapon.Name} ({weapon.Fields.Count})"));
             }
         }
 
-        if (string.Equals(block.BlockType, IniConstants.BlockTypes.Weapon, StringComparison.OrdinalIgnoreCase))
+        var commandSet = FindFieldValue(block, IniConstants.BlockTypes.CommandSet);
+        if (commandSet != null)
         {
-            var damage = FindFieldValue(block, "PrimaryDamage");
-            var damageType = FindFieldValue(block, "DamageType");
-            if (damage != null || damageType != null)
-            {
-                CanvasSummary.Add(new IniCanvasSummaryRow(
-                    localizationService.GetString("Tools.IniEditor.Canvas.Damage"),
-                    $"{damage ?? "?"} ({damageType ?? "?"})"));
-            }
+            CanvasSummary.Add(new IniCanvasSummaryRow(
+                localizationService.GetString("Tools.IniEditor.Canvas.LinkedCommandSet"),
+                commandSet));
+        }
+
+        var upgrades = block.Fields.Where(field =>
+            string.Equals(field.Key, IniConstants.FieldKeys.Upgrade, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(field.Key, "Upgrades", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (upgrades.Count > 0)
+        {
+            CanvasSummary.Add(new IniCanvasSummaryRow(
+                localizationService.GetString("Tools.IniEditor.Canvas.Upgrades"),
+                string.Join(", ", upgrades.Select(field => field.Value))));
+        }
+    }
+
+    private void AddWeaponCanvasDamage(IniBlock block)
+    {
+        if (!string.Equals(block.BlockType, IniConstants.BlockTypes.Weapon, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var damage = FindFieldValue(block, IniConstants.FieldKeys.PrimaryDamage);
+        var damageType = FindFieldValue(block, IniConstants.FieldKeys.DamageType);
+        if (damage != null || damageType != null)
+        {
+            CanvasSummary.Add(new IniCanvasSummaryRow(
+                localizationService.GetString("Tools.IniEditor.Canvas.Damage"),
+                $"{damage ?? "?"} ({damageType ?? "?"})"));
         }
     }
 
@@ -1024,17 +1257,12 @@ public sealed partial class IniEditorViewModel(
     {
         if (_document == null)
         {
-            yield break;
+            return [];
         }
 
-        foreach (var block in _document.Blocks)
-        {
-            if (string.Equals(block.BlockType, blockType, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(block.Name, name, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return block;
-            }
-        }
+        return _document.Blocks.Where(block =>
+            string.Equals(block.BlockType, blockType, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(block.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     private void RefreshRawText()
@@ -1042,28 +1270,103 @@ public sealed partial class IniEditorViewModel(
         RawText = _document == null ? string.Empty : iniDocumentService.WriteDocument(_document);
     }
 
+    private void RefreshPreviews()
+    {
+        RefreshRawText();
+        RebuildCanvasSummary();
+    }
+
     private void MarkDirty()
     {
         _historyVersion++;
-        RefreshRawText();
-        RebuildCanvasSummary();
         OnPropertyChanged(nameof(HasUnsavedChanges));
+        ScheduleDeferred(ref _previewCts, IniConstants.Editor.PreviewRefreshDebounceMs, RefreshPreviews);
     }
 
     private void PushUndo(IniEditAction action)
     {
+        if (action.CoalesceKey != null &&
+            _undoStack.TryPeek(out var top) &&
+            Equals(top.CoalesceKey, action.CoalesceKey))
+        {
+            _undoStack.Pop();
+        }
+
         _undoStack.Push(action);
         if (_undoStack.Count > IniConstants.Editor.MaxUndoHistory)
         {
-            var kept = _undoStack.Reverse().Skip(1).Reverse().ToArray();
+            var kept = _undoStack.Take(IniConstants.Editor.MaxUndoHistory).Reverse().ToArray();
             _undoStack.Clear();
-            foreach (var item in kept.Reverse())
+            foreach (var item in kept)
             {
                 _undoStack.Push(item);
             }
+
+            if (_savedHistoryVersion < _historyVersion - IniConstants.Editor.MaxUndoHistory)
+            {
+                _savedHistoryVersion = int.MinValue;
+            }
         }
 
-        _redoStack.Clear();
+        if (_redoStack.Count > 0)
+        {
+            _savedHistoryVersion = int.MinValue;
+            _redoStack.Clear();
+        }
+    }
+
+    private void PushFieldValueUndo(IniBlock block, string key, int fieldIndex, string oldValue, string newValue)
+    {
+        if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        PushUndo(new IniEditAction(
+            localizationService.GetString("Tools.IniEditor.History.EditField"),
+            () =>
+            {
+                SetFieldValueByKey(block, key, newValue);
+                RebuildAll();
+            },
+            () =>
+            {
+                SetFieldValueByKey(block, key, oldValue);
+                RebuildAll();
+            },
+            (block, fieldIndex)));
+    }
+
+    private IniBlock? CreateValidatedBlock()
+    {
+        var blockType = NewBlockType.Trim();
+        var name = NewBlockName.Trim();
+        if (name.Length == 0 && !AllowsEmptyName(blockType))
+        {
+            notificationService.ShowWarning(
+                localizationService.GetString("Tools.IniEditor.AddBlock.EmptyNameTitle"),
+                localizationService.GetString("Tools.IniEditor.AddBlock.EmptyNameMessage", blockType),
+                NotificationDurations.Long);
+            return null;
+        }
+
+        if (name.Length > 0 && HasBlock(blockType, name))
+        {
+            notificationService.ShowWarning(
+                localizationService.GetString("Tools.IniEditor.AddBlock.DuplicateTitle"),
+                localizationService.GetString("Tools.IniEditor.AddBlock.DuplicateMessage", blockType, name),
+                NotificationDurations.Long);
+            return null;
+        }
+
+        return new IniBlock { BlockType = blockType, Name = name, LineNumber = 0 };
+    }
+
+    private bool HasBlock(string blockType, string name)
+    {
+        return _document != null && _document.Blocks.Any(block =>
+            string.Equals(block.BlockType, blockType, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(block.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     private void SelectBlock(IniBlock block)
@@ -1071,7 +1374,7 @@ public sealed partial class IniEditorViewModel(
         var match = FindNode(RootNodes, block);
         if (match != null)
         {
-            match.IsExpanded = true;
+            ExpandAncestors(match);
             SelectedNode = match;
         }
     }
@@ -1098,6 +1401,7 @@ public sealed partial class IniEditorViewModel(
             return;
         }
 
+        string? tempPath = null;
         try
         {
             var canonical = iniDocumentService.WriteDocument(_document);
@@ -1107,13 +1411,17 @@ public sealed partial class IniEditorViewModel(
                 Directory.CreateDirectory(directory);
             }
 
-            var tempPath = Path.Combine(directory ?? Path.GetTempPath(), Path.GetRandomFileName());
+            tempPath = Path.Combine(directory ?? Path.GetTempPath(), Path.GetRandomFileName());
             await File.WriteAllTextAsync(tempPath, canonical, cancellationToken).ConfigureAwait(false);
             File.Move(tempPath, filePath, overwrite: true);
-            FilePath = filePath;
-            _savedHistoryVersion = _historyVersion;
-            DocumentTitle = Path.GetFileName(filePath);
-            OnPropertyChanged(nameof(HasUnsavedChanges));
+            tempPath = null;
+            await InvokeOnUIThreadAsync(() =>
+            {
+                FilePath = filePath;
+                _savedHistoryVersion = _historyVersion;
+                UpdateDocumentTitle();
+                OnPropertyChanged(nameof(HasUnsavedChanges));
+            }).ConfigureAwait(false);
             notificationService.ShowSuccess(
                 localizationService.GetString("Tools.IniEditor.Save.SuccessTitle"),
                 localizationService.GetString("Tools.IniEditor.Save.SuccessMessage", DocumentTitle),
@@ -1121,10 +1429,20 @@ public sealed partial class IniEditorViewModel(
         }
         catch (OperationCanceledException)
         {
+            if (tempPath != null)
+            {
+                IniDocumentService.DeleteTempFile(tempPath);
+            }
+
             throw;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
+            if (tempPath != null)
+            {
+                IniDocumentService.DeleteTempFile(tempPath);
+            }
+
             logger.LogError(ex, "Failed to save INI file {Path}", filePath);
             notificationService.ShowError(
                 localizationService.GetString("Tools.IniEditor.Save.FailureTitle"),
@@ -1133,17 +1451,15 @@ public sealed partial class IniEditorViewModel(
         }
     }
 
-    private IniFileTreeNodeViewModel? BuildDirectoryNode(DirectoryInfo directoryInfo, IniFileTreeNodeViewModel? parent, int depth)
+    private IniFileTreeNodeViewModel? BuildDirectoryNode(DirectoryInfo directoryInfo, IniFileTreeNodeViewModel? parent, int depth, CancellationToken cancellationToken)
     {
-        if (depth > 20)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (depth > IniConstants.Editor.MaxExplorerDepth)
         {
             return null;
         }
 
-        if (parent != null &&
-            (directoryInfo.Name.StartsWith('.') ||
-             string.Equals(directoryInfo.Name, ModBuilderConstants.DefaultBuildDir, StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(directoryInfo.Name, ModBuilderConstants.DefaultReleaseDir, StringComparison.OrdinalIgnoreCase)))
+        if (ShouldSkipDirectory(directoryInfo, parent))
         {
             return null;
         }
@@ -1151,19 +1467,7 @@ public sealed partial class IniEditorViewModel(
         var node = new IniFileTreeNodeViewModel(directoryInfo.Name, directoryInfo.FullName, isDirectory: true, parent: parent);
         try
         {
-            foreach (var directory in directoryInfo.EnumerateDirectories("*", SafeDirectoryEnumerationOptions))
-            {
-                var child = BuildDirectoryNode(directory, node, depth + 1);
-                if (child != null && child.HasVisibleDescendants)
-                {
-                    node.Children.Add(child);
-                }
-            }
-
-            foreach (var file in directoryInfo.EnumerateFiles(ModBuilderConstants.FileNames.IniSearchPattern, SafeDirectoryEnumerationOptions))
-            {
-                node.Children.Add(new IniFileTreeNodeViewModel(file.Name, file.FullName, isDirectory: false, parent: node));
-            }
+            AddChildNodes(node, directoryInfo, depth, cancellationToken);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1180,6 +1484,80 @@ public sealed partial class IniEditorViewModel(
         return node.HasVisibleDescendants ? node : null;
     }
 
+    private void AddChildNodes(IniFileTreeNodeViewModel node, DirectoryInfo directoryInfo, int depth, CancellationToken cancellationToken)
+    {
+        foreach (var directory in directoryInfo.EnumerateDirectories("*", SafeDirectoryEnumerationOptions))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var child = BuildDirectoryNode(directory, node, depth + 1, cancellationToken);
+            if (child != null && child.HasVisibleDescendants)
+            {
+                node.Children.Add(child);
+            }
+        }
+
+        foreach (var file in directoryInfo.EnumerateFiles(ModBuilderConstants.FileNames.IniSearchPattern, SafeDirectoryEnumerationOptions))
+        {
+            node.Children.Add(new IniFileTreeNodeViewModel(file.Name, file.FullName, isDirectory: false, parent: node));
+        }
+    }
+
+    private void EnsureCultureSubscription()
+    {
+        if (_cultureSubscribed)
+        {
+            return;
+        }
+
+        _cultureSubscribed = true;
+        localizationService.PropertyChanged += OnLocalizationPropertyChanged;
+    }
+
+    private void OnLocalizationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_disposed || e.PropertyName != nameof(ILocalizationService.CurrentCulture))
+        {
+            return;
+        }
+
+        PostToUIThread(RefreshLocalizedStrings);
+    }
+
+    private void RefreshLocalizedStrings()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        UpdateDocumentTitle();
+        RebuildCanvasSummary();
+    }
+
+    private void ScheduleDeferred(ref CancellationTokenSource? slot, int delayMs, Action refresh)
+    {
+        slot?.Cancel();
+        var cts = new CancellationTokenSource();
+        slot = cts;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delayMs, cts.Token).ConfigureAwait(false);
+                if (_disposed || cts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                PostToUIThread(refresh);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+            {
+                // Superseded by a newer edit, or the view model was disposed.
+            }
+        });
+    }
+
     partial void OnSelectedNodeChanged(IniTreeNodeViewModel? value)
     {
         RebuildFieldRows();
@@ -1188,6 +1566,6 @@ public sealed partial class IniEditorViewModel(
 
     partial void OnBlockFilterChanged(string? value)
     {
-        RebuildTree();
+        ScheduleDeferred(ref _filterCts, IniConstants.Editor.FilterDebounceMs, RebuildTree);
     }
 }

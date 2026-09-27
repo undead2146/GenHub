@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace GenHub.Core.Models.Tools.IniEditor;
 
 /// <summary>
@@ -5,4 +7,11 @@ namespace GenHub.Core.Models.Tools.IniEditor;
 /// </summary>
 /// <param name="Key">The field key.</param>
 /// <param name="Value">The raw field value.</param>
-public sealed record IniField(string Key, string Value);
+/// <param name="TrailingComment">The inline comment from the field line, when present.</param>
+public sealed record IniField(string Key, string Value, string? TrailingComment = null)
+{
+    /// <summary>
+    /// Gets full line comments written immediately before the field line.
+    /// </summary>
+    public List<string> LeadingComments { get; } = [];
+}

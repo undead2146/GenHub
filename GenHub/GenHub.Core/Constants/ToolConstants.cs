@@ -9,6 +9,16 @@ namespace GenHub.Core.Constants;
 public static class ToolConstants
 {
     /// <summary>
+    /// Default version for bundled tools.
+    /// </summary>
+    public const string DefaultVersion = "1.0.0";
+
+    /// <summary>
+    /// Default author for bundled tools.
+    /// </summary>
+    public const string DefaultAuthor = "GenHub Team";
+
+    /// <summary>
     /// Mock sharing URLs for demo tool services.
     /// </summary>
     public static class MockUrls
@@ -42,12 +52,12 @@ public static class ToolConstants
         /// <summary>
         /// The version of the Replay Manager tool.
         /// </summary>
-        public const string Version = "1.0.0";
+        public const string Version = DefaultVersion;
 
         /// <summary>
         /// The author of the Replay Manager tool.
         /// </summary>
-        public const string Author = "GenHub Team";
+        public const string Author = DefaultAuthor;
 
         /// <summary>
         /// The description of the Replay Manager tool.
@@ -129,12 +139,12 @@ public static class ToolConstants
         /// <summary>
         /// The version of the ModBuilder tool.
         /// </summary>
-        public const string Version = "1.0.0";
+        public const string Version = DefaultVersion;
 
         /// <summary>
         /// The author of the ModBuilder tool.
         /// </summary>
-        public const string Author = "GenHub Team";
+        public const string Author = DefaultAuthor;
 
         /// <summary>
         /// The description of the ModBuilder tool.
@@ -175,12 +185,12 @@ public static class ToolConstants
         /// <summary>
         /// The version of the INI Editor tool.
         /// </summary>
-        public const string Version = "1.0.0";
+        public const string Version = DefaultVersion;
 
         /// <summary>
         /// The author of the INI Editor tool.
         /// </summary>
-        public const string Author = "GenHub Team";
+        public const string Author = DefaultAuthor;
 
         /// <summary>
         /// The description of the INI Editor tool.
@@ -221,12 +231,12 @@ public static class ToolConstants
         /// <summary>
         /// The version of the WND Editor tool.
         /// </summary>
-        public const string Version = "1.0.0";
+        public const string Version = DefaultVersion;
 
         /// <summary>
         /// The author of the WND Editor tool.
         /// </summary>
-        public const string Author = "GenHub Team";
+        public const string Author = DefaultAuthor;
 
         /// <summary>
         /// The description of the WND Editor tool.

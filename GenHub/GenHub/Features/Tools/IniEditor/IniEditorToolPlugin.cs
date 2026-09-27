@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Tools;
 using GenHub.Features.Tools.IniEditor.ViewModels;
@@ -43,12 +44,19 @@ public sealed class IniEditorToolPlugin : IToolPlugin, IFileOpenTarget
 
         if (_serviceProvider == null)
         {
-            return new TextBlock { Text = "Error loading INI Editor" };
+            return new TextBlock { Text = ResolveLoadErrorText() };
         }
 
-        var viewModel = _serviceProvider.GetRequiredService<IniEditorViewModel>();
-        _view = new IniEditorView { DataContext = viewModel };
-        return _view;
+        try
+        {
+            var viewModel = _serviceProvider.GetRequiredService<IniEditorViewModel>();
+            _view = new IniEditorView { DataContext = viewModel };
+            return _view;
+        }
+        catch (InvalidOperationException)
+        {
+            return new TextBlock { Text = ResolveLoadErrorText() };
+        }
     }
 
     /// <inheritdoc />
@@ -85,6 +93,18 @@ public sealed class IniEditorToolPlugin : IToolPlugin, IFileOpenTarget
         }
 
         return await viewModel.OpenFileAsync(filePath, cancellationToken).ConfigureAwait(false);
+    }
+
+    private string ResolveLoadErrorText()
+    {
+        const string fallback = "Error loading INI Editor";
+        var localization = _serviceProvider?.GetService<ILocalizationService>();
+        if (localization != null && localization.TryGetString("Tools.IniEditor.Plugin.LoadError", out var text))
+        {
+            return text;
+        }
+
+        return fallback;
     }
 
     private async Task<IniEditorViewModel?> GetViewModelAsync()

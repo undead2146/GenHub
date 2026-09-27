@@ -136,11 +136,11 @@
     </Border>
 
     <Grid Grid.Row="1">
-      <Grid ColumnDefinitions="340,4,*,4,380" IsVisible="{Binding HasDocument}">
+      <Grid ColumnDefinitions="3*,4,4*,4,3*" IsVisible="{Binding HasDocument}">
         <Border Grid.Column="0"
                 Background="{DynamicResource CardBackground}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                CornerRadius="10" Padding="8,6" ClipToBounds="True">
+                CornerRadius="10" Padding="8,6" ClipToBounds="True" MinWidth="180">
           <TabControl SelectedIndex="0" Padding="0">
             <TabItem Header="{localization:Localize Tools.IniEditor.Tabs.Blocks}">
               <Grid RowDefinitions="Auto,Auto,*,Auto">
@@ -161,6 +161,11 @@
                             SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
                             BorderThickness="0" Background="Transparent"
                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <TreeView.Styles>
+                      <Style Selector="TreeViewItem" x:DataType="vm:IniTreeNodeViewModel">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                      </Style>
+                    </TreeView.Styles>
                     <TreeView.ItemTemplate>
                       <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="vm:IniTreeNodeViewModel">
                         <Border Margin="4,1" Padding="6,3" CornerRadius="6" Background="Transparent" ToolTip.Tip="{Binding DisplayName}" HorizontalAlignment="Stretch">
@@ -207,7 +212,7 @@
                     <Button Command="{Binding DeleteSelectedBlockCommand}"
                             IsEnabled="{Binding SelectedNode, Converter={x:Static ObjectConverters.IsNotNull}}"
                             Padding="8,4"
-                            Background="{DynamicResource ErrorBadgeBackgroundBrush}"
+                            Background="{DynamicResource StatusErrorBadgeBackgroundBrush}"
                             Foreground="{DynamicResource ErrorBrush}"
                             BorderBrush="{DynamicResource ErrorBrush}" BorderThickness="1"
                             CornerRadius="6"
@@ -244,24 +249,49 @@
                   <TreeView ItemsSource="{Binding Files}"
                             BorderThickness="0" Background="Transparent"
                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <TreeView.Styles>
+                      <Style Selector="TreeViewItem" x:DataType="vm:IniFileTreeNodeViewModel">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                      </Style>
+                    </TreeView.Styles>
                     <TreeView.ItemTemplate>
                       <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="vm:IniFileTreeNodeViewModel">
-                        <Button Command="{Binding ((vm:IniEditorViewModel)DataContext).OpenExplorerFileCommand, ElementName=Root}"
-                                CommandParameter="{Binding}"
-                                Background="Transparent" BorderThickness="0"
-                                Padding="6,3" HorizontalAlignment="Stretch">
-                          <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
-                            <material:MaterialIcon Grid.Column="0" Kind="FileDocumentOutline" Width="13" Height="13"
-                                                   Foreground="{DynamicResource AccentBrush}"
-                                                   VerticalAlignment="Center" Margin="0,0,5,0"/>
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding Name}"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource TextPrimary}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"/>
-                          </Grid>
-                        </Button>
+                        <Grid>
+                          <Button Command="{Binding ((vm:IniEditorViewModel)DataContext).OpenExplorerFileCommand, ElementName=Root}"
+                                  CommandParameter="{Binding}"
+                                  IsVisible="{Binding IsDirectory, Converter={x:Static BoolConverters.Not}}"
+                                  Background="Transparent" BorderThickness="0"
+                                  Padding="6,3" HorizontalAlignment="Stretch">
+                            <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                              <material:MaterialIcon Grid.Column="0" Kind="FileDocumentOutline" Width="13" Height="13"
+                                                     Foreground="{DynamicResource AccentBrush}"
+                                                     VerticalAlignment="Center" Margin="0,0,5,0"/>
+                              <TextBlock Grid.Column="1"
+                                         Text="{Binding Name}"
+                                         FontSize="11"
+                                         Foreground="{DynamicResource TextPrimary}"
+                                         VerticalAlignment="Center"
+                                         TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                          </Button>
+                          <Button Command="{Binding ((vm:IniEditorViewModel)DataContext).OpenExplorerFileCommand, ElementName=Root}"
+                                  CommandParameter="{Binding}"
+                                  IsVisible="{Binding IsDirectory}"
+                                  Background="Transparent" BorderThickness="0"
+                                  Padding="6,3" HorizontalAlignment="Stretch">
+                            <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                              <material:MaterialIcon Grid.Column="0" Kind="FolderOutline" Width="13" Height="13"
+                                                     Foreground="{DynamicResource AccentBrush}"
+                                                     VerticalAlignment="Center" Margin="0,0,5,0"/>
+                              <TextBlock Grid.Column="1"
+                                         Text="{Binding Name}"
+                                         FontSize="11" FontWeight="SemiBold"
+                                         Foreground="{DynamicResource TextPrimary}"
+                                         VerticalAlignment="Center"
+                                         TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                          </Button>
+                        </Grid>
                       </TreeDataTemplate>
                     </TreeView.ItemTemplate>
                   </TreeView>
@@ -276,7 +306,7 @@
         <Border Grid.Column="2"
                 Background="{DynamicResource CardBackground}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                CornerRadius="10" Padding="12" ClipToBounds="True">
+                CornerRadius="10" Padding="12" ClipToBounds="True" MinWidth="200">
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="10">
               <TextBlock Text="{localization:Localize Tools.IniEditor.Canvas.Title}"
@@ -340,7 +370,7 @@
         <Border Grid.Column="4"
                 Background="{DynamicResource CardBackground}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                CornerRadius="10" Padding="8,6" ClipToBounds="True">
+                CornerRadius="10" Padding="8,6" ClipToBounds="True" MinWidth="180">
           <Grid RowDefinitions="Auto,*,Auto">
             <TextBlock Grid.Row="0"
                        Text="{localization:Localize Tools.IniEditor.Properties.Title}"
@@ -353,6 +383,11 @@
                     Background="{DynamicResource SurfaceElevatedBrush}">
               <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding FieldRows}" Margin="4">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:IniFieldRowViewModel">
                       <Border Padding="6,5" Margin="0,0,0,4" CornerRadius="6"
@@ -431,7 +466,7 @@
             <Button Command="{Binding OpenFileWithDialogCommand}"
                     Padding="10,6"
                     Background="{DynamicResource AccentBrush}"
-                    Foreground="White" BorderThickness="0" CornerRadius="8"
+                    Foreground="{DynamicResource PrimaryButtonForeground}" BorderThickness="0" CornerRadius="8"
                     Content="{localization:Localize Tools.IniEditor.Empty.OpenFile}"
                     FontSize="11" FontWeight="SemiBold"/>
             <Button Command="{Binding OpenFolderWithDialogCommand}"

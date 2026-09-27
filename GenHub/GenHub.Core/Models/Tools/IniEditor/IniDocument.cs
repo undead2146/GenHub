@@ -16,4 +16,14 @@ public sealed class IniDocument
     /// Gets the ordered top-level blocks.
     /// </summary>
     public List<IniBlock> Blocks { get; } = [];
+
+    /// <summary>
+    /// Gets full line comments written before the first block.
+    /// </summary>
+    public List<string> HeaderComments { get; } = [];
+
+    /// <summary>
+    /// Gets full line comments written after the last block.
+    /// </summary>
+    public List<string> TrailingComments { get; } = [];
 }
