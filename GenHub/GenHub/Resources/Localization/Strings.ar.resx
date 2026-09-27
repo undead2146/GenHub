@@ -14780,6 +14780,7 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="TextureEditor.Dialog.ClearSlices.Cancel" xml:space="preserve">
     <value>إلغاء</value>
+  </data>
   <data name="Tools.Plugin.genhub.tools.inieditor.Name" xml:space="preserve">
     <value>محرر INI</value>
   </data>
@@ -14809,6 +14810,18 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Toolbar.Validate" xml:space="preserve">
     <value>تحقق</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Copy" xml:space="preserve">
+    <value>نسخ</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Cut" xml:space="preserve">
+    <value>قص</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Duplicate" xml:space="preserve">
+    <value>تكرار</value>
   </data>
   <data name="Tools.IniEditor.Toolbar.Format" xml:space="preserve">
     <value>تنسيق</value>
@@ -14870,6 +14883,9 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Canvas.BlockType" xml:space="preserve">
     <value>نوع الكتلة</value>
   </data>
+  <data name="Tools.IniEditor.Canvas.AssembledTitle" xml:space="preserve">
+    <value>عرض مجمع</value>
+  </data>
   <data name="Tools.IniEditor.Canvas.BlockName" xml:space="preserve">
     <value>الاسم</value>
   </data>
@@ -14896,6 +14912,15 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Properties.Title" xml:space="preserve">
     <value>الحقول</value>
+  </data>
+  <data name="Tools.IniEditor.FileSettings.Title" xml:space="preserve">
+    <value>إعدادات الملف</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.DeleteFieldTooltip" xml:space="preserve">
+    <value>حذف هذا الحقل</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.GoToDefinitionTooltip" xml:space="preserve">
+    <value>الانتقال إلى التعريف المرجعي</value>
   </data>
   <data name="Tools.IniEditor.Properties.NewKeyWatermark" xml:space="preserve">
     <value>مفتاح الحقل الجديد...</value>
@@ -14944,6 +14969,18 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureTitle" xml:space="preserve">
     <value>فشل حفظ ملف INI</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.Insert" xml:space="preserve">
+    <value>إدراج في المستند</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.InstallationLabel" xml:space="preserve">
+    <value>تثبيت اللعبة</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.SearchWatermark" xml:space="preserve">
+    <value>ابحث في مرجع بيانات اللعبة...</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.TypeLabel" xml:space="preserve">
+    <value>نوع الكتلة</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
     <value>تعذر حفظ ملف INI: {0}</value>
@@ -14995,6 +15032,15 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Damage.WeaponOnlyTitle" xml:space="preserve">
     <value>كتل الأسلحة فقط</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomInTooltip" xml:space="preserve">
+    <value>تكبير</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomOutTooltip" xml:space="preserve">
+    <value>تصغير</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomResetTooltip" xml:space="preserve">
+    <value>إعادة ضبط التكبير</value>
   </data>
   <data name="Tools.IniEditor.Damage.WeaponOnlyMessage" xml:space="preserve">
     <value>يمكن إضافة ملفات الضرر إلى كتل الأسلحة فقط.</value>
@@ -15775,6 +15821,12 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Template.SkippedTitle" xml:space="preserve">
     <value>القالب مطبق بالفعل</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Reference" xml:space="preserve">
+    <value>مرجع</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Textures" xml:space="preserve">
+    <value>خامات</value>
   </data>
   <data name="Tools.IniEditor.Template.SkippedMessage" xml:space="preserve">
     <value>الكتلة المحددة تحدد هذه الحقول بالفعل.</value>

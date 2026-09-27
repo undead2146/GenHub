@@ -89,6 +89,9 @@ public static class IniConstants
         /// <summary>Defines veterancy multipliers.</summary>
         public const string Veterancy = "Veterancy";
 
+        /// <summary>Defines a mapped image sprite.</summary>
+        public const string MappedImage = "MappedImage";
+
         /// <summary>
         /// All block types with schema assistance.
         /// </summary>
@@ -97,6 +100,101 @@ public static class IniConstants
             Object, Weapon, Armor, ArmorSet, WeaponSet, CommandButton, CommandSet,
             Upgrade, Science, SpecialPower, Locomotor, ObjectCreationList,
             DamageFX, PlayerTemplate, FactionTemplate, ExperienceLevels, Veterancy,
+            MappedImage,
+        ];
+    }
+
+    /// <summary>
+    /// Object module slot keys. Lines such as <c>Draw = W3DModelDraw Tag</c> open a
+    /// nested module sub-block closed by <c>End</c> instead of acting as plain fields.
+    /// Matches the engine object module parsing in the public game code.
+    /// </summary>
+    public static class ModuleKeys
+    {
+        /// <summary>Body module slot.</summary>
+        public const string Body = "Body";
+
+        /// <summary>Behavior module slot.</summary>
+        public const string Behavior = "Behavior";
+
+        /// <summary>Draw module slot.</summary>
+        public const string Draw = "Draw";
+
+        /// <summary>Client update module slot.</summary>
+        public const string ClientUpdate = "ClientUpdate";
+
+        /// <summary>Draw condition state.</summary>
+        public const string ConditionState = "ConditionState";
+
+        /// <summary>Draw model condition state.</summary>
+        public const string ModelConditionState = "ModelConditionState";
+
+        /// <summary>Draw transition state.</summary>
+        public const string TransitionState = "TransitionState";
+
+        /// <summary>Draw animation state.</summary>
+        public const string AnimationState = "AnimationState";
+
+        /// <summary>Draw idle animation state.</summary>
+        public const string IdleAnimationState = "IdleAnimationState";
+
+        /// <summary>
+        /// All keys that always open a module sub-block.
+        /// </summary>
+        public static readonly string[] All =
+        [
+            Body, Behavior, Draw, ClientUpdate, ConditionState,
+            ModelConditionState, TransitionState, AnimationState, IdleAnimationState,
+        ];
+    }
+
+    /// <summary>
+    /// Bare valueless entry keys. Lines holding only one of these keys inside a block
+    /// are single-line entries rather than nested blocks. The engine credits files
+    /// use <c>Blank</c> for empty lines within a credits block.
+    /// </summary>
+    public static class ValuelessKeys
+    {
+        /// <summary>Empty line entry in credits blocks.</summary>
+        public const string Blank = "Blank";
+
+        /// <summary>
+        /// All keys parsed as valueless entries instead of nested blocks.
+        /// </summary>
+        public static readonly string[] All = [Blank];
+    }
+
+    /// <summary>
+    /// Death type names from the engine, matching <c>TheDeathNames</c> in the public game code.
+    /// </summary>
+    public static class DeathTypes
+    {
+        /// <summary>
+        /// All death types in engine canonical order.
+        /// </summary>
+        public static readonly string[] All =
+        [
+            "NORMAL", "NONE", "CRUSHED", "BURNED", "EXPLODED", "POISONED",
+            "TOPPLED", "FLOODED", "SUICIDED", "LASERED", "DETONATED",
+            "SPLATTED", "POISONED_BETA", "EXTRA_2", "EXTRA_3", "EXTRA_4",
+            "EXTRA_5", "EXTRA_6", "EXTRA_7", "EXTRA_8", "POISONED_GAMMA",
+        ];
+    }
+
+    /// <summary>
+    /// Armor and weapon set condition flags from the engine, matching
+    /// <c>ArmorSetFlags</c> in the public game code.
+    /// </summary>
+    public static class ArmorSetConditions
+    {
+        /// <summary>
+        /// All set condition flags in engine canonical order.
+        /// </summary>
+        public static readonly string[] All =
+        [
+            "VETERAN", "ELITE", "HERO", "PLAYER_UPGRADE",
+            "WEAK_VERSUS_BASEDEFENSES", "SECOND_LIFE",
+            "CRATE_UPGRADE_ONE", "CRATE_UPGRADE_TWO",
         ];
     }
 
@@ -161,6 +259,18 @@ public static class IniConstants
     }
 
     /// <summary>
+    /// Reference index cache constants.
+    /// </summary>
+    public static class Cache
+    {
+        /// <summary>Temporary directory name for extracted vanilla INI archives.</summary>
+        public const string VanillaDirectoryName = "GenHub_IniVanilla";
+
+        /// <summary>Marker file proving a vanilla extraction completed.</summary>
+        public const string ExtractedMarkerFileName = ".extracted";
+    }
+
+    /// <summary>
     /// Editor limits.
     /// </summary>
     public static class Editor
@@ -168,13 +278,25 @@ public static class IniConstants
         /// <summary>Maximum undo history entries.</summary>
         public const int MaxUndoHistory = 200;
 
-        /// <summary>Maximum explorer depth when listing INI files.</summary>
-        public const int MaxExplorerDepth = 20;
-
         /// <summary>Debounce delay before refreshing previews after an edit, in milliseconds.</summary>
         public const int PreviewRefreshDebounceMs = 250;
 
         /// <summary>Debounce delay before applying the block filter, in milliseconds.</summary>
         public const int FilterDebounceMs = 200;
+
+        /// <summary>Debounce delay before refreshing texture thumbnails, in milliseconds.</summary>
+        public const int ThumbnailDebounceMs = 150;
+
+        /// <summary>Maximum reference results shown in the reference browser.</summary>
+        public const int MaxReferenceResults = 500;
+
+        /// <summary>Maximum picker textures preloaded with thumbnails.</summary>
+        public const int MaxPickerThumbnails = 64;
+
+        /// <summary>Maximum mapped image files parsed for texture pickers.</summary>
+        public const int MaxMappedImageFiles = 50;
+
+        /// <summary>Maximum mapped image definitions offered by texture pickers.</summary>
+        public const int MaxPickerDefinitions = 2000;
     }
 }

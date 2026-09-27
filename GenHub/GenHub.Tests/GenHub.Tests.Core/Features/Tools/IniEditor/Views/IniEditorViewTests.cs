@@ -3,13 +3,23 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Tools.IniEditor;
+using GenHub.Core.Interfaces.Tools.TextureEditor;
+using GenHub.Core.Interfaces.Tools.WndEditor;
+using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Tools.IniEditor;
 using GenHub.Features.Tools.IniEditor.Services;
 using GenHub.Features.Tools.IniEditor.ViewModels;
 using GenHub.Features.Tools.IniEditor.Views;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GenHub.Tests.Core.Features.Tools.IniEditor.Views;
@@ -87,7 +97,7 @@ public class IniEditorViewTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task DeleteSelectedBlock_ClearsSelectionAndFieldRowsAsync()
+    public async Task DeleteCommand_ClearsSelectionAndFieldRowsAsync()
     {
         using var viewModel = CreateViewModel();
         await viewModel.NewDocumentCommand.ExecuteAsync(null);
@@ -96,13 +106,13 @@ public class IniEditorViewTests
         viewModel.AddBlockCommand.Execute(null);
         Assert.NotNull(viewModel.SelectedNode);
 
-        viewModel.DeleteSelectedBlockCommand.Execute(null);
+        viewModel.DeleteCommand.Execute(null);
 
         Assert.Null(viewModel.SelectedNode);
         Assert.Empty(viewModel.FieldRows);
         Assert.Empty(viewModel.RootNodes);
 
-        var exception = Record.Exception(() => viewModel.DeleteSelectedBlockCommand.Execute(null));
+        var exception = Record.Exception(() => viewModel.DeleteCommand.Execute(null));
         Assert.Null(exception);
     }
 
@@ -217,6 +227,38 @@ public class IniEditorViewTests
         Assert.Single(viewModel.SelectedNode.Block.Fields, field => field.Key == "Upgrade");
     }
 
+    /// <summary>
+    /// Verifies that opening a flat settings file populates editable file-settings rows
+    /// and that edits round-trip through save.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task OpenFile_FlatSettings_PopulatesGlobalFieldRowsAsync()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"GenHubIniGlobals{Guid.NewGuid():N}.ini");
+        await File.WriteAllTextAsync(filePath, "ReallyLowMHz = 600\nLODPreset = LOW P3 1400 GF3 128\n");
+        try
+        {
+            using var viewModel = CreateViewModel();
+            var opened = await viewModel.OpenFileAsync(filePath);
+
+            Assert.True(opened);
+            Assert.True(viewModel.HasGlobalFields);
+            Assert.Equal(2, viewModel.GlobalFieldRows.Count);
+            Assert.Equal("ReallyLowMHz", viewModel.GlobalFieldRows[0].Key);
+
+            viewModel.GlobalFieldRows[0].Value = "700";
+            await viewModel.SaveCommand.ExecuteAsync(null);
+
+            var saved = await File.ReadAllTextAsync(filePath);
+            Assert.Contains("ReallyLowMHz = 700", saved, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
     private static IniEditorViewModel CreateViewModel()
     {
         var mockLocalization = new Mock<ILocalizationService>();
@@ -224,9 +266,28 @@ public class IniEditorViewTests
             .Setup(service => service.GetString(It.IsAny<string>(), It.IsAny<object?[]>()))
             .Returns((string key, object?[] args) => key);
 
+        var mockReferenceService = new Mock<IIniReferenceService>();
+        mockReferenceService
+            .Setup(service => service.RebuildIndexAsync(
+                It.IsAny<IniDocument?>(),
+                It.IsAny<string?>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<int>.CreateSuccess(0, TimeSpan.Zero));
+        mockReferenceService
+            .Setup(service => service.Entries)
+            .Returns(new List<IniReferenceEntry>());
+        mockReferenceService
+            .Setup(service => service.GetNames(It.IsAny<string>()))
+            .Returns(new List<string>());
+
         return new IniEditorViewModel(
             new IniDocumentService(Mock.Of<ILogger<IniDocumentService>>()),
             new IniSchemaService(mockLocalization.Object),
+            mockReferenceService.Object,
+            Mock.Of<ISageMappedImageParser>(),
+            Mock.Of<IWndImageAssetService>(),
+            Mock.Of<IGameInstallationService>(),
             Mock.Of<INotificationService>(),
             mockLocalization.Object,
             Mock.Of<IDialogService>(),

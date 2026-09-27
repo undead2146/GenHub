@@ -14909,6 +14909,18 @@ How do you want to apply this update?</value>
   <data name="Tools.IniEditor.Toolbar.Validate" xml:space="preserve">
     <value>Validate</value>
   </data>
+  <data name="Tools.IniEditor.Toolbar.Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Cut" xml:space="preserve">
+    <value>Cut</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Duplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
   <data name="Tools.IniEditor.Toolbar.Format" xml:space="preserve">
     <value>Format</value>
   </data>
@@ -14969,6 +14981,9 @@ How do you want to apply this update?</value>
   <data name="Tools.IniEditor.Canvas.BlockType" xml:space="preserve">
     <value>Block type</value>
   </data>
+  <data name="Tools.IniEditor.Canvas.AssembledTitle" xml:space="preserve">
+    <value>Assembled view</value>
+  </data>
   <data name="Tools.IniEditor.Canvas.BlockName" xml:space="preserve">
     <value>Name</value>
   </data>
@@ -14995,6 +15010,15 @@ How do you want to apply this update?</value>
   </data>
   <data name="Tools.IniEditor.Properties.Title" xml:space="preserve">
     <value>Fields</value>
+  </data>
+  <data name="Tools.IniEditor.FileSettings.Title" xml:space="preserve">
+    <value>File settings</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.DeleteFieldTooltip" xml:space="preserve">
+    <value>Delete this field</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.GoToDefinitionTooltip" xml:space="preserve">
+    <value>Go to referenced definition</value>
   </data>
   <data name="Tools.IniEditor.Properties.NewKeyWatermark" xml:space="preserve">
     <value>New field key...</value>
@@ -15043,6 +15067,18 @@ How do you want to apply this update?</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureTitle" xml:space="preserve">
     <value>Failed to save INI file</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.Insert" xml:space="preserve">
+    <value>Insert into document</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.InstallationLabel" xml:space="preserve">
+    <value>Game installation</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.SearchWatermark" xml:space="preserve">
+    <value>Search game data reference...</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.TypeLabel" xml:space="preserve">
+    <value>Block type</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
     <value>Could not save the INI file: {0}</value>
@@ -15094,6 +15130,15 @@ How do you want to apply this update?</value>
   </data>
   <data name="Tools.IniEditor.Damage.WeaponOnlyTitle" xml:space="preserve">
     <value>Weapon blocks only</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomInTooltip" xml:space="preserve">
+    <value>Zoom in</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomOutTooltip" xml:space="preserve">
+    <value>Zoom out</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomResetTooltip" xml:space="preserve">
+    <value>Reset zoom</value>
   </data>
   <data name="Tools.IniEditor.Damage.WeaponOnlyMessage" xml:space="preserve">
     <value>Damage profiles can only be added to Weapon blocks.</value>
@@ -15874,6 +15919,12 @@ How do you want to apply this update?</value>
   </data>
   <data name="Tools.IniEditor.Template.SkippedTitle" xml:space="preserve">
     <value>Template already applied</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Reference" xml:space="preserve">
+    <value>Reference</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Textures" xml:space="preserve">
+    <value>Textures</value>
   </data>
   <data name="Tools.IniEditor.Template.SkippedMessage" xml:space="preserve">
     <value>The selected block already defines these fields.</value>

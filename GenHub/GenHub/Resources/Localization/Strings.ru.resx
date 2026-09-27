@@ -14811,6 +14811,18 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Toolbar.Validate" xml:space="preserve">
     <value>Проверить</value>
   </data>
+  <data name="Tools.IniEditor.Toolbar.Copy" xml:space="preserve">
+    <value>Копировать</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Cut" xml:space="preserve">
+    <value>Вырезать</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Delete" xml:space="preserve">
+    <value>Удалить</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Duplicate" xml:space="preserve">
+    <value>Дублировать</value>
+  </data>
   <data name="Tools.IniEditor.Toolbar.Format" xml:space="preserve">
     <value>Форматировать</value>
   </data>
@@ -14871,6 +14883,9 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Canvas.BlockType" xml:space="preserve">
     <value>Тип блока</value>
   </data>
+  <data name="Tools.IniEditor.Canvas.AssembledTitle" xml:space="preserve">
+    <value>Собранный вид</value>
+  </data>
   <data name="Tools.IniEditor.Canvas.BlockName" xml:space="preserve">
     <value>Имя</value>
   </data>
@@ -14897,6 +14912,15 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Properties.Title" xml:space="preserve">
     <value>Поля</value>
+  </data>
+  <data name="Tools.IniEditor.FileSettings.Title" xml:space="preserve">
+    <value>Настройки файла</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.DeleteFieldTooltip" xml:space="preserve">
+    <value>Удалить это поле</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.GoToDefinitionTooltip" xml:space="preserve">
+    <value>Перейти к определению</value>
   </data>
   <data name="Tools.IniEditor.Properties.NewKeyWatermark" xml:space="preserve">
     <value>Новый ключ поля...</value>
@@ -14945,6 +14969,18 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureTitle" xml:space="preserve">
     <value>Не удалось сохранить INI-файл</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.Insert" xml:space="preserve">
+    <value>Вставить в документ</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.InstallationLabel" xml:space="preserve">
+    <value>Установка игры</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.SearchWatermark" xml:space="preserve">
+    <value>Поиск по игровым данным...</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.TypeLabel" xml:space="preserve">
+    <value>Тип блока</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
     <value>Не удалось сохранить INI-файл: {0}</value>
@@ -14996,6 +15032,15 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Damage.WeaponOnlyTitle" xml:space="preserve">
     <value>Только блоки Weapon</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomInTooltip" xml:space="preserve">
+    <value>Приблизить</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomOutTooltip" xml:space="preserve">
+    <value>Отдалить</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.ZoomResetTooltip" xml:space="preserve">
+    <value>Сбросить масштаб</value>
   </data>
   <data name="Tools.IniEditor.Damage.WeaponOnlyMessage" xml:space="preserve">
     <value>Профили урона можно добавлять только в блоки Weapon.</value>
@@ -15776,6 +15821,12 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Template.SkippedTitle" xml:space="preserve">
     <value>Шаблон уже применен</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Reference" xml:space="preserve">
+    <value>Справочник</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Textures" xml:space="preserve">
+    <value>Текстуры</value>
   </data>
   <data name="Tools.IniEditor.Template.SkippedMessage" xml:space="preserve">
     <value>Выбранный блок уже определяет эти поля.</value>

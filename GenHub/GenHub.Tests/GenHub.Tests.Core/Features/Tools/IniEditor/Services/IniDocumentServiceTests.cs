@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -142,14 +143,37 @@ public sealed class IniDocumentServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that fields outside of a block fail parsing.
+    /// Verifies that file-scope settings outside of any block parse as global fields,
+    /// matching shipped flat files such as <c>GameLODPresets.ini</c>.
     /// </summary>
     [Fact]
-    public void ParseText_FieldOutsideBlock_ReturnsFailure()
+    public void ParseText_TopLevelFields_ParseAsGlobalFields()
     {
-        var result = _service.ParseText("Health = 100.0\n");
+        const string content =
+            "; LOD presets\n" +
+            "ReallyLowMHz = 600\n" +
+            "LODPreset = LOW P3 1400 GF3 128\n" +
+            "LODPreset = HIGH P4 2000 GF4 512\n";
 
-        result.Success.Should().BeFalse();
+        var result = _service.ParseText(content);
+
+        result.Success.Should().BeTrue();
+        var document = result.Data!;
+        document.Blocks.Should().BeEmpty();
+        document.HeaderComments.Should().ContainSingle().Which.Text.Should().Be("LOD presets");
+        document.GlobalFields.Select(field => field.Key).Should().Equal("ReallyLowMHz", "LODPreset", "LODPreset");
+        document.GlobalFields[0].Value.Should().Be("600");
+
+        var canonical = _service.WriteDocument(document);
+        canonical.Should().Be(
+            "; LOD presets\r\n" +
+            "ReallyLowMHz = 600\r\n" +
+            "LODPreset = LOW P3 1400 GF3 128\r\n" +
+            "LODPreset = HIGH P4 2000 GF4 512\r\n");
+
+        var reparsed = _service.ParseText(canonical);
+        reparsed.Success.Should().BeTrue();
+        _service.WriteDocument(reparsed.Data!).Should().Be(canonical);
     }
 
     /// <summary>
@@ -186,7 +210,8 @@ public sealed class IniDocumentServiceTests : IDisposable
 
         result.Success.Should().BeTrue();
         var document = result.Data!;
-        document.HeaderComments.Should().ContainSingle().Which.Should().Be("Generals object definition");
+        document.HeaderComments.Should().ContainSingle().Which.Text.Should().Be("Generals object definition");
+        document.HeaderComments[0].IsDirective.Should().BeFalse();
         document.Blocks[0].LeadingComments.Should().BeEmpty();
     }
 
@@ -366,5 +391,250 @@ public sealed class IniDocumentServiceTests : IDisposable
 
         result.Success.Should().BeFalse();
         result.FirstError.Should().Contain("not found");
+    }
+
+    /// <summary>
+    /// Verifies that a realistic object with body, behavior, and draw modules parses
+    /// with module sub-blocks instead of reporting fields outside of a block.
+    /// Alias lines stack as fields of the draw module following engine semantics:
+    /// they never open their own sub-blocks.
+    /// </summary>
+    [Fact]
+    public void ParseText_ObjectWithModules_ParsesModuleSubBlocks()
+    {
+        const string content =
+            "Object AmericaVehicleHumvee\n" +
+            "  DisplayName = OBJECT:Humvee\n" +
+            "  Body = ActiveBody ModuleTag_01\n" +
+            "    MaxHealth = 300.0\n" +
+            "  End\n" +
+            "  Behavior = PhysicsBehavior ModuleTag_02\n" +
+            "  End\n" +
+            "  Draw = W3DModelDraw ModuleTag_03\n" +
+            "    ConditionState = NONE\n" +
+            "      Model = AVHUMVEE\n" +
+            "    End\n" +
+            "    AliasConditionState = NONE DAMAGED\n" +
+            "    AliasConditionState = NONE REALLYDAMAGED\n" +
+            "    ConditionState = DAMAGED\n" +
+            "      Model = AVHUMVEE_D\n" +
+            "    End\n" +
+            "    TransitionState = TRANS_Stand TRANS_StandInjured\n" +
+            "      Animation = Anim\n" +
+            "    End\n" +
+            "  End\n" +
+            "End\n";
+
+        var result = _service.ParseText(content);
+
+        result.Success.Should().BeTrue();
+        var gameObject = result.Data!.Blocks.Should().ContainSingle().Subject;
+        gameObject.Fields.Should().ContainSingle();
+        gameObject.Children.Should().HaveCount(3);
+        var draw = gameObject.Children[2];
+        draw.BlockType.Should().Be("Draw");
+        draw.AssignmentValue.Should().Be("W3DModelDraw ModuleTag_03");
+        draw.DisplayHeader.Should().Be("Draw = W3DModelDraw ModuleTag_03");
+        draw.Children.Should().HaveCount(3);
+        draw.Children[0].DisplayHeader.Should().Be("ConditionState = NONE");
+        draw.Children[1].DisplayHeader.Should().Be("ConditionState = DAMAGED");
+        draw.Children[2].DisplayHeader.Should().Be("TransitionState = TRANS_Stand TRANS_StandInjured");
+        draw.Fields.Should().HaveCount(2);
+        draw.Fields.Should().OnlyContain(field => field.Key == "AliasConditionState");
+        draw.Fields[0].Value.Should().Be("NONE DAMAGED");
+        draw.Fields[1].Value.Should().Be("NONE REALLYDAMAGED");
+    }
+
+    /// <summary>
+    /// Verifies that trailing alias lines inside a condition state parse as fields
+    /// of that state, matching shipped building draw modules.
+    /// </summary>
+    [Fact]
+    public void ParseText_TrailingAliases_ParseAsStateFields()
+    {
+        const string content =
+            "Object Lazr_AmericaBarracks\n" +
+            "  Draw = W3DModelDraw ModuleTag_01\n" +
+            "    ConditionState = SOLD NIGHT\n" +
+            "      Model = ABBARRACKS\n" +
+            "      AliasConditionState = SOLD NIGHT SNOW\n" +
+            "      AliasConditionState = SOLD NIGHT SNOW DAMAGED\n" +
+            "      OkToChangeModelColor = YES\n" +
+            "    End\n" +
+            "  End\n" +
+            "End\n";
+
+        var result = _service.ParseText(content);
+
+        result.Success.Should().BeTrue();
+        var state = result.Data!.Blocks[0].Children[0].Children.Should().ContainSingle().Subject;
+        state.DisplayHeader.Should().Be("ConditionState = SOLD NIGHT");
+        state.Fields.Select(field => field.Key).Should().Equal("Model", "AliasConditionState", "AliasConditionState", "OkToChangeModelColor");
+    }
+
+    /// <summary>
+    /// Verifies that bare valueless entries parse as bare fields and round-trip verbatim.
+    /// </summary>
+    [Fact]
+    public void ParseText_BlankEntries_ParseAsBareFields()
+    {
+        const string content =
+            "Object CreditsPage\n" +
+            "  Text = CREDITS:Foo\n" +
+            "  Blank\n" +
+            "  Text = CREDITS:Bar\n" +
+            "  Blank\n" +
+            "  Blank\n" +
+            "End\n";
+
+        var parsed = _service.ParseText(content);
+
+        parsed.Success.Should().BeTrue();
+        var block = parsed.Data!.Blocks.Should().ContainSingle().Subject;
+        block.Children.Should().BeEmpty();
+        block.Fields.Select(field => field.Key).Should().Equal("Text", "Blank", "Text", "Blank", "Blank");
+        block.Fields.Where(field => field.Key == "Blank").Should().OnlyContain(field => field.IsBare);
+
+        var canonical = _service.WriteDocument(parsed.Data!);
+        canonical.Should().Contain("\r\n  Blank\r\n");
+        canonical.Should().NotContain("Blank = ");
+
+        var reparsed = _service.ParseText(canonical);
+        reparsed.Success.Should().BeTrue();
+        _service.WriteDocument(reparsed.Data!).Should().Be(canonical);
+    }
+
+    /// <summary>
+    /// Verifies that an empty module closed immediately still closes the module, not the parent.
+    /// </summary>
+    [Fact]
+    public void ParseText_EmptyModule_ClosesModuleOnly()
+    {
+        var result = _service.ParseText("Object Foo\n  Behavior = PhysicsBehavior Tag\n  End\n  Health = 10.0\nEnd\n");
+
+        result.Success.Should().BeTrue();
+        var gameObject = result.Data!.Blocks.Should().ContainSingle().Subject;
+        gameObject.Children.Should().ContainSingle();
+        gameObject.Fields.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Verifies that module keys open sub-blocks even in files without indentation.
+    /// </summary>
+    [Fact]
+    public void ParseText_FlatFile_ModulesOpenViaSchemaKeys()
+    {
+        const string content =
+            "Object Foo\n" +
+            "DisplayName = X\n" +
+            "Draw = W3DModelDraw Tag\n" +
+            "ConditionState = NONE\n" +
+            "Model = AVFoo\n" +
+            "End\n" +
+            "End\n" +
+            "End\n";
+
+        var result = _service.ParseText(content);
+
+        result.Success.Should().BeTrue();
+        var draw = result.Data!.Blocks[0].Children.Should().ContainSingle().Subject;
+        draw.Children.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Verifies that preprocessor directives are preserved verbatim through a round-trip.
+    /// </summary>
+    [Fact]
+    public void WriteDocument_Directives_RoundTripVerbatim()
+    {
+        const string content =
+            "#include \"Common.ini\"\n" +
+            "Object Foo\n" +
+            "  Health = 10.0\n" +
+            "End\n";
+
+        var parsed = _service.ParseText(content);
+        parsed.Success.Should().BeTrue();
+        parsed.Data!.HeaderComments.Should().ContainSingle().Which.IsDirective.Should().BeTrue();
+
+        var canonical = _service.WriteDocument(parsed.Data!);
+        canonical.Should().Contain("#include \"Common.ini\"");
+        canonical.Should().NotContain("; #include");
+    }
+
+    /// <summary>
+    /// Verifies that module headers survive a write and reparse cycle.
+    /// </summary>
+    [Fact]
+    public void WriteDocument_ModuleBlocks_RoundTrip()
+    {
+        const string content =
+            "Object Foo\n" +
+            "  Draw = W3DModelDraw Tag\n" +
+            "    ConditionState = NONE\n" +
+            "      Model = AVFoo\n" +
+            "    End\n" +
+            "  End\n" +
+            "End\n";
+
+        var parsed = _service.ParseText(content);
+        parsed.Success.Should().BeTrue();
+
+        var canonical = _service.WriteDocument(parsed.Data!);
+        canonical.Should().Contain("Draw = W3DModelDraw Tag");
+        canonical.Should().Contain("ConditionState = NONE");
+
+        var reparsed = _service.ParseText(canonical);
+        reparsed.Success.Should().BeTrue();
+        _service.WriteDocument(reparsed.Data!).Should().Be(canonical);
+    }
+
+    /// <summary>
+    /// Verifies that same-named blocks under different parents do not report duplicates.
+    /// </summary>
+    [Fact]
+    public void ValidateDocument_SameNameInDifferentParents_NoDuplicateWarning()
+    {
+        const string content =
+            "Object Foo\n" +
+            "  Draw = W3DModelDraw TagA\n" +
+            "    ConditionState = NONE\n" +
+            "      Model = A\n" +
+            "    End\n" +
+            "  End\n" +
+            "  Draw = W3DModelDraw TagB\n" +
+            "    ConditionState = NONE\n" +
+            "      Model = B\n" +
+            "    End\n" +
+            "  End\n" +
+            "End\n";
+
+        var parsed = _service.ParseText(content);
+        parsed.Success.Should().BeTrue();
+
+        var validation = _service.ValidateDocument(parsed.Data!, "test");
+
+        validation.Issues.Should().NotContain(issue => issue.Message.Contains("Duplicate"));
+    }
+
+    /// <summary>
+    /// Verifies that weapon set condition and slot lines remain plain fields.
+    /// </summary>
+    [Fact]
+    public void ParseText_WeaponSetConditions_RemainFields()
+    {
+        const string content =
+            "WeaponSet MySet\n" +
+            "  Conditions = None PLAYER_UPGRADE\n" +
+            "  Weapon = PRIMARY WeaponA\n" +
+            "  Weapon = SECONDARY WeaponB\n" +
+            "End\n";
+
+        var result = _service.ParseText(content);
+
+        result.Success.Should().BeTrue();
+        var set = result.Data!.Blocks.Should().ContainSingle().Subject;
+        set.Fields.Should().HaveCount(3);
+        set.Children.Should().BeEmpty();
     }
 }

@@ -21,6 +21,7 @@ public static class IniEditorModule
     {
         services.AddSingleton<IIniDocumentService, IniDocumentService>();
         services.AddSingleton<IIniSchemaService, IniSchemaService>();
+        services.AddSingleton<IIniReferenceService, IniReferenceService>();
         services.AddTransient<IniEditorViewModel>();
         services.AddSingleton<IToolPlugin, IniEditorToolPlugin>();
 

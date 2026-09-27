@@ -44,9 +44,7 @@ public sealed partial class IniTreeNodeViewModel : ObservableObject
     /// <summary>
     /// Gets the display name for the node.
     /// </summary>
-    public string DisplayName => string.IsNullOrEmpty(Block.Name)
-        ? Block.BlockType
-        : $"{Block.BlockType} {Block.Name}";
+    public string DisplayName => Block.DisplayHeader;
 
     /// <summary>
     /// Gets the block type badge text.

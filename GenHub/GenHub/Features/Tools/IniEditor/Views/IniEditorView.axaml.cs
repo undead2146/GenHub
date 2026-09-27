@@ -2,6 +2,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using GenHub.Common.Controls;
+using GenHub.Core.Models.Tools.TextureEditor;
 using GenHub.Features.Tools.IniEditor.ViewModels;
 
 namespace GenHub.Features.Tools.IniEditor.Views;
@@ -18,11 +20,25 @@ public partial class IniEditorView : UserControl
     {
         InitializeComponent();
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+
+        var picker = this.Find<MappedImagePickerControl>("TexturePicker");
+        if (picker is not null)
+        {
+            picker.EditRequested += OnPickerEditRequested;
+        }
     }
 
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);
+    }
+
+    private void OnPickerEditRequested(object? sender, MappedImageDefinition definition)
+    {
+        if (DataContext is IniEditorViewModel viewModel)
+        {
+            viewModel.OpenTextureInEditor(definition);
+        }
     }
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)

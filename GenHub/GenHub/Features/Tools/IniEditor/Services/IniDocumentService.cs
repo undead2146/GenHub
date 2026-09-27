@@ -1,4 +1,5 @@
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Tools.IniEditor;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Tools.IniEditor;
@@ -19,6 +20,13 @@ namespace GenHub.Features.Tools.IniEditor.Services;
 /// </summary>
 public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIniDocumentService
 {
+    /// <summary>
+    /// An open block and the indentation of its opening line.
+    /// </summary>
+    /// <param name="Block">The open block.</param>
+    /// <param name="Indent">The indentation of the opening line.</param>
+    private sealed record BlockFrame(IniBlock Block, int Indent);
+
     private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];
 
     /// <inheritdoc />
@@ -28,13 +36,13 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var stopwatch = Stopwatch.StartNew();
         var errors = new List<string>();
         var document = new IniDocument { SourcePath = sourcePath };
-        var stack = new Stack<IniBlock>();
-        var pendingComments = new List<string>();
+        var stack = new Stack<BlockFrame>();
+        var pendingComments = new List<IniComment>();
         var lines = content.Split(["\r\n", "\n"], StringSplitOptions.None);
 
         for (var i = 0; i < lines.Length; i++)
         {
-            ParseLine(lines[i], i + 1, document, stack, pendingComments, errors);
+            ParseLine(lines, i, document, stack, pendingComments, errors);
         }
 
         FlushTrailingComments(document, stack, pendingComments);
@@ -86,6 +94,17 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         ArgumentNullException.ThrowIfNull(document);
         var builder = new StringBuilder();
         WriteComments(builder, document.HeaderComments, 0);
+        foreach (var field in document.GlobalFields)
+        {
+            WriteComments(builder, field.LeadingComments, 0);
+            AppendLine(builder, 0, AppendTrailingComment($"{field.Key} = {field.Value}", field.TrailingComment));
+        }
+
+        if (document.GlobalFields.Count > 0 && document.Blocks.Count > 0)
+        {
+            builder.Append(IniConstants.Syntax.NewLine);
+        }
+
         foreach (var block in document.Blocks)
         {
             WriteBlock(builder, block, 0);
@@ -114,30 +133,24 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         }
 
         var canonical = WriteDocument(parseResult.Data);
-        var directory = Path.GetDirectoryName(filePath);
-        var tempPath = Path.Combine(directory ?? Path.GetTempPath(), Path.GetRandomFileName());
         try
         {
-            await File.WriteAllTextAsync(tempPath, canonical, cancellationToken).ConfigureAwait(false);
-            File.Move(tempPath, filePath, overwrite: true);
+            await AtomicFile.WriteAllTextAsync(filePath, canonical, cancellationToken).ConfigureAwait(false);
             logger.LogInformation("Formatted INI file {Path}", filePath);
             return OperationResult<bool>.CreateSuccess(true, stopwatch.Elapsed);
         }
         catch (OperationCanceledException)
         {
-            DeleteTempFile(tempPath);
             throw;
         }
         catch (IOException ex)
         {
             logger.LogError(ex, "Failed to format INI file {Path}", filePath);
-            DeleteTempFile(tempPath);
             return OperationResult<bool>.CreateFailure($"Failed to format INI file: {ex.Message}", stopwatch.Elapsed);
         }
         catch (UnauthorizedAccessException ex)
         {
             logger.LogError(ex, "Access denied formatting INI file {Path}", filePath);
-            DeleteTempFile(tempPath);
             return OperationResult<bool>.CreateFailure($"Access denied formatting INI file: {ex.Message}", stopwatch.Elapsed);
         }
     }
@@ -150,16 +163,12 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var stopwatch = Stopwatch.StartNew();
         var issues = new List<ValidationIssue>();
 
-        if (document.Blocks.Count == 0)
+        if (document.Blocks.Count == 0 && document.GlobalFields.Count == 0)
         {
             issues.Add(new ValidationIssue("Document contains no blocks.", ValidationSeverity.Warning, validatedTargetId));
         }
 
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var block in document.Blocks)
-        {
-            ValidateBlock(block, validatedTargetId, issues, names);
-        }
+        ValidateSiblingBlocks(document.Blocks, validatedTargetId, issues);
 
         return new ValidationResult(validatedTargetId, issues, stopwatch.Elapsed);
     }
@@ -221,13 +230,15 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
     }
 
     private static void ParseLine(
-        string raw,
-        int lineNumber,
+        string[] lines,
+        int index,
         IniDocument document,
-        Stack<IniBlock> stack,
-        List<string> pendingComments,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments,
         List<string> errors)
     {
+        var raw = lines[index];
+        var lineNumber = index + 1;
         var (code, comment) = SplitComment(raw);
         if (code.Contains('\t'))
         {
@@ -240,9 +251,15 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         {
             if (comment != null)
             {
-                pendingComments.Add(comment);
+                pendingComments.Add(new IniComment(comment, false));
             }
 
+            return;
+        }
+
+        if (line.StartsWith('#'))
+        {
+            pendingComments.Add(new IniComment(line, true));
             return;
         }
 
@@ -255,52 +272,45 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var separatorIndex = line.IndexOf(IniConstants.Syntax.KeyValueSeparator);
         if (separatorIndex >= 0 && stack.Count > 0)
         {
-            AddField(line, separatorIndex, lineNumber, comment, stack, pendingComments, errors);
+            AddFieldOrModule(lines, index, line, separatorIndex, lineNumber, comment, stack, pendingComments, errors);
             return;
         }
 
         if (separatorIndex >= 0)
         {
-            errors.Add($"Line {lineNumber}: Field '{line}' appears outside of a block.");
+            AddGlobalField(line, separatorIndex, lineNumber, comment, document, pendingComments, errors);
             return;
         }
 
-        OpenBlock(line, lineNumber, comment, stack, pendingComments, document);
+        if (stack.Count > 0 && IsValuelessKey(line))
+        {
+            AddBareField(line, comment, stack, pendingComments);
+            return;
+        }
+
+        OpenBlock(line, GetIndent(raw), lineNumber, comment, stack, pendingComments, document);
     }
 
-    private static void CloseBlock(
-        int lineNumber,
-        IniDocument document,
-        Stack<IniBlock> stack,
-        List<string> pendingComments,
-        List<string> errors)
+    private static bool IsValuelessKey(string line)
     {
-        if (stack.Count == 0)
+        foreach (var valuelessKey in IniConstants.ValuelessKeys.All)
         {
-            errors.Add($"Line {lineNumber}: Unexpected 'End' without an open block.");
-            return;
+            if (string.Equals(valuelessKey, line, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
 
-        var closed = stack.Pop();
-        closed.TrailingComments.AddRange(pendingComments);
-        pendingComments.Clear();
-        if (stack.Count == 0)
-        {
-            document.Blocks.Add(closed);
-        }
-        else
-        {
-            stack.Peek().Children.Add(closed);
-        }
+        return false;
     }
 
-    private static void AddField(
+    private static void AddGlobalField(
         string line,
         int separatorIndex,
         int lineNumber,
         string? comment,
-        Stack<IniBlock> stack,
-        List<string> pendingComments,
+        IniDocument document,
+        List<IniComment> pendingComments,
         List<string> errors)
     {
         var key = line[..separatorIndex].Trim();
@@ -314,15 +324,172 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var field = new IniField(key, value, comment);
         field.LeadingComments.AddRange(pendingComments);
         pendingComments.Clear();
-        stack.Peek().Fields.Add(field);
+        if (document.GlobalFields.Count == 0 && document.Blocks.Count == 0)
+        {
+            document.HeaderComments.AddRange(field.LeadingComments);
+            field.LeadingComments.Clear();
+        }
+
+        document.GlobalFields.Add(field);
+    }
+
+    private static void AddBareField(
+        string line,
+        string? comment,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments)
+    {
+        var field = new IniField(line, string.Empty, comment) { IsBare = true };
+        field.LeadingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        stack.Peek().Block.Fields.Add(field);
+    }
+
+    private static void AddFieldOrModule(
+        string[] lines,
+        int index,
+        string line,
+        int separatorIndex,
+        int lineNumber,
+        string? comment,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments,
+        List<string> errors)
+    {
+        var key = line[..separatorIndex].Trim();
+        var value = line[(separatorIndex + 1)..].Trim();
+        if (key.Length == 0)
+        {
+            errors.Add($"Line {lineNumber}: Field is missing a key.");
+            return;
+        }
+
+        var indent = GetIndent(lines[index]);
+        if (OpensModuleBlock(key, stack.Peek().Indent, indent, lines, index))
+        {
+            OpenModuleBlock(key, value, indent, lineNumber, comment, stack, pendingComments);
+            return;
+        }
+
+        var field = new IniField(key, value, comment);
+        field.LeadingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        stack.Peek().Block.Fields.Add(field);
+    }
+
+    private static bool OpensModuleBlock(string key, int parentIndent, int indent, string[] lines, int index)
+    {
+        if (IsModuleKey(key))
+        {
+            return true;
+        }
+
+        if (indent <= parentIndent)
+        {
+            return false;
+        }
+
+        var next = FindNextSignificant(lines, index + 1);
+        return next != null &&
+            !string.Equals(next.Value.Text, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase) &&
+            next.Value.Indent > indent;
+    }
+
+    private static bool IsModuleKey(string key)
+    {
+        foreach (var moduleKey in IniConstants.ModuleKeys.All)
+        {
+            if (string.Equals(moduleKey, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int GetIndent(string raw)
+    {
+        var indent = 0;
+        while (indent < raw.Length && raw[indent] == ' ')
+        {
+            indent++;
+        }
+
+        return indent;
+    }
+
+    private static (string Text, int Indent)? FindNextSignificant(string[] lines, int start)
+    {
+        for (var i = start; i < lines.Length; i++)
+        {
+            var (code, _) = SplitComment(lines[i]);
+            var text = code.Trim();
+            if (text.Length == 0 || text.StartsWith('#'))
+            {
+                continue;
+            }
+
+            return (text, GetIndent(lines[i]));
+        }
+
+        return null;
+    }
+
+    private static void OpenModuleBlock(
+        string key,
+        string value,
+        int indent,
+        int lineNumber,
+        string? comment,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments)
+    {
+        var block = new IniBlock
+        {
+            BlockType = key,
+            AssignmentValue = value,
+            TrailingComment = comment,
+            LineNumber = lineNumber,
+        };
+        block.LeadingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        stack.Push(new BlockFrame(block, indent));
+    }
+
+    private static void CloseBlock(
+        int lineNumber,
+        IniDocument document,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments,
+        List<string> errors)
+    {
+        if (stack.Count == 0)
+        {
+            errors.Add($"Line {lineNumber}: Unexpected 'End' without an open block.");
+            return;
+        }
+
+        var closed = stack.Pop().Block;
+        closed.TrailingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        if (stack.Count == 0)
+        {
+            document.Blocks.Add(closed);
+        }
+        else
+        {
+            stack.Peek().Block.Children.Add(closed);
+        }
     }
 
     private static void OpenBlock(
         string line,
+        int indent,
         int lineNumber,
         string? comment,
-        Stack<IniBlock> stack,
-        List<string> pendingComments,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments,
         IniDocument document)
     {
         var tokens = line.Split([' '], StringSplitOptions.RemoveEmptyEntries);
@@ -340,7 +507,7 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
             DrainDocumentHeader(document, block);
         }
 
-        stack.Push(block);
+        stack.Push(new BlockFrame(block, indent));
     }
 
     private static void DrainDocumentHeader(IniDocument document, IniBlock block)
@@ -354,7 +521,7 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         block.LeadingComments.Clear();
     }
 
-    private static void FlushTrailingComments(IniDocument document, Stack<IniBlock> stack, List<string> pendingComments)
+    private static void FlushTrailingComments(IniDocument document, Stack<BlockFrame> stack, List<IniComment> pendingComments)
     {
         if (pendingComments.Count == 0)
         {
@@ -367,17 +534,17 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         }
         else
         {
-            stack.Peek().TrailingComments.AddRange(pendingComments);
+            stack.Peek().Block.TrailingComments.AddRange(pendingComments);
         }
 
         pendingComments.Clear();
     }
 
-    private static void CloseUnclosedBlocks(IniDocument document, Stack<IniBlock> stack, List<string> errors)
+    private static void CloseUnclosedBlocks(IniDocument document, Stack<BlockFrame> stack, List<string> errors)
     {
         while (stack.Count > 0)
         {
-            var open = stack.Pop();
+            var open = stack.Pop().Block;
             errors.Add($"Line {open.LineNumber}: Block '{open.BlockType} {open.Name}' is missing 'End'.".Trim());
             if (stack.Count == 0)
             {
@@ -385,8 +552,17 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
             }
             else
             {
-                stack.Peek().Children.Add(open);
+                stack.Peek().Block.Children.Add(open);
             }
+        }
+    }
+
+    private static void ValidateSiblingBlocks(List<IniBlock> siblings, string targetId, List<ValidationIssue> issues)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var block in siblings)
+        {
+            ValidateBlock(block, targetId, issues, names);
         }
     }
 
@@ -400,41 +576,34 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
                 targetId));
         }
 
-        if (!string.IsNullOrEmpty(block.Name))
+        if (!names.Add(block.DisplayHeader))
         {
-            var key = $"{block.BlockType} {block.Name}";
-            if (!names.Add(key))
-            {
-                issues.Add(new ValidationIssue(
-                    $"Duplicate block '{key}'.",
-                    ValidationSeverity.Warning,
-                    targetId));
-            }
+            issues.Add(new ValidationIssue(
+                $"Duplicate block '{block.DisplayHeader}'.",
+                ValidationSeverity.Warning,
+                targetId));
         }
 
         if (block.Fields.Count == 0 && block.Children.Count == 0)
         {
             issues.Add(new ValidationIssue(
-                $"Block '{block.BlockType} {block.Name}' is empty.".Trim(),
+                $"Block '{block.DisplayHeader}' is empty.",
                 ValidationSeverity.Warning,
                 targetId));
         }
 
-        foreach (var child in block.Children)
-        {
-            ValidateBlock(child, targetId, issues, names);
-        }
+        ValidateSiblingBlocks(block.Children, targetId, issues);
     }
 
     private static void WriteBlock(StringBuilder builder, IniBlock block, int indent)
     {
         WriteComments(builder, block.LeadingComments, indent);
-        var header = string.IsNullOrEmpty(block.Name) ? block.BlockType : $"{block.BlockType} {block.Name}";
-        AppendLine(builder, indent, AppendTrailingComment(header, block.TrailingComment));
+        AppendLine(builder, indent, AppendTrailingComment(block.DisplayHeader, block.TrailingComment));
         foreach (var field in block.Fields)
         {
             WriteComments(builder, field.LeadingComments, indent + 1);
-            AppendLine(builder, indent + 1, AppendTrailingComment($"{field.Key} = {field.Value}", field.TrailingComment));
+            var fieldText = field.IsBare ? field.Key : $"{field.Key} = {field.Value}";
+            AppendLine(builder, indent + 1, AppendTrailingComment(fieldText, field.TrailingComment));
         }
 
         foreach (var child in block.Children)
@@ -446,11 +615,18 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         AppendLine(builder, indent, IniConstants.BlockTags.End);
     }
 
-    private static void WriteComments(StringBuilder builder, List<string> comments, int indent)
+    private static void WriteComments(StringBuilder builder, List<IniComment> comments, int indent)
     {
         foreach (var comment in comments)
         {
-            AppendLine(builder, indent, comment.Length == 0 ? ";" : $"; {comment}");
+            if (comment.IsDirective)
+            {
+                AppendLine(builder, indent, comment.Text);
+            }
+            else
+            {
+                AppendLine(builder, indent, comment.Text.Length == 0 ? ";" : $"; {comment.Text}");
+            }
         }
     }
 

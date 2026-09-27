@@ -18,12 +18,18 @@ public sealed class IniDocument
     public List<IniBlock> Blocks { get; } = [];
 
     /// <summary>
+    /// Gets file-scope settings written outside of any block (for example the
+    /// benchmark and LOD preset entries in <c>GameLODPresets.ini</c>).
+    /// </summary>
+    public List<IniField> GlobalFields { get; } = [];
+
+    /// <summary>
     /// Gets full line comments written before the first block.
     /// </summary>
-    public List<string> HeaderComments { get; } = [];
+    public List<IniComment> HeaderComments { get; } = [];
 
     /// <summary>
     /// Gets full line comments written after the last block.
     /// </summary>
-    public List<string> TrailingComments { get; } = [];
+    public List<IniComment> TrailingComments { get; } = [];
 }

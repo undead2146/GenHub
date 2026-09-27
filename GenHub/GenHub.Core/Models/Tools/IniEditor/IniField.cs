@@ -13,5 +13,12 @@ public sealed record IniField(string Key, string Value, string? TrailingComment 
     /// <summary>
     /// Gets full line comments written immediately before the field line.
     /// </summary>
-    public List<string> LeadingComments { get; } = [];
+    public List<IniComment> LeadingComments { get; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the field was written as a bare key without
+    /// a separator (for example <c>Blank</c> in credits files). Bare fields round-trip
+    /// verbatim instead of being rewritten as <c>Key = </c>.
+    /// </summary>
+    public bool IsBare { get; init; }
 }
