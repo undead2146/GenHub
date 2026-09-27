@@ -8,4 +8,5 @@ namespace GenHub.Features.Tools.IniEditor.ViewModels;
 /// <param name="Title">The display title of the edit.</param>
 /// <param name="Redo">Applies the edit.</param>
 /// <param name="Undo">Reverts the edit.</param>
-public sealed record IniEditAction(string Title, Action Redo, Action Undo);
+/// <param name="CoalesceKey">Optional key merging consecutive edits of the same target into one undo step.</param>
+public sealed record IniEditAction(string Title, Action Redo, Action Undo, object? CoalesceKey = null);

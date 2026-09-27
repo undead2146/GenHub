@@ -19,6 +19,8 @@ namespace GenHub.Features.Tools.IniEditor.Services;
 /// </summary>
 public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIniDocumentService
 {
+    private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];
+
     /// <inheritdoc />
     public OperationResult<IniDocument> ParseText(string content, string? sourcePath = null)
     {
@@ -27,94 +29,16 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var errors = new List<string>();
         var document = new IniDocument { SourcePath = sourcePath };
         var stack = new Stack<IniBlock>();
+        var pendingComments = new List<string>();
         var lines = content.Split(["\r\n", "\n"], StringSplitOptions.None);
 
         for (var i = 0; i < lines.Length; i++)
         {
-            var lineNumber = i + 1;
-            var raw = lines[i];
-            if (raw.Contains('\t'))
-            {
-                errors.Add($"Line {lineNumber}: Tab characters are not allowed in INI files.");
-                continue;
-            }
-
-            var line = StripComment(raw).Trim();
-            if (line.Length == 0)
-            {
-                continue;
-            }
-
-            if (string.Equals(line, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase))
-            {
-                if (stack.Count == 0)
-                {
-                    errors.Add($"Line {lineNumber}: Unexpected 'End' without an open block.");
-                    continue;
-                }
-
-                var closed = stack.Pop();
-                if (stack.Count == 0)
-                {
-                    document.Blocks.Add(closed);
-                }
-                else
-                {
-                    stack.Peek().Children.Add(closed);
-                }
-
-                continue;
-            }
-
-            var separatorIndex = line.IndexOf(IniConstants.Syntax.KeyValueSeparator);
-            if (separatorIndex > 0 && stack.Count > 0)
-            {
-                var key = line[..separatorIndex].Trim();
-                var value = line[(separatorIndex + 1)..].Trim();
-                if (key.Length == 0)
-                {
-                    errors.Add($"Line {lineNumber}: Field is missing a key.");
-                    continue;
-                }
-
-                stack.Peek().Fields.Add(new IniField(key, value));
-                continue;
-            }
-
-            if (separatorIndex >= 0 && stack.Count == 0)
-            {
-                errors.Add($"Line {lineNumber}: Field '{line}' appears outside of a block.");
-                continue;
-            }
-
-            var tokens = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length == 0)
-            {
-                continue;
-            }
-
-            var block = new IniBlock
-            {
-                BlockType = tokens[0],
-                Name = tokens.Length > 1 ? string.Join(' ', tokens[1..]) : string.Empty,
-                LineNumber = lineNumber,
-            };
-            stack.Push(block);
+            ParseLine(lines[i], i + 1, document, stack, pendingComments, errors);
         }
 
-        while (stack.Count > 0)
-        {
-            var open = stack.Pop();
-            errors.Add($"Line {open.LineNumber}: Block '{open.BlockType} {open.Name}' is missing 'End'.".Trim());
-            if (stack.Count == 0)
-            {
-                document.Blocks.Add(open);
-            }
-            else
-            {
-                stack.Peek().Children.Add(open);
-            }
-        }
+        FlushTrailingComments(document, stack, pendingComments);
+        CloseUnclosedBlocks(document, stack, errors);
 
         if (errors.Count > 0)
         {
@@ -140,19 +64,9 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         try
         {
             var bytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
-            var content = new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes);
-            if (content.Contains('�'))
-            {
-                return OperationResult<IniDocument>.CreateFailure($"File contains replacement characters: {filePath}");
-            }
-
+            var content = DecodeContent(bytes, filePath);
             cancellationToken.ThrowIfCancellationRequested();
             return ParseText(content, filePath);
-        }
-        catch (DecoderFallbackException ex)
-        {
-            logger.LogWarning(ex, "Refusing to parse {Path}: non-UTF-8 or ANSI encoding detected", filePath);
-            return OperationResult<IniDocument>.CreateFailure($"Cannot parse file with non-UTF-8 or unsupported ANSI encoding: {filePath}");
         }
         catch (IOException ex)
         {
@@ -171,12 +85,14 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
     {
         ArgumentNullException.ThrowIfNull(document);
         var builder = new StringBuilder();
+        WriteComments(builder, document.HeaderComments, 0);
         foreach (var block in document.Blocks)
         {
             WriteBlock(builder, block, 0);
             builder.Append(IniConstants.Syntax.NewLine);
         }
 
+        WriteComments(builder, document.TrailingComments, 0);
         return builder.ToString();
     }
 
@@ -281,6 +197,199 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         return ValidateDocument(parseResult.Data, filePath);
     }
 
+    /// <summary>
+    /// Deletes a temp file on a best effort basis.
+    /// </summary>
+    /// <param name="tempPath">The temp file path.</param>
+    internal static void DeleteTempFile(string tempPath)
+    {
+        try
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+        catch (IOException)
+        {
+            // Best effort cleanup of the temp file.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Best effort cleanup of the temp file.
+        }
+    }
+
+    private static void ParseLine(
+        string raw,
+        int lineNumber,
+        IniDocument document,
+        Stack<IniBlock> stack,
+        List<string> pendingComments,
+        List<string> errors)
+    {
+        var (code, comment) = SplitComment(raw);
+        if (code.Contains('\t'))
+        {
+            errors.Add($"Line {lineNumber}: Tab characters are not allowed in INI files.");
+            return;
+        }
+
+        var line = code.Trim();
+        if (line.Length == 0)
+        {
+            if (comment != null)
+            {
+                pendingComments.Add(comment);
+            }
+
+            return;
+        }
+
+        if (string.Equals(line, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase))
+        {
+            CloseBlock(lineNumber, document, stack, pendingComments, errors);
+            return;
+        }
+
+        var separatorIndex = line.IndexOf(IniConstants.Syntax.KeyValueSeparator);
+        if (separatorIndex >= 0 && stack.Count > 0)
+        {
+            AddField(line, separatorIndex, lineNumber, comment, stack, pendingComments, errors);
+            return;
+        }
+
+        if (separatorIndex >= 0)
+        {
+            errors.Add($"Line {lineNumber}: Field '{line}' appears outside of a block.");
+            return;
+        }
+
+        OpenBlock(line, lineNumber, comment, stack, pendingComments, document);
+    }
+
+    private static void CloseBlock(
+        int lineNumber,
+        IniDocument document,
+        Stack<IniBlock> stack,
+        List<string> pendingComments,
+        List<string> errors)
+    {
+        if (stack.Count == 0)
+        {
+            errors.Add($"Line {lineNumber}: Unexpected 'End' without an open block.");
+            return;
+        }
+
+        var closed = stack.Pop();
+        closed.TrailingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        if (stack.Count == 0)
+        {
+            document.Blocks.Add(closed);
+        }
+        else
+        {
+            stack.Peek().Children.Add(closed);
+        }
+    }
+
+    private static void AddField(
+        string line,
+        int separatorIndex,
+        int lineNumber,
+        string? comment,
+        Stack<IniBlock> stack,
+        List<string> pendingComments,
+        List<string> errors)
+    {
+        var key = line[..separatorIndex].Trim();
+        var value = line[(separatorIndex + 1)..].Trim();
+        if (key.Length == 0)
+        {
+            errors.Add($"Line {lineNumber}: Field is missing a key.");
+            return;
+        }
+
+        var field = new IniField(key, value, comment);
+        field.LeadingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        stack.Peek().Fields.Add(field);
+    }
+
+    private static void OpenBlock(
+        string line,
+        int lineNumber,
+        string? comment,
+        Stack<IniBlock> stack,
+        List<string> pendingComments,
+        IniDocument document)
+    {
+        var tokens = line.Split([' '], StringSplitOptions.RemoveEmptyEntries);
+        var block = new IniBlock
+        {
+            BlockType = tokens[0],
+            Name = tokens.Length > 1 ? string.Join(' ', tokens[1..]) : string.Empty,
+            TrailingComment = comment,
+            LineNumber = lineNumber,
+        };
+        block.LeadingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        if (stack.Count == 0 && document.Blocks.Count == 0)
+        {
+            DrainDocumentHeader(document, block);
+        }
+
+        stack.Push(block);
+    }
+
+    private static void DrainDocumentHeader(IniDocument document, IniBlock block)
+    {
+        if (block.LeadingComments.Count == 0)
+        {
+            return;
+        }
+
+        document.HeaderComments.AddRange(block.LeadingComments);
+        block.LeadingComments.Clear();
+    }
+
+    private static void FlushTrailingComments(IniDocument document, Stack<IniBlock> stack, List<string> pendingComments)
+    {
+        if (pendingComments.Count == 0)
+        {
+            return;
+        }
+
+        if (stack.Count == 0)
+        {
+            document.TrailingComments.AddRange(pendingComments);
+        }
+        else
+        {
+            stack.Peek().TrailingComments.AddRange(pendingComments);
+        }
+
+        pendingComments.Clear();
+    }
+
+    private static void CloseUnclosedBlocks(IniDocument document, Stack<IniBlock> stack, List<string> errors)
+    {
+        while (stack.Count > 0)
+        {
+            var open = stack.Pop();
+            errors.Add($"Line {open.LineNumber}: Block '{open.BlockType} {open.Name}' is missing 'End'.".Trim());
+            if (stack.Count == 0)
+            {
+                document.Blocks.Add(open);
+            }
+            else
+            {
+                stack.Peek().Children.Add(open);
+            }
+        }
+    }
+
     private static void ValidateBlock(IniBlock block, string targetId, List<ValidationIssue> issues, HashSet<string> names)
     {
         if (block.BlockType.Length == 0)
@@ -319,10 +428,13 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
 
     private static void WriteBlock(StringBuilder builder, IniBlock block, int indent)
     {
-        AppendLine(builder, indent, string.IsNullOrEmpty(block.Name) ? block.BlockType : $"{block.BlockType} {block.Name}");
+        WriteComments(builder, block.LeadingComments, indent);
+        var header = string.IsNullOrEmpty(block.Name) ? block.BlockType : $"{block.BlockType} {block.Name}";
+        AppendLine(builder, indent, AppendTrailingComment(header, block.TrailingComment));
         foreach (var field in block.Fields)
         {
-            AppendLine(builder, indent + 1, $"{field.Key} = {field.Value}");
+            WriteComments(builder, field.LeadingComments, indent + 1);
+            AppendLine(builder, indent + 1, AppendTrailingComment($"{field.Key} = {field.Value}", field.TrailingComment));
         }
 
         foreach (var child in block.Children)
@@ -330,7 +442,21 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
             WriteBlock(builder, child, indent + 1);
         }
 
+        WriteComments(builder, block.TrailingComments, indent + 1);
         AppendLine(builder, indent, IniConstants.BlockTags.End);
+    }
+
+    private static void WriteComments(StringBuilder builder, List<string> comments, int indent)
+    {
+        foreach (var comment in comments)
+        {
+            AppendLine(builder, indent, comment.Length == 0 ? ";" : $"; {comment}");
+        }
+    }
+
+    private static string AppendTrailingComment(string code, string? comment)
+    {
+        return comment == null ? code : $"{code} ; {comment}";
     }
 
     private static void AppendLine(StringBuilder builder, int indent, string text)
@@ -340,7 +466,7 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         builder.Append(IniConstants.Syntax.NewLine);
     }
 
-    private static string StripComment(string raw)
+    private static (string Code, string? Comment) SplitComment(string raw)
     {
         var inQuotes = false;
         for (var i = 0; i < raw.Length; i++)
@@ -352,29 +478,35 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
 
             if (!inQuotes && raw[i] == IniConstants.Syntax.Comment)
             {
-                return raw[..i];
+                return (raw[..i], raw[(i + 1)..].Trim());
             }
         }
 
-        return raw;
+        return (raw, null);
     }
 
-    private static void DeleteTempFile(string tempPath)
+    private static byte[] StripUtf8Bom(byte[] bytes)
     {
+        if (bytes.Length >= Utf8Bom.Length &&
+            bytes[0] == Utf8Bom[0] && bytes[1] == Utf8Bom[1] && bytes[2] == Utf8Bom[2])
+        {
+            return bytes[Utf8Bom.Length..];
+        }
+
+        return bytes;
+    }
+
+    private string DecodeContent(byte[] bytes, string filePath)
+    {
+        var contentBytes = StripUtf8Bom(bytes);
         try
         {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
+            return new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(contentBytes).TrimStart('\uFEFF');
         }
-        catch (IOException)
+        catch (DecoderFallbackException ex)
         {
-            // Best effort cleanup of the temp file.
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Best effort cleanup of the temp file.
+            logger.LogWarning(ex, "File {Path} is not valid UTF-8; decoding as single byte ANSI text", filePath);
+            return Encoding.Latin1.GetString(contentBytes).TrimStart('\uFEFF');
         }
     }
 }

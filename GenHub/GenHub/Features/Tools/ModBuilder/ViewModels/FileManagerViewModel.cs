@@ -11,6 +11,8 @@ using GenHub.Core.Interfaces.Tools.IniEditor;
 using GenHub.Core.Interfaces.Tools.WndEditor;
 using GenHub.Core.Messages;
 using GenHub.Core.Models.GameInstallations;
+using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Validation;
 using GenHub.Features.Tools.ModBuilder.Models;
 using Microsoft.Extensions.Logging;
 using System;
@@ -36,13 +38,7 @@ public partial class FileManagerViewModel(
     ILocalizationService localizationService,
     ILogger<FileManagerViewModel> logger) : ObservableObject, IDisposable
 {
-    private enum WndFileOperation
-    {
-        Validate,
-        Format,
-    }
-
-    private enum IniFileOperation
+    private enum FileOperation
     {
         Validate,
         Format,
@@ -54,7 +50,11 @@ public partial class FileManagerViewModel(
         string SuccessMessage,
         string IssuesTitle,
         string IssuesMessage,
-        bool RefreshAfter);
+        bool RefreshAfter,
+        string NoSelectionTitle,
+        string NoSelectionMessage,
+        string OperationCancelled,
+        string OperationName);
 
     private readonly ConcurrentDictionary<string, (long Length, DateTime LastWriteTimeUtc, string Hash)> _fileHashCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _loadLock = new(1, 1);
@@ -908,7 +908,7 @@ public partial class FileManagerViewModel(
     [RelayCommand(CanExecute = nameof(CanRunFileOperation))]
     private async Task ValidateWndFilesAsync(CancellationToken cancellationToken = default)
     {
-        await RunWndFileOperationAsync(WndFileOperation.Validate, cancellationToken).ConfigureAwait(false);
+        await RunWndFileOperationAsync(FileOperation.Validate, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -917,7 +917,7 @@ public partial class FileManagerViewModel(
     [RelayCommand(CanExecute = nameof(CanRunFileOperation))]
     private async Task FormatWndFilesAsync(CancellationToken cancellationToken = default)
     {
-        await RunWndFileOperationAsync(WndFileOperation.Format, cancellationToken).ConfigureAwait(false);
+        await RunWndFileOperationAsync(FileOperation.Format, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -926,7 +926,7 @@ public partial class FileManagerViewModel(
     [RelayCommand(CanExecute = nameof(CanRunFileOperation))]
     private async Task ValidateIniFilesAsync(CancellationToken cancellationToken = default)
     {
-        await RunIniFileOperationAsync(IniFileOperation.Validate, cancellationToken).ConfigureAwait(false);
+        await RunIniFileOperationAsync(FileOperation.Validate, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -935,44 +935,33 @@ public partial class FileManagerViewModel(
     [RelayCommand(CanExecute = nameof(CanRunFileOperation))]
     private async Task FormatIniFilesAsync(CancellationToken cancellationToken = default)
     {
-        await RunIniFileOperationAsync(IniFileOperation.Format, cancellationToken).ConfigureAwait(false);
+        await RunIniFileOperationAsync(FileOperation.Format, cancellationToken).ConfigureAwait(false);
     }
 
-    private static FileOperationSpec GetWndOperationSpec(WndFileOperation operation) => operation switch
+    private static FileOperationSpec GetOperationSpec(string keyPrefix, string operationName, FileOperation operation) => operation switch
     {
-        WndFileOperation.Validate => new(
-            "Tools.ModBuilder.Wnd.ProgressValidating",
-            "Tools.ModBuilder.Wnd.ValidateSuccessTitle",
-            "Tools.ModBuilder.Wnd.ValidateSuccessMessage",
-            "Tools.ModBuilder.Wnd.ValidateIssuesTitle",
-            "Tools.ModBuilder.Wnd.ValidateIssuesMessage",
-            false),
-        WndFileOperation.Format => new(
-            "Tools.ModBuilder.Wnd.ProgressFormatting",
-            "Tools.ModBuilder.Wnd.FormatSuccessTitle",
-            "Tools.ModBuilder.Wnd.FormatSuccessMessage",
-            "Tools.ModBuilder.Wnd.FormatIssuesTitle",
-            "Tools.ModBuilder.Wnd.FormatIssuesMessage",
-            true),
-        _ => throw new ArgumentOutOfRangeException(nameof(operation)),
-    };
-
-    private static FileOperationSpec GetIniOperationSpec(IniFileOperation operation) => operation switch
-    {
-        IniFileOperation.Validate => new(
-            "Tools.ModBuilder.Ini.ProgressValidating",
-            "Tools.ModBuilder.Ini.ValidateSuccessTitle",
-            "Tools.ModBuilder.Ini.ValidateSuccessMessage",
-            "Tools.ModBuilder.Ini.ValidateIssuesTitle",
-            "Tools.ModBuilder.Ini.ValidateIssuesMessage",
-            false),
-        IniFileOperation.Format => new(
-            "Tools.ModBuilder.Ini.ProgressFormatting",
-            "Tools.ModBuilder.Ini.FormatSuccessTitle",
-            "Tools.ModBuilder.Ini.FormatSuccessMessage",
-            "Tools.ModBuilder.Ini.FormatIssuesTitle",
-            "Tools.ModBuilder.Ini.FormatIssuesMessage",
-            true),
+        FileOperation.Validate => new(
+            $"{keyPrefix}.ProgressValidating",
+            $"{keyPrefix}.ValidateSuccessTitle",
+            $"{keyPrefix}.ValidateSuccessMessage",
+            $"{keyPrefix}.ValidateIssuesTitle",
+            $"{keyPrefix}.ValidateIssuesMessage",
+            false,
+            $"{keyPrefix}.NoSelectionTitle",
+            $"{keyPrefix}.NoSelectionMessage",
+            $"{keyPrefix}.OperationCancelled",
+            operationName),
+        FileOperation.Format => new(
+            $"{keyPrefix}.ProgressFormatting",
+            $"{keyPrefix}.FormatSuccessTitle",
+            $"{keyPrefix}.FormatSuccessMessage",
+            $"{keyPrefix}.FormatIssuesTitle",
+            $"{keyPrefix}.FormatIssuesMessage",
+            true,
+            $"{keyPrefix}.NoSelectionTitle",
+            $"{keyPrefix}.NoSelectionMessage",
+            $"{keyPrefix}.OperationCancelled",
+            operationName),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -1015,20 +1004,10 @@ public partial class FileManagerViewModel(
 
             var current = i + 1;
             var percent = (current / (double)total) * 100.0;
-            ReportWndProgress(percent, progressKey, current, total, file);
+            ReportFileProgress(percent, progressKey, current, total, file);
         }
 
         return (succeededCount, firstProblem);
-    }
-
-    private Task<(bool Succeeded, string? Problem)> ExecuteSingleWndOperationAsync(
-        string file,
-        WndFileOperation operation,
-        CancellationToken cancellationToken)
-    {
-        return operation == WndFileOperation.Validate
-            ? ValidateSingleWndFileAsync(file, cancellationToken)
-            : FormatSingleWndFileAsync(file, cancellationToken);
     }
 
     private void CompleteFileOperation(
@@ -1057,41 +1036,31 @@ public partial class FileManagerViewModel(
         }
     }
 
-    private Task RunWndFileOperationAsync(WndFileOperation operation, CancellationToken cancellationToken)
+    private Task RunWndFileOperationAsync(FileOperation operation, CancellationToken cancellationToken)
     {
-        var spec = GetWndOperationSpec(operation);
         return RunBatchFileOperationAsync(
-            CollectSelectedWndFiles(),
-            spec,
-            "Tools.ModBuilder.Wnd.NoSelectionTitle",
-            "Tools.ModBuilder.Wnd.NoSelectionMessage",
-            "Tools.ModBuilder.Wnd.OperationCancelled",
-            "WND file operation",
-            (file, token) => ExecuteSingleWndOperationAsync(file, operation, token),
+            CollectSelectedFilesByExtension(ModBuilderConstants.FileExtensions.Wnd),
+            GetOperationSpec("Tools.ModBuilder.Wnd", "WND file operation", operation),
+            (file, token) => operation == FileOperation.Validate
+                ? ValidateSingleFileAsync(file, wndDocumentService.ValidateFileAsync, token)
+                : FormatSingleFileAsync(file, wndDocumentService.FormatFileAsync, token),
             cancellationToken);
     }
 
-    private Task RunIniFileOperationAsync(IniFileOperation operation, CancellationToken cancellationToken)
+    private Task RunIniFileOperationAsync(FileOperation operation, CancellationToken cancellationToken)
     {
-        var spec = GetIniOperationSpec(operation);
         return RunBatchFileOperationAsync(
-            CollectSelectedIniFiles(),
-            spec,
-            "Tools.ModBuilder.Ini.NoSelectionTitle",
-            "Tools.ModBuilder.Ini.NoSelectionMessage",
-            "Tools.ModBuilder.Ini.OperationCancelled",
-            "INI file operation",
-            (file, token) => ExecuteSingleIniOperationAsync(file, operation, token),
+            CollectSelectedFilesByExtension(ModBuilderConstants.FileExtensions.Ini),
+            GetOperationSpec("Tools.ModBuilder.Ini", "INI file operation", operation),
+            (file, token) => operation == FileOperation.Validate
+                ? ValidateSingleFileAsync(file, iniDocumentService.ValidateFileAsync, token)
+                : FormatSingleFileAsync(file, iniDocumentService.FormatFileAsync, token),
             cancellationToken);
     }
 
     private async Task RunBatchFileOperationAsync(
         IReadOnlyList<string> files,
         FileOperationSpec spec,
-        string noSelectionTitleKey,
-        string noSelectionMessageKey,
-        string operationCancelledKey,
-        string operationName,
         Func<string, CancellationToken, Task<(bool Succeeded, string? Problem)>> execute,
         CancellationToken cancellationToken)
     {
@@ -1103,8 +1072,8 @@ public partial class FileManagerViewModel(
         if (files.Count == 0)
         {
             notificationService.ShowInfo(
-                localizationService.GetString(noSelectionTitleKey),
-                localizationService.GetString(noSelectionMessageKey),
+                localizationService.GetString(spec.NoSelectionTitle),
+                localizationService.GetString(spec.NoSelectionMessage),
                 NotificationDurations.Short);
             return;
         }
@@ -1129,8 +1098,8 @@ public partial class FileManagerViewModel(
         }
         catch (OperationCanceledException ex)
         {
-            logger.LogInformation(ex, "{OperationName} was cancelled", operationName);
-            SetStatusMessageSafe(localizationService.GetString(operationCancelledKey));
+            logger.LogInformation(ex, "{OperationName} was cancelled", spec.OperationName);
+            SetStatusMessageSafe(localizationService.GetString(spec.OperationCancelled));
         }
         finally
         {
@@ -1139,7 +1108,7 @@ public partial class FileManagerViewModel(
         }
     }
 
-    private void ReportWndProgress(double percent, string progressKey, int current, int total, string file)
+    private void ReportFileProgress(double percent, string progressKey, int current, int total, string file)
     {
         void Apply()
         {
@@ -1157,9 +1126,12 @@ public partial class FileManagerViewModel(
         }
     }
 
-    private async Task<(bool Succeeded, string? Problem)> ValidateSingleWndFileAsync(string file, CancellationToken cancellationToken)
+    private static async Task<(bool Succeeded, string? Problem)> ValidateSingleFileAsync(
+        string file,
+        Func<string, CancellationToken, Task<ValidationResult>> validate,
+        CancellationToken cancellationToken)
     {
-        var result = await wndDocumentService.ValidateFileAsync(file, cancellationToken).ConfigureAwait(false);
+        var result = await validate(file, cancellationToken).ConfigureAwait(false);
         if (result.IsValid)
         {
             return (true, null);
@@ -1169,9 +1141,12 @@ public partial class FileManagerViewModel(
         return (false, problem);
     }
 
-    private async Task<(bool Succeeded, string? Problem)> FormatSingleWndFileAsync(string file, CancellationToken cancellationToken)
+    private static async Task<(bool Succeeded, string? Problem)> FormatSingleFileAsync(
+        string file,
+        Func<string, CancellationToken, Task<OperationResult<bool>>> format,
+        CancellationToken cancellationToken)
     {
-        var result = await wndDocumentService.FormatFileAsync(file, cancellationToken).ConfigureAwait(false);
+        var result = await format(file, cancellationToken).ConfigureAwait(false);
         return (result.Success, result.FirstError);
     }
 
@@ -1181,7 +1156,7 @@ public partial class FileManagerViewModel(
     [RelayCommand]
     private void EditWndFile()
     {
-        var wndFiles = CollectSelectedWndFiles();
+        var wndFiles = CollectSelectedFilesByExtension(ModBuilderConstants.FileExtensions.Wnd);
         if (wndFiles.Count == 0)
         {
             notificationService.ShowInfo(
@@ -1194,71 +1169,13 @@ public partial class FileManagerViewModel(
         WeakReferenceMessenger.Default.Send(new OpenFileInToolMessage(ToolConstants.WndEditor.Id, wndFiles[0]));
     }
 
-    private List<string> CollectSelectedWndFiles()
-    {
-        var selected = GetSelectedProjectFiles();
-        var wndFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var node in selected)
-        {
-            if (node.IsDirectory)
-            {
-                foreach (var file in GetAllFiles([node]))
-                {
-                    AddIfWndFile(wndFiles, file.FullPath);
-                }
-            }
-            else
-            {
-                AddIfWndFile(wndFiles, node.FullPath);
-            }
-        }
-
-        return wndFiles.Values.ToList();
-    }
-
-    private static void AddIfWndFile(Dictionary<string, string> wndFiles, string fullPath)
-    {
-        if (string.Equals(Path.GetExtension(fullPath), ModBuilderConstants.FileExtensions.Wnd, StringComparison.OrdinalIgnoreCase))
-        {
-            wndFiles[fullPath] = fullPath;
-        }
-    }
-
-    private Task<(bool Succeeded, string? Problem)> ExecuteSingleIniOperationAsync(
-        string file,
-        IniFileOperation operation,
-        CancellationToken cancellationToken)
-    {
-        return operation == IniFileOperation.Validate
-            ? ValidateSingleIniFileAsync(file, cancellationToken)
-            : FormatSingleIniFileAsync(file, cancellationToken);
-    }
-
-    private async Task<(bool Succeeded, string? Problem)> ValidateSingleIniFileAsync(string file, CancellationToken cancellationToken)
-    {
-        var result = await iniDocumentService.ValidateFileAsync(file, cancellationToken).ConfigureAwait(false);
-        if (result.IsValid)
-        {
-            return (true, null);
-        }
-
-        var problem = result.Issues.Count > 0 ? result.Issues[0].Message : result.FirstError;
-        return (false, problem);
-    }
-
-    private async Task<(bool Succeeded, string? Problem)> FormatSingleIniFileAsync(string file, CancellationToken cancellationToken)
-    {
-        var result = await iniDocumentService.FormatFileAsync(file, cancellationToken).ConfigureAwait(false);
-        return (result.Success, result.FirstError);
-    }
-
     /// <summary>
     /// Opens the first selected INI (.ini) file in the INI editor tool.
     /// </summary>
     [RelayCommand]
     private void EditIniFile()
     {
-        var iniFiles = CollectSelectedIniFiles();
+        var iniFiles = CollectSelectedFilesByExtension(ModBuilderConstants.FileExtensions.Ini);
         if (iniFiles.Count == 0)
         {
             notificationService.ShowInfo(
@@ -1271,33 +1188,33 @@ public partial class FileManagerViewModel(
         WeakReferenceMessenger.Default.Send(new OpenFileInToolMessage(ToolConstants.IniEditor.Id, iniFiles[0]));
     }
 
-    private List<string> CollectSelectedIniFiles()
+    private List<string> CollectSelectedFilesByExtension(string extension)
     {
         var selected = GetSelectedProjectFiles();
-        var iniFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var collected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var node in selected)
         {
             if (node.IsDirectory)
             {
                 foreach (var file in GetAllFiles([node]))
                 {
-                    AddIfIniFile(iniFiles, file.FullPath);
+                    AddIfMatchingExtension(collected, file.FullPath, extension);
                 }
             }
             else
             {
-                AddIfIniFile(iniFiles, node.FullPath);
+                AddIfMatchingExtension(collected, node.FullPath, extension);
             }
         }
 
-        return iniFiles.Values.ToList();
+        return collected.Values.ToList();
     }
 
-    private static void AddIfIniFile(Dictionary<string, string> iniFiles, string fullPath)
+    private static void AddIfMatchingExtension(Dictionary<string, string> collected, string fullPath, string extension)
     {
-        if (string.Equals(Path.GetExtension(fullPath), ModBuilderConstants.FileExtensions.Ini, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(Path.GetExtension(fullPath), extension, StringComparison.OrdinalIgnoreCase))
         {
-            iniFiles[fullPath] = fullPath;
+            collected[fullPath] = fullPath;
         }
     }
 

@@ -1,6 +1,8 @@
 using FluentAssertions;
 using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Common;
 using GenHub.Features.Tools.IniEditor.Services;
+using Moq;
 
 namespace GenHub.Tests.Core.Features.Tools.IniEditor.Services;
 
@@ -9,7 +11,24 @@ namespace GenHub.Tests.Core.Features.Tools.IniEditor.Services;
 /// </summary>
 public sealed class IniSchemaServiceTests
 {
-    private readonly IniSchemaService _service = new();
+    /// <summary>
+    /// Damage types in Zero Hour engine order, matching
+    /// <c>DamageTypeFlags::s_bitNameList</c> in the public game code.
+    /// </summary>
+    private static readonly string[] EngineDamageTypes =
+    [
+        "EXPLOSION", "CRUSH", "ARMOR_PIERCING", "SMALL_ARMS", "GATTLING",
+        "RADIATION", "FLAME", "LASER", "SNIPER", "POISON", "HEALING",
+        "UNRESISTABLE", "WATER", "DEPLOY", "SURRENDER", "HACK", "KILL_PILOT",
+        "PENALTY", "FALLING", "MELEE", "DISARM", "HAZARD_CLEANUP",
+        "PARTICLE_BEAM", "TOPPLING", "INFANTRY_MISSILE", "AURORA_BOMB",
+        "LAND_MINE", "JET_MISSILES", "STEALTHJET_MISSILES", "MOLOTOV_COCKTAIL",
+        "COMANCHE_VULCAN", "SUBDUAL_MISSILE", "SUBDUAL_VEHICLE",
+        "SUBDUAL_BUILDING", "SUBDUAL_UNRESISTABLE", "MICROWAVE",
+        "KILL_GARRISONED", "STATUS",
+    ];
+
+    private readonly IniSchemaService _service = new(CreateLocalizationService());
 
     /// <summary>
     /// Verifies that core block types have schema assistance.
@@ -29,12 +48,40 @@ public sealed class IniSchemaServiceTests
     [InlineData(IniConstants.BlockTypes.Locomotor)]
     [InlineData(IniConstants.BlockTypes.ObjectCreationList)]
     [InlineData(IniConstants.BlockTypes.PlayerTemplate)]
+    [InlineData(IniConstants.BlockTypes.DamageFX)]
+    [InlineData(IniConstants.BlockTypes.FactionTemplate)]
+    [InlineData(IniConstants.BlockTypes.ExperienceLevels)]
+    [InlineData(IniConstants.BlockTypes.Veterancy)]
     public void GetBlockSchema_KnownBlock_ReturnsSchema(string blockType)
     {
         var schema = _service.GetBlockSchema(blockType);
 
         schema.Should().NotBeNull();
         schema!.Fields.Should().NotBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies that every declared block type resolves to a schema.
+    /// </summary>
+    [Fact]
+    public void BlockSchemas_CoversEveryDeclaredBlockType()
+    {
+        foreach (var blockType in IniConstants.BlockTypes.All)
+        {
+            _service.GetBlockSchema(blockType).Should().NotBeNull($"block type {blockType} should have a schema");
+        }
+
+        _service.BlockSchemas.Should().HaveCount(IniConstants.BlockTypes.All.Length);
+    }
+
+    /// <summary>
+    /// Verifies that block lookup is case insensitive.
+    /// </summary>
+    [Fact]
+    public void GetBlockSchema_MixedCasing_ReturnsSchema()
+    {
+        _service.GetBlockSchema("oBjEcT").Should().NotBeNull();
+        _service.GetBlockSchema("weaponset").Should().NotBeNull();
     }
 
     /// <summary>
@@ -71,7 +118,16 @@ public sealed class IniSchemaServiceTests
     }
 
     /// <summary>
-    /// Verifies that armor tables cover every damage type.
+    /// Verifies that the damage type catalog matches the engine token list exactly.
+    /// </summary>
+    [Fact]
+    public void DamageTypes_All_MatchesEngineTokenList()
+    {
+        IniConstants.DamageTypes.All.Should().Equal(EngineDamageTypes);
+    }
+
+    /// <summary>
+    /// Verifies that armor tables cover every engine damage type.
     /// </summary>
     [Fact]
     public void GetBlockSchema_Armor_CoversAllDamageTypes()
@@ -79,9 +135,45 @@ public sealed class IniSchemaServiceTests
         var schema = _service.GetBlockSchema(IniConstants.BlockTypes.Armor);
 
         schema.Should().NotBeNull();
-        foreach (var damageType in IniConstants.DamageTypes.All)
+        schema!.Fields.Should().HaveCount(EngineDamageTypes.Length);
+        foreach (var damageType in EngineDamageTypes)
         {
             schema!.Fields.Should().Contain(field => field.Key == damageType);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that weapon sets follow the engine parse table instead of slot names.
+    /// </summary>
+    [Fact]
+    public void GetBlockSchema_WeaponSet_MatchesEngineParseTable()
+    {
+        var schema = _service.GetBlockSchema(IniConstants.BlockTypes.WeaponSet);
+
+        schema.Should().NotBeNull();
+        var keys = schema!.Fields.Select(field => field.Key).ToList();
+        keys.Should().BeEquivalentTo(
+            "Conditions",
+            "Weapon",
+            "AutoChooseSources",
+            "PreferredAgainst",
+            "ShareWeaponReloadTime",
+            "WeaponLockSharedAcrossSets");
+    }
+
+    /// <summary>
+    /// Verifies that experience levels use numeric level keys.
+    /// </summary>
+    [Fact]
+    public void GetBlockSchema_ExperienceLevels_UsesNumericLevelKeys()
+    {
+        var schema = _service.GetBlockSchema(IniConstants.BlockTypes.ExperienceLevels);
+
+        schema.Should().NotBeNull();
+        for (var level = 1; level <= 8; level++)
+        {
+            var key = $"Level{level}";
+            schema!.Fields.Should().Contain(field => field.Key == key && field.IsNumeric);
         }
     }
 
@@ -115,5 +207,13 @@ public sealed class IniSchemaServiceTests
     {
         _service.TryGetField(IniConstants.BlockTypes.Object, "NotARealField", out var schema).Should().BeFalse();
         schema.Should().BeNull();
+    }
+
+    private static ILocalizationService CreateLocalizationService()
+    {
+        var mock = new Mock<ILocalizationService>();
+        mock.Setup(service => service.GetString(It.IsAny<string>(), It.IsAny<object?[]>()))
+            .Returns((string key, object?[] args) => key);
+        return mock.Object;
     }
 }

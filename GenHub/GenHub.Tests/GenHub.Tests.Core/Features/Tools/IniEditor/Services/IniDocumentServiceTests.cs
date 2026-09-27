@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using System;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -117,6 +118,30 @@ public sealed class IniDocumentServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that tabs inside comments do not fail parsing.
+    /// </summary>
+    [Fact]
+    public void ParseText_TabInsideComment_ParsesSuccessfully()
+    {
+        var result = _service.ParseText("Object Tabbed ;\tnote with tab\n  Health = 100.0\nEnd\n");
+
+        result.Success.Should().BeTrue();
+        result.Data!.Blocks.Should().HaveCount(1);
+    }
+
+    /// <summary>
+    /// Verifies that a field with a missing key fails parsing instead of becoming a block.
+    /// </summary>
+    [Fact]
+    public void ParseText_MissingKey_ReturnsFailure()
+    {
+        var result = _service.ParseText("Object NoKey\n  = 100\nEnd\n");
+
+        result.Success.Should().BeFalse();
+        result.FirstError.Should().Contain("missing a key");
+    }
+
+    /// <summary>
     /// Verifies that fields outside of a block fail parsing.
     /// </summary>
     [Fact]
@@ -140,7 +165,7 @@ public sealed class IniDocumentServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that semicolon comments are stripped and do not affect parsing.
+    /// Verifies that semicolon comments are stripped from values and do not affect parsing.
     /// </summary>
     [Fact]
     public void ParseText_InlineComments_AreStripped()
@@ -149,6 +174,52 @@ public sealed class IniDocumentServiceTests : IDisposable
 
         result.Success.Should().BeTrue();
         result.Data!.Blocks[0].Fields[0].Value.Should().Be("100.0");
+    }
+
+    /// <summary>
+    /// Verifies that header, leading, and trailing comments enter the document model.
+    /// </summary>
+    [Fact]
+    public void ParseText_Comments_ArePreservedInModel()
+    {
+        var result = _service.ParseText(SampleDocument);
+
+        result.Success.Should().BeTrue();
+        var document = result.Data!;
+        document.HeaderComments.Should().ContainSingle().Which.Should().Be("Generals object definition");
+        document.Blocks[0].LeadingComments.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies that leading and inline comments round-trip through the writer.
+    /// </summary>
+    [Fact]
+    public void WriteDocument_Comments_RoundTrip()
+    {
+        const string content =
+            "; file header\n" +
+            "Object Commented ; header note\n" +
+            "  ; leading field note\n" +
+            "  Health = 100.0 ; hit points\n" +
+            "  ; note before end\n" +
+            "End\n" +
+            "; file trailer\n";
+
+        var parsed = _service.ParseText(content);
+        parsed.Success.Should().BeTrue();
+
+        var canonical = _service.WriteDocument(parsed.Data!);
+
+        canonical.Should().Contain("; file header");
+        canonical.Should().Contain("Object Commented ; header note");
+        canonical.Should().Contain("; leading field note");
+        canonical.Should().Contain("Health = 100.0 ; hit points");
+        canonical.Should().Contain("; note before end");
+        canonical.Should().Contain("; file trailer");
+
+        var reparsed = _service.ParseText(canonical);
+        reparsed.Success.Should().BeTrue();
+        _service.WriteDocument(reparsed.Data!).Should().Be(canonical);
     }
 
     /// <summary>
@@ -198,21 +269,90 @@ public sealed class IniDocumentServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that formatting a file rewrites it in canonical form.
+    /// Verifies that formatting a file rewrites its exact bytes in canonical form.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
     public async Task FormatFileAsync_ValidFile_RewritesCanonically()
     {
         var filePath = Path.Combine(_tempDirectory, "GameData.ini");
+        const string messy =
+            "; messy header\n" +
+            "Object   MessyObject\n" +
+            "Health=300.0\n" +
+            "   Side   =   USA\n" +
+            "End\n";
+        await File.WriteAllTextAsync(filePath, messy);
+
+        var result = await _service.FormatFileAsync(filePath, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        var formatted = await File.ReadAllTextAsync(filePath);
+        formatted.Should().NotBe(messy);
+        formatted.Should().Be(
+            "; messy header\r\n" +
+            "Object MessyObject\r\n" +
+            "  Health = 300.0\r\n" +
+            "  Side = USA\r\n" +
+            "End\r\n" +
+            "\r\n");
+        var reparsed = _service.ParseText(formatted);
+        reparsed.Success.Should().BeTrue();
+        _service.WriteDocument(reparsed.Data!).Should().Be(formatted);
+    }
+
+    /// <summary>
+    /// Verifies that formatting preserves comments instead of stripping them.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task FormatFileAsync_FileWithComments_PreservesComments()
+    {
+        var filePath = Path.Combine(_tempDirectory, "Commented.ini");
         await File.WriteAllTextAsync(filePath, SampleDocument);
 
         var result = await _service.FormatFileAsync(filePath, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        var reparsed = await _service.ParseFileAsync(filePath, CancellationToken.None);
-        reparsed.Success.Should().BeTrue();
-        reparsed.Data!.Blocks.Should().HaveCount(2);
+        var formatted = await File.ReadAllTextAsync(filePath);
+        formatted.Should().Contain("; Generals object definition");
+    }
+
+    /// <summary>
+    /// Verifies that a UTF-8 BOM is stripped instead of corrupting the first block.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseFileAsync_Utf8Bom_StripsBom()
+    {
+        var filePath = Path.Combine(_tempDirectory, "Bom.ini");
+        var bytes = new UTF8Encoding(true).GetBytes("Object BomObject\n  Health = 1.0\nEnd\n");
+        await File.WriteAllBytesAsync(filePath, bytes);
+
+        var result = await _service.ParseFileAsync(filePath, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Data!.Blocks.Should().ContainSingle();
+        result.Data.Blocks[0].BlockType.Should().Be("Object");
+        result.Data.Blocks[0].Name.Should().Be("BomObject");
+    }
+
+    /// <summary>
+    /// Verifies that ANSI encoded files decode instead of being rejected.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseFileAsync_AnsiEncoding_DecodesText()
+    {
+        var filePath = Path.Combine(_tempDirectory, "Ansi.ini");
+        var bytes = Encoding.Latin1.GetBytes("; caf\xE9 comment\nObject Caf\xE9\n  DisplayName = Caf\xE9\nEnd\n");
+        await File.WriteAllBytesAsync(filePath, bytes);
+
+        var result = await _service.ParseFileAsync(filePath, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Data!.Blocks.Should().ContainSingle();
+        result.Data.Blocks[0].Fields[0].Value.Should().Be("Caf\xE9");
     }
 
     /// <summary>
