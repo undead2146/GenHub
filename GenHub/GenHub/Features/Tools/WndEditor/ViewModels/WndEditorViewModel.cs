@@ -3042,9 +3042,9 @@ public sealed partial class WndEditorViewModel(
             return;
         }
 
-        notificationService.ShowInfo(
-            localizationService.GetString("Tools.WndEditor.Hidden.HiddenTitle"),
-            localizationService.GetString("Tools.WndEditor.Hidden.HiddenMessage"),
+        Notifications.ShowInfo(
+            Localization.GetString("Tools.WndEditor.Hidden.HiddenTitle"),
+            Localization.GetString("Tools.WndEditor.Hidden.HiddenMessage"),
             NotificationDurations.Medium);
     }
 
