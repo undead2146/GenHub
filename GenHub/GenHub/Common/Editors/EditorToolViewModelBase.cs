@@ -32,6 +32,10 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
     private bool _hasDocument;
     private bool _disposed;
 
+    // Classic constructor by design: the command graph wiring below needs a body,
+    // which primary-constructor syntax cannot express (initializers cannot call
+    // instance members or capture method groups).
+
     /// <summary>
     /// Initializes a new instance of the <see cref="EditorToolViewModelBase"/> class.
     /// </summary>
@@ -302,12 +306,6 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
         Dispose(true);
         GC.SuppressFinalize(this);
     }
@@ -325,6 +323,14 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
 
         return TopLevel.GetTopLevel(lifetime.MainWindow);
     }
+
+    /// <summary>
+    /// Gets a value indicating whether keyboard focus is inside a text box.
+    /// Clipboard and delete verbs must yield so typing and text editing keep working.
+    /// </summary>
+    /// <returns>True when a text box has focus.</returns>
+    protected static bool IsTextInputFocused() =>
+        GetTopLevel()?.FocusManager?.GetFocusedElement() is TextBox;
 
     /// <summary>
     /// Gets the minimum canvas zoom factor.
@@ -551,6 +557,12 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
     /// <param name="disposing">Whether managed resources should be released.</param>
     protected virtual void Dispose(bool disposing)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         if (!disposing)
         {
             return;

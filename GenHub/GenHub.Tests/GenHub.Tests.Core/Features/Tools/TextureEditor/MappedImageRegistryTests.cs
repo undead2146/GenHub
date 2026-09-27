@@ -1,6 +1,10 @@
+using GenHub.Core.Interfaces.Tools.TextureEditor;
+using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Tools.TextureEditor;
 using GenHub.Core.Services.Tools.TextureEditor;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +17,31 @@ namespace GenHub.Tests.Core.Features.Tools.TextureEditor;
 /// </summary>
 public sealed class MappedImageRegistryTests
 {
+    private sealed class GatedParser(Task gate, string gatedDirectory, TaskCompletionSource entered) : ISageMappedImageParser
+    {
+        public OperationResult<IReadOnlyList<MappedImageDefinition>> ParseText(string content, string? sourcePath = null) =>
+            throw new NotSupportedException();
+
+        public async Task<OperationResult<IReadOnlyList<MappedImageDefinition>>> ParseFileAsync(string path, CancellationToken cancellationToken = default)
+        {
+            if (path.StartsWith(gatedDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                entered.TrySetResult();
+                await gate.ConfigureAwait(false);
+                return OperationResult<IReadOnlyList<MappedImageDefinition>>.CreateSuccess(
+                    [new MappedImageDefinition("a", "old.tga", 64, 64, 0, 0, 63, 63)],
+                    TimeSpan.Zero);
+            }
+
+            return OperationResult<IReadOnlyList<MappedImageDefinition>>.CreateSuccess(
+                [new MappedImageDefinition("Direct", "direct.tga", 64, 64, 0, 0, 63, 63)],
+                TimeSpan.Zero);
+        }
+
+        public string Serialize(IEnumerable<MappedImageDefinition> images, string? headerComment = null) =>
+            throw new NotSupportedException();
+    }
+
     private readonly MappedImageRegistry _registry = new(
         new SageMappedImageParser(NullLogger<SageMappedImageParser>.Instance),
         NullLogger<MappedImageRegistry>.Instance);
@@ -290,6 +319,45 @@ public sealed class MappedImageRegistryTests
         finally
         {
             Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that a slower earlier scan does not overwrite a newer completed scan.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ScanDirectoryAsync_SupersededScan_ThrowsAndKeepsNewerEntriesAsync()
+    {
+        string first = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        string second = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(first);
+        Directory.CreateDirectory(second);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(first, "a.ini"), Block("Old", "old.tga"));
+            await File.WriteAllTextAsync(Path.Combine(second, "b.ini"), Block("New", "new.tga"));
+
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var parser = new GatedParser(gate.Task, first, entered);
+            var registry = new MappedImageRegistry(parser, NullLogger<MappedImageRegistry>.Instance);
+
+            var slow = registry.ScanDirectoryAsync(first);
+            await entered.Task.ConfigureAwait(true);
+            var fresh = await registry.ScanDirectoryAsync(second);
+            Assert.True(fresh.Success);
+
+            gate.SetResult();
+            await Assert.ThrowsAsync<OperationCanceledException>(async () => await slow);
+
+            Assert.Equal("direct.tga", registry.GetByName("Direct")?.TextureFileName);
+            Assert.Null(registry.GetByName("a"));
+        }
+        finally
+        {
+            Directory.Delete(first, true);
+            Directory.Delete(second, true);
         }
     }
 

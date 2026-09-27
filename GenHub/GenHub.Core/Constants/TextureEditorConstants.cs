@@ -96,6 +96,56 @@ public static class TextureEditorConstants
     public const int HudButtonHeight = 32;
 
     /// <summary>
+    /// Inspector size preset key for large 64x64 cameos.
+    /// </summary>
+    public const string PresetLargeCameo = "64x64";
+
+    /// <summary>
+    /// Inspector size preset key for small 60x48 cameos.
+    /// </summary>
+    public const string PresetSmallCameo = "60x48";
+
+    /// <summary>
+    /// Inspector size preset key for 32x32 HUD buttons.
+    /// </summary>
+    public const string PresetHudButton = "32x32";
+
+    /// <summary>
+    /// Inspector size preset key for square 128x128 slices.
+    /// </summary>
+    public const string Preset128 = "128x128";
+
+    /// <summary>
+    /// Inspector size preset key for square 256x256 slices.
+    /// </summary>
+    public const string Preset256 = "256x256";
+
+    /// <summary>
+    /// Inspector size preset key stretching the slice to the atlas right edge.
+    /// </summary>
+    public const string PresetFillX = "fill-x";
+
+    /// <summary>
+    /// Inspector size preset key stretching the slice to the atlas bottom edge.
+    /// </summary>
+    public const string PresetFillY = "fill-y";
+
+    /// <summary>
+    /// Inspector size preset key stretching the slice to the atlas corner.
+    /// </summary>
+    public const string PresetFill = "fill";
+
+    /// <summary>
+    /// Square edge length in pixels for the 128 preset.
+    /// </summary>
+    public const int PresetMediumSize = 128;
+
+    /// <summary>
+    /// Square edge length in pixels for the 256 preset.
+    /// </summary>
+    public const int PresetLargeSize = 256;
+
+    /// <summary>
     /// Item type identifier for texture atlas build rules in ModBuilder project files.
     /// </summary>
     public const string ModBuilderItemType = "TextureAtlas";

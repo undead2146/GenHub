@@ -14755,12 +14755,30 @@ GameFilesEdited/Data/INI/**/*.ini</value>
     <value>اكتمل الاستيراد</value>
   </data>
   <data name="TextureEditor.Notify.ImportComplete.Message" xml:space="preserve">
-    <value>تم استيراد {0} صورة معينة من {1}.</value>
+    <value>تم استيراد {0} من الصور المرتبطة من {1}.</value>
   </data>
   <data name="TextureEditor.Notify.ImportFailed.Title" xml:space="preserve">
     <value>فشل الاستيراد</value>
   </data>
   <data name="TextureEditor.Notify.ImportFailed.Message" xml:space="preserve">
     <value>لم يتم العثور على صور معينة.</value>
+  </data>
+  <data name="TextureEditor.Notify.RegistryMismatch.Title" xml:space="preserve">
+    <value>نسيج مختلف</value>
+  </data>
+  <data name="TextureEditor.Notify.RegistryMismatch.Message" xml:space="preserve">
+    <value>'{0}' ينتمي إلى {1}، وليس إلى الأطلس المفتوح.</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Title" xml:space="preserve">
+    <value>استبدال الشرائح بمجموعة فارغة؟</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Message" xml:space="preserve">
+    <value>{0} يحتوي بالفعل على صور مرتبطة. هل تريد حفظ صفر من الشرائح على أي حال؟</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Confirm" xml:space="preserve">
+    <value>حفظ فارغ</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Cancel" xml:space="preserve">
+    <value>إلغاء</value>
   </data>
 </root>

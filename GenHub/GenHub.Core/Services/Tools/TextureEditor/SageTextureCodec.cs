@@ -13,7 +13,7 @@ namespace GenHub.Core.Services.Tools.TextureEditor;
 /// </summary>
 public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTextureCodec
 {
-    private sealed record DdsUncompressedRequest(byte[] Data, int Offset, int Width, int Height, int BytesPerPixel, int Pitch, uint RedMask, string SourceName, long Started);
+    private sealed record DdsUncompressedRequest(byte[] Data, int Offset, int Width, int Height, int BytesPerPixel, int Pitch, uint RedMask, bool HasAlpha, string SourceName, long Started);
 
     private const int TgaHeaderSize = 18;
     private const int TgaTypeUncompressed = 2;
@@ -30,6 +30,7 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
     private const int DdsPixelFormatBitCountOffset = 12;
     private const int DdsPixelFormatRedMaskOffset = 16;
     private const int DdsPixelFormatFourCcFlag = 0x4;
+    private const int DdsPixelFormatAlphaPixelsFlag = 0x1;
     private const uint DdsRedMaskRgbaOrder = 0x000000FF;
     private const int TgaDescriptorRightOrigin = 0x10;
     private const int TgaDescriptorTopOrigin = 0x20;
@@ -74,10 +75,6 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
         {
             var data = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
             return Decode(data, Path.GetExtension(path), path);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
         }
         catch (IOException ex)
         {
@@ -352,7 +349,7 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
             int srcIndex = request.Offset + (int)(y * stride);
             for (int x = 0; x < request.Width; x++)
             {
-                WriteUncompressedPixel(request.Data, srcIndex, request.BytesPerPixel, rgbaOrder, rgba, destIndex);
+                WriteUncompressedPixel(request.Data, srcIndex, request.BytesPerPixel, rgbaOrder, request.HasAlpha, rgba, destIndex);
                 srcIndex += request.BytesPerPixel;
                 destIndex += 4;
             }
@@ -361,7 +358,7 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
         return OperationResult<DecodedTexture>.CreateSuccess(new DecodedTexture(request.Width, request.Height, rgba), Stopwatch.GetElapsedTime(request.Started));
     }
 
-    private static void WriteUncompressedPixel(byte[] data, int srcIndex, int bytesPerPixel, bool rgbaOrder, byte[] rgba, int destIndex)
+    private static void WriteUncompressedPixel(byte[] data, int srcIndex, int bytesPerPixel, bool rgbaOrder, bool hasAlpha, byte[] rgba, int destIndex)
     {
         if (rgbaOrder)
         {
@@ -376,7 +373,7 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
             rgba[destIndex + 2] = data[srcIndex];
         }
 
-        rgba[destIndex + 3] = bytesPerPixel == 4 ? data[srcIndex + 3] : (byte)255;
+        rgba[destIndex + 3] = bytesPerPixel == 4 && hasAlpha ? data[srcIndex + 3] : (byte)255;
     }
 
     private static OperationResult<DecodedTexture> DecodeDdsDxt1(byte[] data, int offset, int width, int height, string sourceName, long started)
@@ -501,7 +498,8 @@ public sealed class SageTextureCodec(ILogger<SageTextureCodec> logger) : ISageTe
         if (!hasFourCc && (rgbBitCount == 32 || rgbBitCount == 24))
         {
             int pitch = ReadInt32(data, headerOffset + DdsPitchOffset);
-            return DecodeDdsUncompressed(new DdsUncompressedRequest(data, dataOffset, width, height, rgbBitCount / 8, pitch, redMask, sourceName, started));
+            bool hasAlpha = (pixelFlags & DdsPixelFormatAlphaPixelsFlag) != 0;
+            return DecodeDdsUncompressed(new DdsUncompressedRequest(data, dataOffset, width, height, rgbBitCount / 8, pitch, redMask, hasAlpha, sourceName, started));
         }
 
         logger.LogWarning("Unsupported DDS pixel format in {Source}", sourceName);

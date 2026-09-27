@@ -169,6 +169,22 @@ public sealed class SageTextureCodecTests
     }
 
     /// <summary>
+    /// Verifies that a 32-bit DDS without the alpha-pixels flag decodes opaque pixels.
+    /// </summary>
+    [Fact]
+    public void Decode_UncompressedDdsWithoutAlphaFlag_UsesOpaqueAlpha()
+    {
+        byte[] data = BuildDds(1, 1, 32, [20, 10, 200, 0], pixelFlags: 0x40);
+
+        var result = _codec.Decode(data, ".dds", "test");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal([200, 10, 20, 255], result.Data.PixelData);
+        Assert.False(result.Data.HasAlpha);
+    }
+
+    /// <summary>
     /// Verifies that a DXT1 DDS block decodes the palette and indices.
     /// </summary>
     [Fact]
@@ -372,7 +388,7 @@ public sealed class SageTextureCodecTests
         return [.. header, .. pixels];
     }
 
-    private static byte[] BuildDds(int width, int height, int bitCount, byte[] pixels, uint fourCc = 0, int pitch = 0, uint redMask = 0)
+    private static byte[] BuildDds(int width, int height, int bitCount, byte[] pixels, uint fourCc = 0, int pitch = 0, uint redMask = 0, int pixelFlags = 0x41)
     {
         var data = new byte[4 + 124 + pixels.Length];
         data[0] = (byte)'D';
@@ -386,7 +402,7 @@ public sealed class SageTextureCodecTests
         WriteInt32(data, 4 + 72, 32);
         if (fourCc == 0)
         {
-            WriteInt32(data, 4 + 76, 0x41);
+            WriteInt32(data, 4 + 76, pixelFlags);
             WriteInt32(data, 4 + 84, bitCount);
             WriteInt32(data, 4 + 88, unchecked((int)redMask));
         }

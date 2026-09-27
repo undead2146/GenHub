@@ -14861,4 +14861,22 @@ How do you want to apply this update?</value>
   <data name="TextureEditor.Notify.ImportFailed.Message" xml:space="preserve">
     <value>No mapped images found.</value>
   </data>
+  <data name="TextureEditor.Notify.RegistryMismatch.Title" xml:space="preserve">
+    <value>Different texture</value>
+  </data>
+  <data name="TextureEditor.Notify.RegistryMismatch.Message" xml:space="preserve">
+    <value>'{0}' belongs to {1}, not to the open atlas.</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Title" xml:space="preserve">
+    <value>Replace slices with an empty set?</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Message" xml:space="preserve">
+    <value>{0} already contains mapped images. Save zero slices anyway?</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Confirm" xml:space="preserve">
+    <value>Save empty</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
 </root>

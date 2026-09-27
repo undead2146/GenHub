@@ -86,7 +86,7 @@ public partial class MappedImagePickerControl : UserControl
 
     /// <summary>
     /// Gets or sets the optional thumbnail provider for entries.
-    /// Returned images are owned by the picker and disposed on refresh.
+    /// Returned images are owned by the provider, which is responsible for their lifetime.
     /// </summary>
     public Func<MappedImageDefinition, IImage?>? ThumbnailProvider
     {
@@ -204,14 +204,6 @@ public partial class MappedImagePickerControl : UserControl
             .OrderBy(image => image.Name, StringComparer.OrdinalIgnoreCase)
             .Select(image => new MappedImagePickerItem(image, provider?.Invoke(image)))
             .ToList();
-
-        foreach (var old in _filteredItems)
-        {
-            if (old.Thumbnail is IDisposable disposable)
-            {
-                disposable.Dispose();
-            }
-        }
 
         _filteredItems.Clear();
         foreach (var item in matches)

@@ -1,4 +1,5 @@
 using GenHub.Core.Constants;
+using System.Diagnostics.CodeAnalysis;
 
 namespace GenHub.Core.Models.Tools.TextureEditor;
 
@@ -22,5 +23,6 @@ public sealed record TextureAtlasBuildRequest(
     /// <summary>
     /// Gets the item type discriminator used in ModBuilder project files.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Discriminator must stay an instance member for ModBuilder project dispatch and serialization.")]
     public string ItemType => TextureEditorConstants.ModBuilderItemType;
 }

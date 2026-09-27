@@ -30,5 +30,6 @@ public interface ISageMappedImageParser
     /// <param name="images">The entries to serialize.</param>
     /// <param name="headerComment">The optional header comment lines without comment markers.</param>
     /// <returns>The serialized INI content.</returns>
+    /// <exception cref="ArgumentException">Thrown when a name, texture, or status value contains line breaks or ';', which cannot round-trip through SAGE INI.</exception>
     string Serialize(IEnumerable<MappedImageDefinition> images, string? headerComment = null);
 }

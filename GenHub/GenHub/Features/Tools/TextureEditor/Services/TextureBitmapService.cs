@@ -79,10 +79,6 @@ public sealed class TextureBitmapService(ISageTextureCodec codec, ILogger<Textur
             var texture = new DecodedTexture(image.Width, image.Height, pixels);
             return OperationResult<DecodedTexture>.CreateSuccess(texture, Stopwatch.GetElapsedTime(started));
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
         catch (UnknownImageFormatException ex)
         {
             logger.LogWarning(ex, "Unsupported image format: {Path}", path);
@@ -186,10 +182,6 @@ public sealed class TextureBitmapService(ISageTextureCodec codec, ILogger<Textur
             await AtomicFile.WriteAllBytesAsync(path, encoded, cancellationToken).ConfigureAwait(false);
             return OperationResult<string>.CreateSuccess(path, Stopwatch.GetElapsedTime(started));
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
         catch (IOException ex)
         {
             logger.LogWarning(ex, "Failed to save PNG file: {Path}", path);
@@ -225,10 +217,6 @@ public sealed class TextureBitmapService(ISageTextureCodec codec, ILogger<Textur
         {
             await AtomicFile.WriteAllBytesAsync(path, encoded.Data, cancellationToken).ConfigureAwait(false);
             return OperationResult<string>.CreateSuccess(path, Stopwatch.GetElapsedTime(started));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
         }
         catch (IOException ex)
         {

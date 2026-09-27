@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -102,6 +103,7 @@ public sealed partial class FileExplorerViewModel : ObservableObject
     /// <summary>
     /// Gets the directory name for display in the explorer.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated Directory instance state and is bound from XAML.")]
     public string? DirectoryName
     {
         get
@@ -120,6 +122,7 @@ public sealed partial class FileExplorerViewModel : ObservableObject
     /// <summary>
     /// Gets a value indicating whether a directory is listed.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated Directory instance state and is bound from XAML.")]
     public bool HasDirectory => !string.IsNullOrEmpty(Directory);
 
     /// <summary>

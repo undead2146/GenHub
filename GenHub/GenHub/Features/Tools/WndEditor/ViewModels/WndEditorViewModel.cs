@@ -651,12 +651,12 @@ public sealed partial class WndEditorViewModel(
             return false;
         }
 
-        var topLevel = GetTopLevel();
-        if (topLevel?.FocusManager?.GetFocusedElement() is TextBox)
+        if (IsTextInputFocused())
         {
             return false;
         }
 
+        var topLevel = GetTopLevel();
         clipboard ??= topLevel?.Clipboard;
         if (clipboard == null)
         {
@@ -1091,7 +1091,7 @@ public sealed partial class WndEditorViewModel(
     /// <inheritdoc />
     protected override void OnCopy()
     {
-        if (_document is null || SelectedNode is null)
+        if (IsTextInputFocused() || _document is null || SelectedNode is null)
         {
             return;
         }
@@ -1104,7 +1104,7 @@ public sealed partial class WndEditorViewModel(
     /// <inheritdoc />
     protected override void OnCut()
     {
-        if (_document is null || SelectedNode is null)
+        if (IsTextInputFocused() || _document is null || SelectedNode is null)
         {
             return;
         }
@@ -1118,6 +1118,11 @@ public sealed partial class WndEditorViewModel(
     /// <inheritdoc />
     protected override async Task OnPasteAsync(CancellationToken cancellationToken)
     {
+        if (IsTextInputFocused())
+        {
+            return;
+        }
+
         if (_copiedWindow is not null && _document is not null)
         {
             PasteCopiedWindow();
@@ -1130,7 +1135,7 @@ public sealed partial class WndEditorViewModel(
     /// <inheritdoc />
     protected override void OnDuplicate()
     {
-        if (_document is null || SelectedNode is null)
+        if (IsTextInputFocused() || _document is null || SelectedNode is null)
         {
             return;
         }
@@ -1163,7 +1168,7 @@ public sealed partial class WndEditorViewModel(
     /// <inheritdoc />
     protected override void OnDelete()
     {
-        if (_document is null || SelectedNode is null)
+        if (IsTextInputFocused() || _document is null || SelectedNode is null)
         {
             return;
         }
@@ -2503,6 +2508,7 @@ public sealed partial class WndEditorViewModel(
             NotificationDurations.Medium);
     }
 
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Routes to the source-generated OpenExplorerFileCommand instance member.")]
     private void OnExplorerFileActivated(object? sender, EditorFileTreeNodeViewModel node)
     {
         OpenExplorerFileCommand.Execute(node);
@@ -2689,16 +2695,12 @@ public sealed partial class WndEditorViewModel(
 
         filePath = NormalizeSourceFilePath(filePath);
         var directory = Path.GetDirectoryName(filePath);
-        if (string.IsNullOrEmpty(FilesDirectory) || !Directory.Exists(FilesDirectory))
-        {
-            FilesDirectory = directory;
-            FileExplorer.CurrentPath = filePath;
-        }
-        else if (IsSubPathOf(filePath, FilesDirectory))
+        bool needsRoot = string.IsNullOrEmpty(FilesDirectory) || !Directory.Exists(FilesDirectory);
+        if (!needsRoot && IsSubPathOf(filePath, FilesDirectory!))
         {
             FileExplorer.CurrentPath = filePath;
         }
-        else if (!string.IsNullOrEmpty(directory))
+        else if (needsRoot || !string.IsNullOrEmpty(directory))
         {
             FilesDirectory = directory;
             FileExplorer.CurrentPath = filePath;

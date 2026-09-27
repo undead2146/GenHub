@@ -14763,4 +14763,22 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="TextureEditor.Notify.ImportFailed.Message" xml:space="preserve">
     <value>Связанные изображения не найдены.</value>
   </data>
+  <data name="TextureEditor.Notify.RegistryMismatch.Title" xml:space="preserve">
+    <value>Другая текстура</value>
+  </data>
+  <data name="TextureEditor.Notify.RegistryMismatch.Message" xml:space="preserve">
+    <value>'{0}' относится к {1}, а не к открытому атласу.</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Title" xml:space="preserve">
+    <value>Заменить срезы пустым набором?</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Message" xml:space="preserve">
+    <value>{0} уже содержит связанные изображения. Всё равно сохранить ноль срезов?</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Confirm" xml:space="preserve">
+    <value>Сохранить пустым</value>
+  </data>
+  <data name="TextureEditor.Dialog.ClearSlices.Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
 </root>

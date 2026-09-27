@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:GenHub.Features.Tools.TextureEditor.ViewModels"
+             xmlns:constants="using:GenHub.Core.Constants"
              xmlns:controls="clr-namespace:GenHub.Common.Controls"
              xmlns:editors="clr-namespace:GenHub.Common.Editors"
              xmlns:localization="clr-namespace:GenHub.Common.Markup"
@@ -310,17 +311,17 @@
               </StackPanel>
               <StackPanel Spacing="6">
                 <TextBlock Text="{localization:Localize TextureEditor.Label.Presets}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
-                <Button Command="{Binding ApplyPresetCommand}" CommandParameter="64x64" Classes="Secondary"
+                <Button Command="{Binding ApplyPresetCommand}" CommandParameter="{x:Static constants:TextureEditorConstants.PresetLargeCameo}" Classes="Secondary"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                         ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.PresetLarge}">
                   <TextBlock Text="{localization:Localize TextureEditor.Preset.Large}" FontSize="12"/>
                 </Button>
-                <Button Command="{Binding ApplyPresetCommand}" CommandParameter="60x48" Classes="Secondary"
+                <Button Command="{Binding ApplyPresetCommand}" CommandParameter="{x:Static constants:TextureEditorConstants.PresetSmallCameo}" Classes="Secondary"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                         ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.PresetSmall}">
                   <TextBlock Text="{localization:Localize TextureEditor.Preset.Small}" FontSize="12"/>
                 </Button>
-                <Button Command="{Binding ApplyPresetCommand}" CommandParameter="32x32" Classes="Secondary"
+                <Button Command="{Binding ApplyPresetCommand}" CommandParameter="{x:Static constants:TextureEditorConstants.PresetHudButton}" Classes="Secondary"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                         ToolTip.Tip="{localization:Localize TextureEditor.Tooltip.PresetHud}">
                   <TextBlock Text="{localization:Localize TextureEditor.Preset.Hud}" FontSize="12"/>

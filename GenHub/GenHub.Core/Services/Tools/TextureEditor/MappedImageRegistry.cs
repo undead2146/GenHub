@@ -4,6 +4,7 @@ using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Tools.TextureEditor;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace GenHub.Core.Services.Tools.TextureEditor;
 
@@ -14,8 +15,10 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
 {
     private readonly Dictionary<string, MappedImageDefinition> _entries = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _syncLock = new();
+    private int _scanGeneration;
 
     /// <inheritdoc />
+    [SuppressMessage("Critical Code Smell", "S2365:Properties should not return copies of collections", Justification = "IMappedImageRegistry contracts a property; the snapshot copy under lock is required for thread safety.")]
     public IReadOnlyList<MappedImageDefinition> All
     {
         get
@@ -69,6 +72,12 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
         Array.Sort(files, CompareSageLoadOrder);
         var errors = new List<string>();
 
+        int generation;
+        lock (_syncLock)
+        {
+            generation = ++_scanGeneration;
+        }
+
         // Stage in a temporary catalog so a cancelled or failed scan
         // never clears the previously valid entries.
         var staged = new Dictionary<string, MappedImageDefinition>(StringComparer.OrdinalIgnoreCase);
@@ -92,6 +101,12 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
 
         lock (_syncLock)
         {
+            if (generation != _scanGeneration)
+            {
+                // A newer scan started while this one was running; its catalog wins.
+                throw new OperationCanceledException();
+            }
+
             _entries.Clear();
             foreach (var entry in staged)
             {

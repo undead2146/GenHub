@@ -5,6 +5,7 @@ using GenHub.Core.Models.Tools.TextureEditor;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -75,10 +76,6 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
             var content = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
             return ParseText(content, path);
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
         catch (IOException ex)
         {
             logger.LogWarning(ex, "Failed to read MappedImages INI file: {Path}", path);
@@ -109,6 +106,9 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 
         foreach (var image in images)
         {
+            ValidateSerializeField(image.Name, nameof(image.Name));
+            ValidateSerializeField(image.TextureFileName, nameof(image.TextureFileName));
+            ValidateSerializeField(image.Status, nameof(image.Status));
             sb.Append(TextureEditorConstants.IniBlockName).Append(' ').AppendLine(image.Name);
             sb.Append("  Texture = ").AppendLine(image.TextureFileName);
             sb.Append("  TextureWidth = ").AppendLine(image.TextureWidth.ToString());
@@ -184,6 +184,16 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
 
     private static string FormatError(string? sourcePath, int lineNumber, string message) =>
         sourcePath is null ? $"Line {lineNumber}: {message}" : $"{sourcePath} line {lineNumber}: {message}";
+
+    private static void ValidateSerializeField(string value, string fieldName)
+    {
+        // SAGE INI has no escape mechanism: line breaks would inject extra lines
+        // and ';' would be stripped as a comment on reload, so reject them.
+        if (value.Contains('\r') || value.Contains('\n') || value.Contains(';'))
+        {
+            throw new ArgumentException($"MappedImage {fieldName} must not contain line breaks or ';'.", fieldName);
+        }
+    }
 
     private sealed class MappedImageBlock
     {
@@ -278,14 +288,14 @@ public sealed class SageMappedImageParser(ILogger<SageMappedImageParser> logger)
             int? top = null;
             int? right = null;
             int? bottom = null;
-            foreach (Match match in matches)
+            foreach (var groups in matches.Cast<Match>().Select(match => match.Groups))
             {
-                if (!int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
+                if (!int.TryParse(groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
                 {
                     continue;
                 }
 
-                switch (match.Groups[1].Value.ToUpperInvariant())
+                switch (groups[1].Value.ToUpperInvariant())
                 {
                     case "LEFT":
                         left = number;

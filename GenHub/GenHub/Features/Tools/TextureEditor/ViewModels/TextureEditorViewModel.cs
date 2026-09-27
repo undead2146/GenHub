@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -39,6 +40,8 @@ public sealed partial class TextureEditorViewModel(
     IDialogService dialogService)
     : EditorToolViewModelBase(notificationService, localizationService, dialogService)
 {
+    private const string SavedMessageFallback = "Saved {0}.";
+
     private DecodedTexture? _atlasDecoded;
     private FileExplorerViewModel? _fileExplorer;
     private MappedImageDefinition? _copiedSlice;
@@ -68,7 +71,7 @@ public sealed partial class TextureEditorViewModel(
     /// <summary>
     /// Gets the mapped images indexed from MappedImages INI registries.
     /// </summary>
-    public ObservableCollection<MappedImageDefinition> RegistryImages { get; } = [];
+    public ObservableCollection<MappedImageDefinition> RegistryImages { get; private set; } = [];
 
     /// <summary>
     /// Gets the editable slices for the open atlas.
@@ -78,36 +81,40 @@ public sealed partial class TextureEditorViewModel(
     /// <summary>
     /// Gets the file name of the open atlas.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated AtlasPath instance state and is bound from XAML.")]
     public string AtlasFileName => Path.GetFileName(AtlasPath);
 
     /// <summary>
     /// Gets a value indicating whether an atlas is open.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated AtlasBitmap instance state and is bound from XAML.")]
     public bool HasAtlas => AtlasBitmap is not null;
 
     /// <summary>
     /// Gets the display width of the atlas on the canvas.
     /// </summary>
-    public double DisplayWidth => HasAtlas ? AtlasBitmap!.PixelSize.Width * Zoom : 0;
+    public double DisplayWidth => AtlasBitmap is null ? 0 : AtlasBitmap.PixelSize.Width * Zoom;
 
     /// <summary>
     /// Gets the display height of the atlas on the canvas.
     /// </summary>
-    public double DisplayHeight => HasAtlas ? AtlasBitmap!.PixelSize.Height * Zoom : 0;
+    public double DisplayHeight => AtlasBitmap is null ? 0 : AtlasBitmap.PixelSize.Height * Zoom;
 
     /// <summary>
     /// Gets the atlas dimensions display text.
     /// </summary>
-    public string AtlasDimensions => HasAtlas ? $"{AtlasBitmap!.PixelSize.Width} x {AtlasBitmap.PixelSize.Height}" : string.Empty;
+    public string AtlasDimensions => AtlasBitmap is null ? string.Empty : $"{AtlasBitmap.PixelSize.Width} x {AtlasBitmap.PixelSize.Height}";
 
     /// <summary>
     /// Gets the pixel width of the open atlas.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated AtlasBitmap instance state and is bound from XAML.")]
     public int AtlasPixelWidth => AtlasBitmap?.PixelSize.Width ?? 0;
 
     /// <summary>
     /// Gets the pixel height of the open atlas.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated AtlasBitmap instance state and is bound from XAML.")]
     public int AtlasPixelHeight => AtlasBitmap?.PixelSize.Height ?? 0;
 
     /// <summary>
@@ -118,7 +125,18 @@ public sealed partial class TextureEditorViewModel(
     /// <summary>
     /// Gets the document title with a modification marker.
     /// </summary>
-    public override string? DocumentTitle => HasAtlas ? (IsDirty ? $"*{AtlasFileName}" : AtlasFileName) : null;
+    public override string? DocumentTitle
+    {
+        get
+        {
+            if (!HasAtlas)
+            {
+                return null;
+            }
+
+            return IsDirty ? $"*{AtlasFileName}" : AtlasFileName;
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether the slices can be saved.
@@ -155,6 +173,7 @@ public sealed partial class TextureEditorViewModel(
     /// </summary>
     public override bool CanDelete => SelectedSlice is not null;
 
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated AtlasPath instance state.")]
     private string DefaultIniPath => Path.Combine(
         Path.GetDirectoryName(AtlasPath) ?? string.Empty,
         Path.GetFileNameWithoutExtension(AtlasPath) + TextureEditorConstants.MappedImagesExtension);
@@ -168,6 +187,20 @@ public sealed partial class TextureEditorViewModel(
         ArgumentNullException.ThrowIfNull(definition);
         if (AtlasBitmap is null)
         {
+            return;
+        }
+
+        if (!definition.TextureFileName.Equals(AtlasFileName, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Registry entry {Name} targets {Expected} but the open atlas is {Actual}; not loading.",
+                definition.Name,
+                definition.TextureFileName,
+                AtlasFileName);
+            Notifications.ShowWarning(
+                Localize("TextureEditor.Notify.RegistryMismatch.Title", "Different texture"),
+                Localize("TextureEditor.Notify.RegistryMismatch.Message", "'{0}' belongs to {1}, not to the open atlas.", definition.Name, definition.TextureFileName),
+                NotificationDurations.Medium);
             return;
         }
 
@@ -213,7 +246,7 @@ public sealed partial class TextureEditorViewModel(
     /// <inheritdoc />
     protected override void OnCopy()
     {
-        if (SelectedSlice is null)
+        if (IsTextInputFocused() || SelectedSlice is null)
         {
             return;
         }
@@ -226,7 +259,7 @@ public sealed partial class TextureEditorViewModel(
     /// <inheritdoc />
     protected override void OnCut()
     {
-        if (SelectedSlice is null)
+        if (IsTextInputFocused() || SelectedSlice is null)
         {
             return;
         }
@@ -241,7 +274,7 @@ public sealed partial class TextureEditorViewModel(
     /// <inheritdoc />
     protected override Task OnPasteAsync(CancellationToken cancellationToken)
     {
-        if (_copiedSlice is null || AtlasBitmap is null)
+        if (IsTextInputFocused() || _copiedSlice is null || AtlasBitmap is null)
         {
             return Task.CompletedTask;
         }
@@ -261,7 +294,7 @@ public sealed partial class TextureEditorViewModel(
     /// <inheritdoc />
     protected override void OnDuplicate()
     {
-        if (SelectedSlice is null || AtlasBitmap is null)
+        if (IsTextInputFocused() || SelectedSlice is null || AtlasBitmap is null)
         {
             return;
         }
@@ -274,7 +307,7 @@ public sealed partial class TextureEditorViewModel(
     /// <inheritdoc />
     protected override void OnDelete()
     {
-        if (SelectedSlice is null)
+        if (IsTextInputFocused() || SelectedSlice is null)
         {
             return;
         }
@@ -355,7 +388,7 @@ public sealed partial class TextureEditorViewModel(
                 MarkSaved();
                 Notifications.ShowSuccess(
                     Localize("TextureEditor.Notify.SaveComplete.Title", "Slices saved"),
-                    Localize("TextureEditor.Notify.SaveComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                    Localize("TextureEditor.Notify.SaveComplete.Message", SavedMessageFallback, Path.GetFileName(path)),
                     NotificationDurations.Medium);
             }
         }
@@ -419,7 +452,7 @@ public sealed partial class TextureEditorViewModel(
                 MarkSaved();
                 Notifications.ShowSuccess(
                     Localize("TextureEditor.Notify.SaveComplete.Title", "Slices saved"),
-                    Localize("TextureEditor.Notify.SaveComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                    Localize("TextureEditor.Notify.SaveComplete.Message", SavedMessageFallback, Path.GetFileName(path)),
                     NotificationDurations.Medium);
             }
         }
@@ -459,6 +492,16 @@ public sealed partial class TextureEditorViewModel(
         AtlasBitmap?.Dispose();
         AtlasBitmap = null;
         base.Dispose(disposing);
+    }
+
+    private static void DisposeThumbnail(Avalonia.Media.IImage? thumbnail)
+    {
+        // Never dispose CroppedBitmap: disposing a crop also disposes its Source,
+        // which would kill the shared AtlasBitmap all thumbnails are cut from.
+        if (thumbnail is IDisposable disposable && thumbnail is not CroppedBitmap)
+        {
+            disposable.Dispose();
+        }
     }
 
     partial void OnAtlasBitmapChanged(Bitmap? value)
@@ -530,6 +573,10 @@ public sealed partial class TextureEditorViewModel(
                 }
             }).ConfigureAwait(true);
         }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Registry scan failed");
@@ -590,7 +637,11 @@ public sealed partial class TextureEditorViewModel(
                     return;
                 }
 
-                await WritePackOutputsAsync(request, built.Data.TextureBytes, built.Data.IniContent, operationToken).ConfigureAwait(true);
+                if (!await WritePackOutputsAsync(request, built.Data.TextureBytes, built.Data.IniContent, operationToken).ConfigureAwait(true))
+                {
+                    return;
+                }
+
                 if (!OpenDecodedAtlas(built.Data.Sheet, request.TargetTexture))
                 {
                     return;
@@ -606,6 +657,10 @@ public sealed partial class TextureEditorViewModel(
                     Localize("TextureEditor.Notify.PackComplete.Message", "Packed {0} sprites into a {1}x{2} sheet.", built.Data.MappedImages.Count, built.Data.Sheet.Width, built.Data.Sheet.Height),
                     NotificationDurations.Medium);
             }).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
         }
         catch (Exception ex)
         {
@@ -658,10 +713,14 @@ public sealed partial class TextureEditorViewModel(
                 {
                     Notifications.ShowSuccess(
                         Localize("TextureEditor.Notify.ExportComplete.Title", "Export complete"),
-                        Localize("TextureEditor.Notify.ExportComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                        Localize("TextureEditor.Notify.ExportComplete.Message", SavedMessageFallback, Path.GetFileName(path)),
                         NotificationDurations.Medium);
                 }
             }).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
         }
         catch (Exception ex)
         {
@@ -722,7 +781,7 @@ public sealed partial class TextureEditorViewModel(
                 {
                     Notifications.ShowSuccess(
                         Localize("TextureEditor.Notify.ExportComplete.Title", "Export complete"),
-                        Localize("TextureEditor.Notify.ExportComplete.Message", "Saved {0}.", Path.GetFileName(path)),
+                        Localize("TextureEditor.Notify.ExportComplete.Message", SavedMessageFallback, Path.GetFileName(path)),
                         NotificationDurations.Medium);
                 }
                 else
@@ -733,6 +792,10 @@ public sealed partial class TextureEditorViewModel(
                         NotificationDurations.Long);
                 }
             }).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
         }
         catch (Exception ex)
         {
@@ -759,8 +822,8 @@ public sealed partial class TextureEditorViewModel(
             AtlasBitmap.PixelSize.Height,
             0,
             0,
-            Math.Min(64, AtlasBitmap.PixelSize.Width),
-            Math.Min(64, AtlasBitmap.PixelSize.Height)));
+            Math.Min(TextureEditorConstants.CameoLargeWidth, AtlasBitmap.PixelSize.Width),
+            Math.Min(TextureEditorConstants.CameoLargeHeight, AtlasBitmap.PixelSize.Height)));
         slice.UpdateZoom(Zoom);
         TrackSlice(slice);
         SelectedSlice = slice;
@@ -777,14 +840,14 @@ public sealed partial class TextureEditorViewModel(
 
         var (width, height) = preset switch
         {
-            "64x64" => (64, 64),
-            "60x48" => (TextureEditorConstants.CameoSmallWidth, TextureEditorConstants.CameoSmallHeight),
-            "32x32" => (TextureEditorConstants.HudButtonWidth, TextureEditorConstants.HudButtonHeight),
-            "128x128" => (128, 128),
-            "256x256" => (256, 256),
-            "fill-x" => (AtlasPixelWidth - SelectedSlice.Left, SelectedSlice.Height),
-            "fill-y" => (SelectedSlice.Width, AtlasPixelHeight - SelectedSlice.Top),
-            "fill" => (AtlasPixelWidth - SelectedSlice.Left, AtlasPixelHeight - SelectedSlice.Top),
+            TextureEditorConstants.PresetLargeCameo => (TextureEditorConstants.CameoLargeWidth, TextureEditorConstants.CameoLargeHeight),
+            TextureEditorConstants.PresetSmallCameo => (TextureEditorConstants.CameoSmallWidth, TextureEditorConstants.CameoSmallHeight),
+            TextureEditorConstants.PresetHudButton => (TextureEditorConstants.HudButtonWidth, TextureEditorConstants.HudButtonHeight),
+            TextureEditorConstants.Preset128 => (TextureEditorConstants.PresetMediumSize, TextureEditorConstants.PresetMediumSize),
+            TextureEditorConstants.Preset256 => (TextureEditorConstants.PresetLargeSize, TextureEditorConstants.PresetLargeSize),
+            TextureEditorConstants.PresetFillX => (AtlasPixelWidth - SelectedSlice.Left, SelectedSlice.Height),
+            TextureEditorConstants.PresetFillY => (SelectedSlice.Width, AtlasPixelHeight - SelectedSlice.Top),
+            TextureEditorConstants.PresetFill => (AtlasPixelWidth - SelectedSlice.Left, AtlasPixelHeight - SelectedSlice.Top),
             _ => (SelectedSlice.Width, SelectedSlice.Height),
         };
 
@@ -881,6 +944,10 @@ public sealed partial class TextureEditorViewModel(
                 MarkSaved();
             }).ConfigureAwait(true);
         }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to open atlas {Path}", path);
@@ -905,6 +972,10 @@ public sealed partial class TextureEditorViewModel(
         if (parsed.Data is null || parsed.Data.Count == 0)
         {
             logger.LogWarning("Sibling INI {Path} holds no mapped images: {Error}", sibling, parsed.FirstError ?? "unknown");
+            Notifications.ShowWarning(
+                Localize("TextureEditor.Notify.ImportFailed.Title", "Import failed"),
+                Localize("TextureEditor.Notify.ImportFailed.Message", "No mapped images found."),
+                NotificationDurations.Medium);
             return;
         }
 
@@ -944,6 +1015,10 @@ public sealed partial class TextureEditorViewModel(
                     NotificationDurations.Medium);
             }).ConfigureAwait(true);
         }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation from the busy overlay is silent by design.
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "INI import failed for {Path}", path);
@@ -956,11 +1031,10 @@ public sealed partial class TextureEditorViewModel(
 
     private void RefreshRegistryImages()
     {
-        RegistryImages.Clear();
-        foreach (var image in registry.All)
-        {
-            RegistryImages.Add(image);
-        }
+        // Replace the instance so bound pickers rebuild once for the whole
+        // catalog instead of once per entry.
+        RegistryImages = new ObservableCollection<MappedImageDefinition>(registry.All);
+        OnPropertyChanged(nameof(RegistryImages));
     }
 
     private bool OpenDecodedAtlas(DecodedTexture decoded, string path)
@@ -1114,12 +1188,43 @@ public sealed partial class TextureEditorViewModel(
         }
 
         var definitions = Slices.Select(slice => slice.ToDefinition()).ToList();
+        if (definitions.Count == 0 && !await ConfirmEmptyOverwriteAsync(path, cancellationToken).ConfigureAwait(true))
+        {
+            return false;
+        }
+
         string content = parser.Serialize(definitions, $"Generated by GenHub {TextureEditorConstants.ToolName} from {AtlasFileName}");
         await AtomicFile.WriteAllTextAsync(path, content, cancellationToken).ConfigureAwait(true);
         return true;
     }
 
-    private async Task WritePackOutputsAsync(TextureAtlasBuildRequest request, byte[] textureBytes, string iniContent, CancellationToken cancellationToken)
+    private async Task<bool> ConfirmEmptyOverwriteAsync(string path, CancellationToken cancellationToken)
+    {
+        bool hasContent;
+        try
+        {
+            hasContent = File.Exists(path) && new FileInfo(path).Length > 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Unable to inspect existing INI {Path} before an empty save.", path);
+            return true;
+        }
+
+        if (!hasContent)
+        {
+            return true;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return await Dialogs.ShowConfirmationAsync(
+            Localize("TextureEditor.Dialog.ClearSlices.Title", "Replace slices with an empty set?"),
+            Localize("TextureEditor.Dialog.ClearSlices.Message", "{0} already contains mapped images. Save zero slices anyway?", Path.GetFileName(path)),
+            Localize("TextureEditor.Dialog.ClearSlices.Confirm", "Save empty"),
+            Localize("TextureEditor.Dialog.ClearSlices.Cancel", "Cancel")).ConfigureAwait(true);
+    }
+
+    private async Task<bool> WritePackOutputsAsync(TextureAtlasBuildRequest request, byte[] textureBytes, string iniContent, CancellationToken cancellationToken)
     {
         byte[]? previousTexture = await ReadExistingFileBytesAsync(request.TargetTexture).ConfigureAwait(true);
         await AtomicFile.WriteAllBytesAsync(request.TargetTexture, textureBytes, cancellationToken).ConfigureAwait(true);
@@ -1127,12 +1232,23 @@ public sealed partial class TextureEditorViewModel(
         {
             await AtomicFile.WriteAllTextAsync(request.TargetIni, iniContent, cancellationToken).ConfigureAwait(true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
+        catch (OperationCanceledException)
         {
-            logger.LogWarning(ex, "Auto-pack INI write failed; restoring the previous atlas texture.");
             await RestorePackTextureAsync(request.TargetTexture, previousTexture).ConfigureAwait(true);
             throw;
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Auto-pack INI write failed; restoring the previous atlas texture.");
+            await RestorePackTextureAsync(request.TargetTexture, previousTexture).ConfigureAwait(true);
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
+                ex.Message,
+                NotificationDurations.Long);
+            return false;
+        }
+
+        return true;
     }
 
     private async Task<byte[]?> ReadExistingFileBytesAsync(string path)
@@ -1225,6 +1341,7 @@ public sealed partial class TextureEditorViewModel(
         return CreateThumbnail(slice);
     }
 
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated AtlasBitmap instance state.")]
     private Avalonia.Media.IImage? CreateThumbnail(TextureSliceViewModel slice)
     {
         if (AtlasBitmap is null)
@@ -1242,13 +1359,5 @@ public sealed partial class TextureEditorViewModel(
         }
 
         return new CroppedBitmap(AtlasBitmap, new PixelRect(left, top, right - left, bottom - top));
-    }
-
-    private void DisposeThumbnail(Avalonia.Media.IImage? thumbnail)
-    {
-        if (thumbnail is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
     }
 }

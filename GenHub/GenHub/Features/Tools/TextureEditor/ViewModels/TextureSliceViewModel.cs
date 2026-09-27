@@ -2,6 +2,7 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GenHub.Core.Models.Tools.TextureEditor;
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace GenHub.Features.Tools.TextureEditor.ViewModels;
 
@@ -49,11 +50,13 @@ public sealed partial class TextureSliceViewModel : ObservableObject
     /// <summary>
     /// Gets the slice width in pixels using exclusive SAGE edges.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated coordinate instance state and is bound from XAML.")]
     public int Width => Right - Left;
 
     /// <summary>
     /// Gets the slice height in pixels using exclusive SAGE edges.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated coordinate instance state and is bound from XAML.")]
     public int Height => Bottom - Top;
 
     /// <summary>

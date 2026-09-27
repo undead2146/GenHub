@@ -231,6 +231,42 @@ public sealed class SageMappedImageParserTests
     }
 
     /// <summary>
+    /// Verifies that serialization rejects names that would inject extra INI lines.
+    /// </summary>
+    [Fact]
+    public void Serialize_NameWithLineBreak_ThrowsArgumentException()
+    {
+        var definition = new GenHub.Core.Models.Tools.TextureEditor.MappedImageDefinition(
+            "Evil\nEnd", "a.tga", 64, 64, 0, 0, 63, 63);
+
+        Assert.Throws<ArgumentException>(() => _parser.Serialize([definition]));
+    }
+
+    /// <summary>
+    /// Verifies that serialization rejects texture names that would be truncated as comments.
+    /// </summary>
+    [Fact]
+    public void Serialize_TextureWithSemicolon_ThrowsArgumentException()
+    {
+        var definition = new GenHub.Core.Models.Tools.TextureEditor.MappedImageDefinition(
+            "Solo", "a.tga;injected", 64, 64, 0, 0, 63, 63);
+
+        Assert.Throws<ArgumentException>(() => _parser.Serialize([definition]));
+    }
+
+    /// <summary>
+    /// Verifies that serialization rejects status values that would inject extra INI lines.
+    /// </summary>
+    [Fact]
+    public void Serialize_StatusWithLineBreak_ThrowsArgumentException()
+    {
+        var definition = new GenHub.Core.Models.Tools.TextureEditor.MappedImageDefinition(
+            "Solo", "a.tga", 64, 64, 0, 0, 63, 63, "NONE\r\nEnd");
+
+        Assert.Throws<ArgumentException>(() => _parser.Serialize([definition]));
+    }
+
+    /// <summary>
     /// Verifies that a Coords line without coordinate fields fails the block instead of zeroing coordinates.
     /// </summary>
     [Fact]

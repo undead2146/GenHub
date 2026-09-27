@@ -15,6 +15,10 @@ public sealed class AtlasPackingService(
     ISageMappedImageParser parser,
     ILogger<AtlasPackingService> logger) : IAtlasPackingService
 {
+    private sealed record BuildTargets(string TargetTextureFull, string TargetIniFull);
+
+    private sealed record SerializedBuildImages(List<MappedImageDefinition> Images, string IniContent);
+
     /// <inheritdoc />
     public OperationResult<AtlasPackResult> Pack(IReadOnlyList<AtlasSourceImage> sources, int padding = TextureEditorConstants.DefaultPadding, int maxDimension = TextureEditorConstants.MaxTextureDimension)
     {
@@ -52,10 +56,9 @@ public sealed class AtlasPackingService(
         }
 
         var ordered = sources.OrderByDescending(source => source.Texture.Height).ThenByDescending(source => source.Texture.Width).ToList();
-        int sheetWidth = Math.Min(NextPowerOfTwo(ordered.Max(source => source.Texture.Width + (padding * 2)), maxDimension), maxDimension);
+        int startWidth = Math.Min(NextPowerOfTwo(ordered.Max(source => source.Texture.Width + (padding * 2)), maxDimension), maxDimension);
 
-        var placements = new List<AtlasPlacement>(ordered.Count);
-        var (sheetHeight, unplaceable) = PackShelves(ordered, placements, sheetWidth, padding, maxDimension);
+        var (placements, sheetWidth, sheetHeight, unplaceable) = PackAtProgressiveWidths(ordered, startWidth, padding, maxDimension);
         if (unplaceable is not null)
         {
             return OperationResult<AtlasPackResult>.CreateFailure(
@@ -118,68 +121,31 @@ public sealed class AtlasPackingService(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(loader);
 
-        if (string.IsNullOrWhiteSpace(request.SourceDirectory) || !Directory.Exists(request.SourceDirectory))
+        var validated = ValidateBuildRequest(request, started);
+        if (validated.Failed || validated.Data is null)
         {
-            return OperationResult<TextureAtlasBuildResult>.CreateFailure($"Source directory not found: {request.SourceDirectory}", Stopwatch.GetElapsedTime(started));
+            return OperationResult<TextureAtlasBuildResult>.CreateFailure(validated, Stopwatch.GetElapsedTime(started));
         }
 
-        if (request.GenerateMipmaps)
-        {
-            return OperationResult<TextureAtlasBuildResult>.CreateFailure("Mipmap generation is not supported for SAGE 2D UI atlases; keep GenerateMipmaps disabled.", Stopwatch.GetElapsedTime(started));
-        }
-
-        if (string.IsNullOrWhiteSpace(request.TargetTexture))
-        {
-            return OperationResult<TextureAtlasBuildResult>.CreateFailure("Target texture path must not be empty.", Stopwatch.GetElapsedTime(started));
-        }
-
-        if (string.IsNullOrWhiteSpace(request.TargetIni))
-        {
-            return OperationResult<TextureAtlasBuildResult>.CreateFailure("Target INI path must not be empty.", Stopwatch.GetElapsedTime(started));
-        }
-
-        string targetTextureFull;
-        string targetIniFull;
-        try
-        {
-            targetTextureFull = Path.GetFullPath(request.TargetTexture);
-            targetIniFull = Path.GetFullPath(request.TargetIni);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
-        {
-            return OperationResult<TextureAtlasBuildResult>.CreateFailure($"Invalid atlas target path: {ex.Message}", Stopwatch.GetElapsedTime(started));
-        }
-
-        var files = Directory.GetFiles(request.SourceDirectory)
-            .Where(IsSupportedSource)
-            .Where(file => !IsPackOutput(file, targetTextureFull, targetIniFull))
-            .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var files = CollectSourceFiles(request.SourceDirectory, validated.Data.TargetTextureFull, validated.Data.TargetIniFull);
         if (files.Count == 0)
         {
             return OperationResult<TextureAtlasBuildResult>.CreateFailure($"No supported source images in: {request.SourceDirectory}", Stopwatch.GetElapsedTime(started));
         }
 
-        var sources = new List<AtlasSourceImage>(files.Count);
-        foreach (var file in files)
+        var loaded = await LoadSourcesAsync(files, loader, started, cancellationToken).ConfigureAwait(false);
+        if (loaded.Failed || loaded.Data is null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var loaded = await loader.LoadAsync(file, cancellationToken).ConfigureAwait(false);
-            if (loaded.Failed || loaded.Data is null)
-            {
-                return OperationResult<TextureAtlasBuildResult>.CreateFailure(loaded, Stopwatch.GetElapsedTime(started));
-            }
-
-            sources.Add(loaded.Data);
+            return OperationResult<TextureAtlasBuildResult>.CreateFailure(loaded, Stopwatch.GetElapsedTime(started));
         }
 
-        var packed = Pack(sources, request.Padding);
+        var packed = Pack(loaded.Data, request.Padding);
         if (packed.Failed || packed.Data is null)
         {
             return OperationResult<TextureAtlasBuildResult>.CreateFailure(packed, Stopwatch.GetElapsedTime(started));
         }
 
-        var composed = ComposeSheet(CollectOrderedSources(sources, packed.Data), packed.Data);
+        var composed = ComposeSheet(CollectOrderedSources(loaded.Data, packed.Data), packed.Data);
         if (composed.Failed || composed.Data is null)
         {
             return OperationResult<TextureAtlasBuildResult>.CreateFailure(composed, Stopwatch.GetElapsedTime(started));
@@ -191,23 +157,107 @@ public sealed class AtlasPackingService(
             return OperationResult<TextureAtlasBuildResult>.CreateFailure(encoded, Stopwatch.GetElapsedTime(started));
         }
 
+        var serialized = SerializeBuildImages(parser, packed.Data, request, started);
+        if (serialized.Failed || serialized.Data is null)
+        {
+            return OperationResult<TextureAtlasBuildResult>.CreateFailure(serialized, Stopwatch.GetElapsedTime(started));
+        }
+
         string textureFileName = Path.GetFileName(request.TargetTexture);
-        var images = packed.Data.Placements
+        var result = new TextureAtlasBuildResult(composed.Data, packed.Data.Placements, serialized.Data.Images, serialized.Data.IniContent, encoded.Data);
+        logger.LogInformation("Built texture atlas {Texture} ({Width}x{Height}) with {Count} sprites", textureFileName, packed.Data.SheetWidth, packed.Data.SheetHeight, serialized.Data.Images.Count);
+        return OperationResult<TextureAtlasBuildResult>.CreateSuccess(result, Stopwatch.GetElapsedTime(started));
+    }
+
+    private static OperationResult<BuildTargets> ValidateBuildRequest(TextureAtlasBuildRequest request, long started)
+    {
+        if (string.IsNullOrWhiteSpace(request.SourceDirectory) || !Directory.Exists(request.SourceDirectory))
+        {
+            return OperationResult<BuildTargets>.CreateFailure($"Source directory not found: {request.SourceDirectory}", Stopwatch.GetElapsedTime(started));
+        }
+
+        if (request.GenerateMipmaps)
+        {
+            return OperationResult<BuildTargets>.CreateFailure("Mipmap generation is not supported for SAGE 2D UI atlases; keep GenerateMipmaps disabled.", Stopwatch.GetElapsedTime(started));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TargetTexture))
+        {
+            return OperationResult<BuildTargets>.CreateFailure("Target texture path must not be empty.", Stopwatch.GetElapsedTime(started));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TargetIni))
+        {
+            return OperationResult<BuildTargets>.CreateFailure("Target INI path must not be empty.", Stopwatch.GetElapsedTime(started));
+        }
+
+        try
+        {
+            var targets = new BuildTargets(Path.GetFullPath(request.TargetTexture), Path.GetFullPath(request.TargetIni));
+            return OperationResult<BuildTargets>.CreateSuccess(targets, Stopwatch.GetElapsedTime(started));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            return OperationResult<BuildTargets>.CreateFailure($"Invalid atlas target path: {ex.Message}", Stopwatch.GetElapsedTime(started));
+        }
+    }
+
+    private static List<string> CollectSourceFiles(string sourceDirectory, string targetTextureFull, string targetIniFull) =>
+        Directory.GetFiles(sourceDirectory)
+            .Where(IsSupportedSource)
+            .Where(file => !IsPackOutput(file, targetTextureFull, targetIniFull))
+            .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private static async Task<OperationResult<List<AtlasSourceImage>>> LoadSourcesAsync(
+        IReadOnlyList<string> files,
+        ITextureImageLoader loader,
+        long started,
+        CancellationToken cancellationToken)
+    {
+        var sources = new List<AtlasSourceImage>(files.Count);
+        foreach (var file in files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var loaded = await loader.LoadAsync(file, cancellationToken).ConfigureAwait(false);
+            if (loaded.Failed || loaded.Data is null)
+            {
+                return OperationResult<List<AtlasSourceImage>>.CreateFailure(loaded, Stopwatch.GetElapsedTime(started));
+            }
+
+            sources.Add(loaded.Data);
+        }
+
+        return OperationResult<List<AtlasSourceImage>>.CreateSuccess(sources, Stopwatch.GetElapsedTime(started));
+    }
+
+    private static OperationResult<SerializedBuildImages> SerializeBuildImages(
+        ISageMappedImageParser parser,
+        AtlasPackResult pack,
+        TextureAtlasBuildRequest request,
+        long started)
+    {
+        string textureFileName = Path.GetFileName(request.TargetTexture);
+        var images = pack.Placements
             .Select(placement => new MappedImageDefinition(
                 placement.Name,
                 textureFileName,
-                packed.Data.SheetWidth,
-                packed.Data.SheetHeight,
+                pack.SheetWidth,
+                pack.SheetHeight,
                 placement.X,
                 placement.Y,
                 placement.Right,
                 placement.Bottom))
             .ToList();
-        string iniContent = parser.Serialize(images, $"Generated by GenHub {TextureEditorConstants.ToolName} from {request.SourceDirectory}");
-
-        var result = new TextureAtlasBuildResult(composed.Data, packed.Data.Placements, images, iniContent, encoded.Data);
-        logger.LogInformation("Built texture atlas {Texture} ({Width}x{Height}) with {Count} sprites", textureFileName, packed.Data.SheetWidth, packed.Data.SheetHeight, images.Count);
-        return OperationResult<TextureAtlasBuildResult>.CreateSuccess(result, Stopwatch.GetElapsedTime(started));
+        try
+        {
+            string iniContent = parser.Serialize(images, $"Generated by GenHub {TextureEditorConstants.ToolName} from {request.SourceDirectory}");
+            return OperationResult<SerializedBuildImages>.CreateSuccess(new SerializedBuildImages(images, iniContent), Stopwatch.GetElapsedTime(started));
+        }
+        catch (ArgumentException ex)
+        {
+            return OperationResult<SerializedBuildImages>.CreateFailure($"MappedImage INI serialization failed: {ex.Message}", Stopwatch.GetElapsedTime(started));
+        }
     }
 
     private static bool IsSupportedSource(string path)
@@ -231,6 +281,28 @@ public sealed class AtlasPackingService(
         }
 
         return (int)Math.Min(size, int.MaxValue);
+    }
+
+    private static (List<AtlasPlacement> Placements, int SheetWidth, int SheetHeight, AtlasSourceImage? Unplaceable) PackAtProgressiveWidths(
+        List<AtlasSourceImage> ordered,
+        int startWidth,
+        int padding,
+        int maxDimension)
+    {
+        // Keep the first width that fits so narrow sprite sets still produce
+        // narrow sheets, and widen toward maxDimension before failing on height.
+        int sheetWidth = startWidth;
+        while (true)
+        {
+            var placements = new List<AtlasPlacement>(ordered.Count);
+            var (sheetHeight, unplaceable) = PackShelves(ordered, placements, sheetWidth, padding, maxDimension);
+            if ((unplaceable is null && sheetHeight >= 0) || sheetWidth >= maxDimension)
+            {
+                return (placements, sheetWidth, sheetHeight, unplaceable);
+            }
+
+            sheetWidth = (int)Math.Min((long)sheetWidth * 2, maxDimension);
+        }
     }
 
     private static (int SheetHeight, AtlasSourceImage? Unplaceable) PackShelves(List<AtlasSourceImage> ordered, List<AtlasPlacement> placements, int sheetWidth, int padding, int maxDimension)

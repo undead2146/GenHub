@@ -1,3 +1,4 @@
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Tools.TextureEditor;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Tools.TextureEditor;
@@ -50,6 +51,26 @@ public sealed class AtlasPackingServiceTests
             Assert.True(placement.X + placement.Width + 1 <= result.Data.SheetWidth);
             Assert.True(placement.Y + placement.Height + 1 <= result.Data.SheetHeight);
         });
+    }
+
+    /// <summary>
+    /// Verifies that a cameo-sized sprite set widens the sheet instead of failing on height.
+    /// </summary>
+    [Fact]
+    public void Pack_ManySprites_WidensSheetBeforeFailingOnHeight()
+    {
+        var sources = Enumerable.Range(0, 60)
+            .Select(index => new AtlasSourceImage($"Icon{index}", new DecodedTexture(64, 64, new byte[4])))
+            .ToList();
+
+        var result = _service.Pack(sources, padding: 1);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(60, result.Data.Placements.Count);
+        Assert.True(result.Data.SheetWidth <= TextureEditorConstants.MaxTextureDimension);
+        Assert.True(result.Data.SheetHeight <= TextureEditorConstants.MaxTextureDimension);
+        AssertNoOverlap(result.Data);
     }
 
     /// <summary>
