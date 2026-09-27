@@ -7261,6 +7261,9 @@ GenHub передает официальный идентификатор AppID 
   <data name="Tools.WndEditor.Canvas.MapPreviewPlaceholder" xml:space="preserve">
     <value>Предпросмотр карты</value>
   </data>
+  <data name="Tools.WndEditor.Canvas.ShowHiddenTooltip" xml:space="preserve">
+    <value>Показать скрытые окна на холсте</value>
+  </data>
   <data name="Tools.WndEditor.Assets.Label" xml:space="preserve">
     <value>Игровые ресурсы</value>
   </data>
@@ -7464,6 +7467,21 @@ GenHub передает официальный идентификатор AppID 
   </data>
   <data name="Tools.WndEditor.Files.NoWndFilesMessage" xml:space="preserve">
     <value>В выбранной папке не найдены файлы определений окон (.wnd).</value>
+  </data>
+  <data name="Tools.WndEditor.Files.Browse" xml:space="preserve">
+    <value>Обзор...</value>
+  </data>
+  <data name="Tools.WndEditor.Files.OpenBadge" xml:space="preserve">
+    <value>Открыт</value>
+  </data>
+  <data name="Tools.WndEditor.Files.Refresh" xml:space="preserve">
+    <value>Обновить</value>
+  </data>
+  <data name="Tools.WndEditor.Hidden.HiddenTitle" xml:space="preserve">
+    <value>Окно скрыто</value>
+  </data>
+  <data name="Tools.WndEditor.Hidden.HiddenMessage" xml:space="preserve">
+    <value>Выберите его в дереве окон или включите показ скрытых, чтобы редактировать снова.</value>
   </data>
   <data name="Tools.WndEditor.General.Callbacks.Draw" xml:space="preserve">
     <value>Отрисовка</value>

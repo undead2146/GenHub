@@ -2700,7 +2700,7 @@ public partial class GameProfileLauncherViewModel(
                 {
                     [TelemetryConstants.Properties.ProfileId] = profile.ProfileId,
                     [TelemetryConstants.Properties.GameType] = profile.Profile.GameClient?.GameType.ToString(),
-                    [TelemetryConstants.Properties.ShortcutType] = "desktop",
+                    [TelemetryConstants.Properties.ShortcutType] = TelemetryConstants.ShortcutTypes.Desktop,
                 });
             }
             else

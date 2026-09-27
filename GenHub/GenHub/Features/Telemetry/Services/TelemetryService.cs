@@ -19,50 +19,33 @@ namespace GenHub.Features.Telemetry.Services;
 /// <summary>
 /// Core telemetry service that manages the bounded event queue, client-side scrubbing, breadcrumbs, and sink dispatching.
 /// </summary>
-public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDisposable
+public sealed class TelemetryService(
+    ILogger<TelemetryService> logger,
+    ITelemetrySanitizer sanitizer,
+    IUserSettingsService userSettingsService,
+    IEnumerable<ITelemetrySink> sinks) : ITelemetryService, IAsyncDisposable, IDisposable
 {
-    private readonly ILogger<TelemetryService> _logger;
-    private readonly ITelemetrySanitizer _sanitizer;
-    private readonly IUserSettingsService _userSettingsService;
-    private readonly IReadOnlyList<ITelemetrySink> _sinks;
+    private readonly ILogger<TelemetryService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly ITelemetrySanitizer _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
+    private readonly IUserSettingsService _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
+    private readonly IReadOnlyList<ITelemetrySink> _sinks = (sinks ?? []).ToList();
 
-    private readonly Channel<TelemetryEvent> _channel;
+    private readonly Channel<TelemetryEvent> _channel = Channel.CreateBounded<TelemetryEvent>(new BoundedChannelOptions(TelemetryConstants.MaxQueueCapacity)
+    {
+        FullMode = BoundedChannelFullMode.DropOldest,
+        SingleReader = true,
+        SingleWriter = false,
+    });
+
     private readonly ConcurrentQueue<Breadcrumb> _breadcrumbs = new();
     private readonly CancellationTokenSource _cts = new();
-    private readonly Task _processingTask;
     private readonly object _installationIdLock = new();
+    private readonly object _processingTaskLock = new();
+    private Task? _processingTask;
     private string? _cachedInstallationId;
     private int _inFlightCount;
     private Task? _installationIdSaveTask;
     private int _disposed;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TelemetryService"/> class.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="sanitizer">The telemetry data sanitizer.</param>
-    /// <param name="userSettingsService">The user settings service.</param>
-    /// <param name="sinks">The registered telemetry destination sinks.</param>
-    public TelemetryService(
-        ILogger<TelemetryService> logger,
-        ITelemetrySanitizer sanitizer,
-        IUserSettingsService userSettingsService,
-        IEnumerable<ITelemetrySink> sinks)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
-        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
-        _sinks = (sinks ?? []).ToList();
-
-        _channel = Channel.CreateBounded<TelemetryEvent>(new BoundedChannelOptions(TelemetryConstants.MaxQueueCapacity)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = false,
-        });
-
-        _processingTask = Task.Run(() => ProcessChannelAsync(_cts.Token), _cts.Token);
-    }
 
     /// <inheritdoc/>
     public TelemetryLevel CurrentLevel
@@ -106,6 +89,7 @@ public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDis
 
         try
         {
+            _ = EnsureProcessingTaskStarted();
             var installationId = GetOrCreateInstallationId();
             var sanitizedProperties = _sanitizer.SanitizeProperties(properties);
 
@@ -165,6 +149,7 @@ public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDis
 
         try
         {
+            _ = EnsureProcessingTaskStarted();
             var installationId = GetOrCreateInstallationId();
             var sanitizedMessage = _sanitizer.SanitizeString(exception.Message);
             var sanitizedStackTrace = _sanitizer.SanitizeStackTrace(exception.StackTrace);
@@ -262,6 +247,8 @@ public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDis
     {
         try
         {
+            _ = EnsureProcessingTaskStarted();
+
             // Allow queued channel items and in-flight sink tasks to drain before flushing sink buffers
             var spinCount = 0;
             while ((_channel.Reader.Count > 0 || Volatile.Read(ref _inFlightCount) > 0) && spinCount < 40 && !cancellationToken.IsCancellationRequested)
@@ -308,19 +295,15 @@ public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDis
             return;
         }
 
+        // Best-effort shutdown signal only: never block the disposing thread.
+        // DisposeAsync owns the graceful drain path. The lock keeps teardown
+        // mutually exclusive with lazy pump startup.
         _channel.Writer.TryComplete();
-        _cts.CancelAfter(TimeSpan.FromSeconds(2));
-
-        try
+        lock (_processingTaskLock)
         {
-            _processingTask.Wait(TimeSpan.FromSeconds(2), _cts.Token);
+            _cts.Cancel();
+            _cts.Dispose();
         }
-        catch
-        {
-            // Suppress background task cancellation exceptions on shutdown
-        }
-
-        _cts.Dispose();
     }
 
     /// <inheritdoc/>
@@ -335,9 +318,9 @@ public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDis
 
         try
         {
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            await _processingTask.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
-            await FlushAsync(timeoutCts.Token).ConfigureAwait(false);
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(TelemetryConstants.FlushTimeoutSeconds));
+            await EnsureProcessingTaskStarted().WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+            await FlushAsync(timeoutCts.Token).WaitAsync(timeoutCts.Token).ConfigureAwait(false);
         }
         catch
         {
@@ -345,7 +328,10 @@ public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDis
         }
 
         await _cts.CancelAsync().ConfigureAwait(false);
-        _cts.Dispose();
+        lock (_processingTaskLock)
+        {
+            _cts.Dispose();
+        }
     }
 
     private string GetOrCreateInstallationId()
@@ -381,6 +367,25 @@ public sealed class TelemetryService : ITelemetryService, IAsyncDisposable, IDis
             {
                 return Guid.Empty.ToString("N");
             }
+        }
+    }
+
+    private Task EnsureProcessingTaskStarted()
+    {
+        lock (_processingTaskLock)
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (_processingTask == null)
+            {
+                var token = _cts.Token;
+                _processingTask = Task.Run(() => ProcessChannelAsync(token), token);
+            }
+
+            return _processingTask;
         }
     }
 

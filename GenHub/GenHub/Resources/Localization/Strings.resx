@@ -7359,6 +7359,9 @@ GenHub supports four file linking strategies under **Settings -&gt; Game Configu
   <data name="Tools.WndEditor.Canvas.MapPreviewPlaceholder" xml:space="preserve">
     <value>Map Preview</value>
   </data>
+  <data name="Tools.WndEditor.Canvas.ShowHiddenTooltip" xml:space="preserve">
+    <value>Show hidden windows on the canvas</value>
+  </data>
   <data name="Tools.WndEditor.Assets.Label" xml:space="preserve">
     <value>Game assets</value>
   </data>
@@ -7562,6 +7565,21 @@ GenHub supports four file linking strategies under **Settings -&gt; Game Configu
   </data>
   <data name="Tools.WndEditor.Files.NoWndFilesMessage" xml:space="preserve">
     <value>No window definition (.wnd) files found in the selected folder.</value>
+  </data>
+  <data name="Tools.WndEditor.Files.Browse" xml:space="preserve">
+    <value>Browse...</value>
+  </data>
+  <data name="Tools.WndEditor.Files.OpenBadge" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Tools.WndEditor.Files.Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Tools.WndEditor.Hidden.HiddenTitle" xml:space="preserve">
+    <value>Window hidden</value>
+  </data>
+  <data name="Tools.WndEditor.Hidden.HiddenMessage" xml:space="preserve">
+    <value>Select it in the Windows tree or enable Show hidden to edit it again.</value>
   </data>
   <data name="Tools.WndEditor.General.Callbacks.Draw" xml:space="preserve">
     <value>Draw</value>

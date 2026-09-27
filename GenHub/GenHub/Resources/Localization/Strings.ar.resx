@@ -7261,6 +7261,9 @@ GenHub هو مشغل ومدير حديث لألعاب **Command &amp; Conquer: G
   <data name="Tools.WndEditor.Canvas.MapPreviewPlaceholder" xml:space="preserve">
     <value>معاينة الخريطة</value>
   </data>
+  <data name="Tools.WndEditor.Canvas.ShowHiddenTooltip" xml:space="preserve">
+    <value>إظهار النوافذ المخفية على اللوحة</value>
+  </data>
   <data name="Tools.WndEditor.Assets.Label" xml:space="preserve">
     <value>أصول اللعبة</value>
   </data>
@@ -7464,6 +7467,21 @@ GenHub هو مشغل ومدير حديث لألعاب **Command &amp; Conquer: G
   </data>
   <data name="Tools.WndEditor.Files.NoWndFilesMessage" xml:space="preserve">
     <value>لم يتم العثور على ملفات تعريف النوافذ (.wnd) في المجلد المحدد.</value>
+  </data>
+  <data name="Tools.WndEditor.Files.Browse" xml:space="preserve">
+    <value>تصفح...</value>
+  </data>
+  <data name="Tools.WndEditor.Files.OpenBadge" xml:space="preserve">
+    <value>مفتوح</value>
+  </data>
+  <data name="Tools.WndEditor.Files.Refresh" xml:space="preserve">
+    <value>تحديث</value>
+  </data>
+  <data name="Tools.WndEditor.Hidden.HiddenTitle" xml:space="preserve">
+    <value>تم إخفاء النافذة</value>
+  </data>
+  <data name="Tools.WndEditor.Hidden.HiddenMessage" xml:space="preserve">
+    <value>حددها في شجرة النوافذ أو فعّل إظهار المخفي لتحريرها مجددا.</value>
   </data>
   <data name="Tools.WndEditor.General.Callbacks.Draw" xml:space="preserve">
     <value>الرسم</value>

@@ -197,7 +197,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     }
 
     private string TelemetryChannel =>
-        _subscribedPrNumber.HasValue ? $"{TelemetryConstants.PullRequestChannelPrefix}{_subscribedPrNumber}" : _subscribedBranch ?? "Release";
+        _subscribedPrNumber.HasValue ? $"{TelemetryConstants.PullRequestChannelPrefix}{_subscribedPrNumber}" : _subscribedBranch ?? TelemetryConstants.ReleaseChannel;
 
     /// <inheritdoc/>
     public async Task<UpdateInfo?> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
@@ -364,7 +364,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     }
 
     /// <inheritdoc/>
-    public void ApplyUpdatesAndRestart(UpdateInfo updateInfo)
+    public async Task ApplyUpdatesAndRestartAsync(UpdateInfo updateInfo, CancellationToken cancellationToken = default)
     {
         if (_updateManager == null)
         {
@@ -380,15 +380,27 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             _logger.LogInformation("Update package: {Package}", updateInfo.TargetFullRelease.FileName);
             _logger.LogInformation("Current app will exit and restart with new version");
 
-            TrackUpdateAppliedAndFlush(updateInfo.TargetFullRelease.Version.ToString());
+            await TrackUpdateAppliedAndFlushAsync(updateInfo.TargetFullRelease.Version.ToString(), null, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
 
             _updateManager.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);
 
             // If we reach here, restart might have failed
             _logger.LogWarning("ApplyUpdatesAndRestart returned without exiting - this is unexpected");
 
-            // Wait a bit for exit to happen (sync context: blocking sleep avoids thread-pool sync-over-async)
-            Thread.Sleep(AppUpdateConstants.PostUpdateExitDelay);
+            // Wait a bit for exit to happen without blocking the calling thread
+            await Task.Delay(AppUpdateConstants.PostUpdateExitDelay, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (ObjectDisposedException)
+        {
+            // The caller's token source was disposed (for example the update window
+            // closed mid-apply). Fail without the exit fallback: re-applying a package
+            // the restart path already applied would be spurious.
+            throw;
         }
         catch (Exception ex)
         {
@@ -409,7 +421,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     }
 
     /// <inheritdoc/>
-    public void ApplyUpdatesAndExit(UpdateInfo updateInfo)
+    public async Task ApplyUpdatesAndExitAsync(UpdateInfo updateInfo, CancellationToken cancellationToken = default)
     {
         if (_updateManager == null)
         {
@@ -422,17 +434,22 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         {
             CleanStrayAppDirectoryArtifacts();
             _logger.LogInformation("Applying update {Version} and exiting...", updateInfo.TargetFullRelease.Version);
-            TrackUpdateAppliedAndFlush(updateInfo.TargetFullRelease.Version.ToString());
+            await TrackUpdateAppliedAndFlushAsync(updateInfo.TargetFullRelease.Version.ToString(), null, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             _updateManager.ApplyUpdatesAndExit(updateInfo.TargetFullRelease);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to apply updates and restart");
+            _logger.LogError(ex, "Failed to apply updates and exit");
             throw;
         }
     }
 
-    private void TrackUpdateAppliedAndFlush(string targetVersion, string? channel = null)
+    private async Task TrackUpdateAppliedAndFlushAsync(string targetVersion, string? channel = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -446,11 +463,17 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 [TelemetryConstants.Properties.Platform] = RuntimeInformation.OSDescription,
             });
 
-            using var flushCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             if (_telemetryService != null)
             {
-                Task.Run(async () => await _telemetryService.FlushAsync(flushCts.Token).ConfigureAwait(false)).GetAwaiter().GetResult();
+                using var flushCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                flushCts.CancelAfter(TimeSpan.FromSeconds(TelemetryConstants.FlushTimeoutSeconds));
+                await _telemetryService.FlushAsync(flushCts.Token).WaitAsync(flushCts.Token).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -968,12 +991,13 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 CleanStrayAppDirectoryArtifacts();
                 _logger.LogInformation("Applying {Label} update and restarting", label);
 
-                TrackUpdateAppliedAndFlush(fileVersion, artifactChannel);
+                await TrackUpdateAppliedAndFlushAsync(fileVersion, artifactChannel, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
 
                 localUpdateManager.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);
 
                 _logger.LogWarning("ApplyUpdatesAndRestart returned without exiting - waiting for exit...");
-                await Task.Delay(AppUpdateConstants.PostUpdateExitDelay, cancellationToken);
+                await Task.Delay(AppUpdateConstants.PostUpdateExitDelay, cancellationToken).ConfigureAwait(false);
 
                 _logger.LogError("Application did not exit after ApplyUpdatesAndRestart. Update may have failed.");
                 throw new InvalidOperationException("Application did not exit after applying update");
