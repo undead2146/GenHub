@@ -14444,4 +14444,298 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="GameProfiles.Settings.LocalContent.ImportError" xml:space="preserve">
     <value>Ошибка при импорте перетащенных файлов</value>
   </data>
+  <data name="Tools.Plugin.genhub.tools.inieditor.Name" xml:space="preserve">
+    <value>Редактор INI</value>
+  </data>
+  <data name="Tools.Plugin.genhub.tools.inieditor.Description" xml:space="preserve">
+    <value>Визуальный редактор INI-файлов данных Generals и Zero Hour. Просмотр объектов, редактирование улучшений, урона, брони и наборов команд с подсказками схемы.</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.New" xml:space="preserve">
+    <value>Создать</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Open" xml:space="preserve">
+    <value>Открыть</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.OpenFolder" xml:space="preserve">
+    <value>Открыть папку</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.OpenFile" xml:space="preserve">
+    <value>Открыть файл</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Save" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.SaveAs" xml:space="preserve">
+    <value>Сохранить как</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Undo" xml:space="preserve">
+    <value>Отменить</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Redo" xml:space="preserve">
+    <value>Повторить</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Validate" xml:space="preserve">
+    <value>Проверить</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Format" xml:space="preserve">
+    <value>Форматировать</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.MenuTooltip" xml:space="preserve">
+    <value>Действия с файлом и правкой</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddUpgrade" xml:space="preserve">
+    <value>Добавить улучшение</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddUpgradeTooltip" xml:space="preserve">
+    <value>Добавить связь улучшения к выбранному блоку Object</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddDamage" xml:space="preserve">
+    <value>Добавить урон</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddDamageTooltip" xml:space="preserve">
+    <value>Добавить профиль урона к выбранному блоку Weapon</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Blocks" xml:space="preserve">
+    <value>Блоки</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Files" xml:space="preserve">
+    <value>Файлы</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.FilterWatermark" xml:space="preserve">
+    <value>Фильтр блоков...</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.Hint" xml:space="preserve">
+    <value>Блоки сгруппированы по типу. Выберите блок для редактирования полей.</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.NewBlockWatermark" xml:space="preserve">
+    <value>Имя нового блока...</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.AddBlock" xml:space="preserve">
+    <value>Добавить блок</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.Delete" xml:space="preserve">
+    <value>Удалить</value>
+  </data>
+  <data name="Tools.IniEditor.Files.Browse" xml:space="preserve">
+    <value>Обзор...</value>
+  </data>
+  <data name="Tools.IniEditor.Files.Refresh" xml:space="preserve">
+    <value>Обновить</value>
+  </data>
+  <data name="Tools.IniEditor.Files.NoIniFilesTitle" xml:space="preserve">
+    <value>Нет INI-файлов</value>
+  </data>
+  <data name="Tools.IniEditor.Files.NoIniFilesMessage" xml:space="preserve">
+    <value>В выбранной папке не найдены INI-файлы (.ini).</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Title" xml:space="preserve">
+    <value>Холст объекта</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Subtitle" xml:space="preserve">
+    <value>Ключевые характеристики, улучшения, урон и связанные наборы выбранного блока.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.BlockType" xml:space="preserve">
+    <value>Тип блока</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.BlockName" xml:space="preserve">
+    <value>Имя</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Schema" xml:space="preserve">
+    <value>Схема</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.LinkedWeapon" xml:space="preserve">
+    <value>Связанный набор оружия</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.LinkedCommandSet" xml:space="preserve">
+    <value>Набор команд</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Upgrades" xml:space="preserve">
+    <value>Улучшения</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Damage" xml:space="preserve">
+    <value>Урон</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.EmptySelection" xml:space="preserve">
+    <value>Выберите блок слева, чтобы просмотреть характеристики, улучшения и урон.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.RawPreview" xml:space="preserve">
+    <value>Исходный текст</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.Title" xml:space="preserve">
+    <value>Поля</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.NewKeyWatermark" xml:space="preserve">
+    <value>Новый ключ поля...</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.NewValueWatermark" xml:space="preserve">
+    <value>Новое значение поля...</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.AddField" xml:space="preserve">
+    <value>Добавить поле</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.Title" xml:space="preserve">
+    <value>Документ не открыт</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.Message" xml:space="preserve">
+    <value>Откройте .ini-файл или создайте документ для начала редактирования.</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.OpenFile" xml:space="preserve">
+    <value>Открыть файл</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.OpenFolder" xml:space="preserve">
+    <value>Открыть папку</value>
+  </data>
+  <data name="Tools.IniEditor.Open.FailureTitle" xml:space="preserve">
+    <value>Не удалось открыть INI-файл</value>
+  </data>
+  <data name="Tools.IniEditor.Open.FailureMessage" xml:space="preserve">
+    <value>Не удалось открыть INI-файл: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.OpenTitle" xml:space="preserve">
+    <value>Открыть INI-файл данных</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.FilterName" xml:space="preserve">
+    <value>INI-файлы данных</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.FolderTitle" xml:space="preserve">
+    <value>Выберите папку INI-данных</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.SaveTitle" xml:space="preserve">
+    <value>Сохранить INI-файл данных</value>
+  </data>
+  <data name="Tools.IniEditor.Save.SuccessTitle" xml:space="preserve">
+    <value>INI-файл сохранён</value>
+  </data>
+  <data name="Tools.IniEditor.Save.SuccessMessage" xml:space="preserve">
+    <value>Сохранено: {0}.</value>
+  </data>
+  <data name="Tools.IniEditor.Save.FailureTitle" xml:space="preserve">
+    <value>Не удалось сохранить INI-файл</value>
+  </data>
+  <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
+    <value>Не удалось сохранить INI-файл: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.NoDocumentTitle" xml:space="preserve">
+    <value>Документ не открыт</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.NoDocumentMessage" xml:space="preserve">
+    <value>Откройте INI-файл перед проверкой.</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.SuccessTitle" xml:space="preserve">
+    <value>Проверка INI пройдена</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.SuccessMessage" xml:space="preserve">
+    <value>Блоков без ошибок: {0}.</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.IssuesTitle" xml:space="preserve">
+    <value>В INI найдены проблемы</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.IssuesMessage" xml:space="preserve">
+    <value>Найдено проблем: {0}. Первая: {1}</value>
+  </data>
+  <data name="Tools.IniEditor.Format.NoFileTitle" xml:space="preserve">
+    <value>Нет файла для форматирования</value>
+  </data>
+  <data name="Tools.IniEditor.Format.NoFileMessage" xml:space="preserve">
+    <value>Сохраните документ в файл перед форматированием.</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddBlock" xml:space="preserve">
+    <value>Добавление блока</value>
+  </data>
+  <data name="Tools.IniEditor.History.DeleteBlock" xml:space="preserve">
+    <value>Удаление блока</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddField" xml:space="preserve">
+    <value>Добавление поля</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddUpgrade" xml:space="preserve">
+    <value>Добавление связи улучшения</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddDamage" xml:space="preserve">
+    <value>Добавление профиля урона</value>
+  </data>
+  <data name="Tools.IniEditor.Upgrade.ObjectOnlyTitle" xml:space="preserve">
+    <value>Только блоки Object</value>
+  </data>
+  <data name="Tools.IniEditor.Upgrade.ObjectOnlyMessage" xml:space="preserve">
+    <value>Связи улучшений можно добавлять только в блоки Object.</value>
+  </data>
+  <data name="Tools.IniEditor.Damage.WeaponOnlyTitle" xml:space="preserve">
+    <value>Только блоки Weapon</value>
+  </data>
+  <data name="Tools.IniEditor.Damage.WeaponOnlyMessage" xml:space="preserve">
+    <value>Профили урона можно добавлять только в блоки Weapon.</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Title" xml:space="preserve">
+    <value>Несохранённые изменения</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Message" xml:space="preserve">
+    <value>Текущий документ содержит несохранённые изменения. Отменить их?</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Discard" xml:space="preserve">
+    <value>Отменить</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="Tools.IniEditor.Document.Untitled" xml:space="preserve">
+    <value>Без названия</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.NoSelectionTitle" xml:space="preserve">
+    <value>INI-файлы не выбраны</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.NoSelectionMessage" xml:space="preserve">
+    <value>Выберите один или несколько .ini-файлов в дереве проекта.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateSuccessTitle" xml:space="preserve">
+    <value>Проверка INI пройдена</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateSuccessMessage" xml:space="preserve">
+    <value>Допустимых файлов: {0} из {1}.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateIssuesTitle" xml:space="preserve">
+    <value>В INI найдены проблемы</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateIssuesMessage" xml:space="preserve">
+    <value>Допустимых файлов: {0} из {1}. Первая проблема: {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatSuccessTitle" xml:space="preserve">
+    <value>INI-файлы отформатированы</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatSuccessMessage" xml:space="preserve">
+    <value>Отформатировано файлов: {0} из {1}.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatIssuesTitle" xml:space="preserve">
+    <value>Форматирование INI не завершено</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatIssuesMessage" xml:space="preserve">
+    <value>Отформатировано файлов: {0} из {1}. Первая ошибка: {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.OperationCancelled" xml:space="preserve">
+    <value>Операция отменена.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ProgressValidating" xml:space="preserve">
+    <value>Проверка ({0}/{1}): {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ProgressFormatting" xml:space="preserve">
+    <value>Форматирование ({0}/{1}): {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonValidateIni" xml:space="preserve">
+    <value>Проверить INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipValidateIni" xml:space="preserve">
+    <value>Проверить выбранные .ini-файлы</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonFormatIni" xml:space="preserve">
+    <value>Форматировать INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipFormatIni" xml:space="preserve">
+    <value>Форматировать выбранные .ini-файлы в каноническом виде</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonEditIni" xml:space="preserve">
+    <value>Открыть в редакторе INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipEditIni" xml:space="preserve">
+    <value>Открыть выбранный .ini-файл в редакторе INI</value>
+  </data>
 </root>

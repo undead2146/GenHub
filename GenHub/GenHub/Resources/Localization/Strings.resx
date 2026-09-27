@@ -14542,4 +14542,298 @@ How do you want to apply this update?</value>
   <data name="GameProfiles.Settings.LocalContent.ImportError" xml:space="preserve">
     <value>Error importing dropped files</value>
   </data>
+  <data name="Tools.Plugin.genhub.tools.inieditor.Name" xml:space="preserve">
+    <value>INI Editor</value>
+  </data>
+  <data name="Tools.Plugin.genhub.tools.inieditor.Description" xml:space="preserve">
+    <value>Visual editor for Generals and Zero Hour INI data files. Browse objects, edit upgrades, damage, armor, and command sets with schema assistance.</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.New" xml:space="preserve">
+    <value>New</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.OpenFolder" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.OpenFile" xml:space="preserve">
+    <value>Open File</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.SaveAs" xml:space="preserve">
+    <value>Save As</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Undo" xml:space="preserve">
+    <value>Undo</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Redo" xml:space="preserve">
+    <value>Redo</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Validate" xml:space="preserve">
+    <value>Validate</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Format" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.MenuTooltip" xml:space="preserve">
+    <value>File and edit actions</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddUpgrade" xml:space="preserve">
+    <value>Add Upgrade</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddUpgradeTooltip" xml:space="preserve">
+    <value>Add an upgrade hookup to the selected Object block</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddDamage" xml:space="preserve">
+    <value>Add Damage</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddDamageTooltip" xml:space="preserve">
+    <value>Add a damage profile to the selected Weapon block</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Blocks" xml:space="preserve">
+    <value>Blocks</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Files" xml:space="preserve">
+    <value>Files</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.FilterWatermark" xml:space="preserve">
+    <value>Filter blocks...</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.Hint" xml:space="preserve">
+    <value>Blocks are grouped by type. Select a block to edit its fields.</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.NewBlockWatermark" xml:space="preserve">
+    <value>New block name...</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.AddBlock" xml:space="preserve">
+    <value>Add Block</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Tools.IniEditor.Files.Browse" xml:space="preserve">
+    <value>Browse...</value>
+  </data>
+  <data name="Tools.IniEditor.Files.Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Tools.IniEditor.Files.NoIniFilesTitle" xml:space="preserve">
+    <value>No INI Files</value>
+  </data>
+  <data name="Tools.IniEditor.Files.NoIniFilesMessage" xml:space="preserve">
+    <value>No INI (.ini) files found in the selected folder.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Title" xml:space="preserve">
+    <value>Object Canvas</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Subtitle" xml:space="preserve">
+    <value>Key stats, upgrades, damage, and linked sets for the selected block.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.BlockType" xml:space="preserve">
+    <value>Block type</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.BlockName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Schema" xml:space="preserve">
+    <value>Schema</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.LinkedWeapon" xml:space="preserve">
+    <value>Linked weapon set</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.LinkedCommandSet" xml:space="preserve">
+    <value>Command set</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Upgrades" xml:space="preserve">
+    <value>Upgrades</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Damage" xml:space="preserve">
+    <value>Damage</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.EmptySelection" xml:space="preserve">
+    <value>Select a block on the left to preview its stats, upgrades, and damage here.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.RawPreview" xml:space="preserve">
+    <value>Raw preview</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.Title" xml:space="preserve">
+    <value>Fields</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.NewKeyWatermark" xml:space="preserve">
+    <value>New field key...</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.NewValueWatermark" xml:space="preserve">
+    <value>New field value...</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.AddField" xml:space="preserve">
+    <value>Add Field</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.Title" xml:space="preserve">
+    <value>No document open</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.Message" xml:space="preserve">
+    <value>Open an .ini file or create a new document to begin editing.</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.OpenFile" xml:space="preserve">
+    <value>Open File</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.OpenFolder" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="Tools.IniEditor.Open.FailureTitle" xml:space="preserve">
+    <value>Failed to open INI file</value>
+  </data>
+  <data name="Tools.IniEditor.Open.FailureMessage" xml:space="preserve">
+    <value>Could not open the INI file: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.OpenTitle" xml:space="preserve">
+    <value>Open INI data file</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.FilterName" xml:space="preserve">
+    <value>INI data files</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.FolderTitle" xml:space="preserve">
+    <value>Choose an INI data folder</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.SaveTitle" xml:space="preserve">
+    <value>Save INI data file</value>
+  </data>
+  <data name="Tools.IniEditor.Save.SuccessTitle" xml:space="preserve">
+    <value>INI file saved</value>
+  </data>
+  <data name="Tools.IniEditor.Save.SuccessMessage" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="Tools.IniEditor.Save.FailureTitle" xml:space="preserve">
+    <value>Failed to save INI file</value>
+  </data>
+  <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
+    <value>Could not save the INI file: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.NoDocumentTitle" xml:space="preserve">
+    <value>No document open</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.NoDocumentMessage" xml:space="preserve">
+    <value>Open an INI file before validating.</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.SuccessTitle" xml:space="preserve">
+    <value>INI validation passed</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.SuccessMessage" xml:space="preserve">
+    <value>{0} block(s) are valid.</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.IssuesTitle" xml:space="preserve">
+    <value>INI validation found issues</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.IssuesMessage" xml:space="preserve">
+    <value>{0} issue(s) found. First issue: {1}</value>
+  </data>
+  <data name="Tools.IniEditor.Format.NoFileTitle" xml:space="preserve">
+    <value>No file to format</value>
+  </data>
+  <data name="Tools.IniEditor.Format.NoFileMessage" xml:space="preserve">
+    <value>Save the document to a file before formatting.</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddBlock" xml:space="preserve">
+    <value>Add block</value>
+  </data>
+  <data name="Tools.IniEditor.History.DeleteBlock" xml:space="preserve">
+    <value>Delete block</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddField" xml:space="preserve">
+    <value>Add field</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddUpgrade" xml:space="preserve">
+    <value>Add upgrade hookup</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddDamage" xml:space="preserve">
+    <value>Add damage profile</value>
+  </data>
+  <data name="Tools.IniEditor.Upgrade.ObjectOnlyTitle" xml:space="preserve">
+    <value>Object blocks only</value>
+  </data>
+  <data name="Tools.IniEditor.Upgrade.ObjectOnlyMessage" xml:space="preserve">
+    <value>Upgrade hookups can only be added to Object blocks.</value>
+  </data>
+  <data name="Tools.IniEditor.Damage.WeaponOnlyTitle" xml:space="preserve">
+    <value>Weapon blocks only</value>
+  </data>
+  <data name="Tools.IniEditor.Damage.WeaponOnlyMessage" xml:space="preserve">
+    <value>Damage profiles can only be added to Weapon blocks.</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Title" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Message" xml:space="preserve">
+    <value>The current document has unsaved changes. Discard them?</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Discard" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Tools.IniEditor.Document.Untitled" xml:space="preserve">
+    <value>Untitled</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.NoSelectionTitle" xml:space="preserve">
+    <value>No INI files selected</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.NoSelectionMessage" xml:space="preserve">
+    <value>Select one or more .ini files in the project tree.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateSuccessTitle" xml:space="preserve">
+    <value>INI validation passed</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateSuccessMessage" xml:space="preserve">
+    <value>{0} of {1} file(s) are valid.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateIssuesTitle" xml:space="preserve">
+    <value>INI validation found issues</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateIssuesMessage" xml:space="preserve">
+    <value>{0} of {1} file(s) valid. First issue: {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatSuccessTitle" xml:space="preserve">
+    <value>INI files formatted</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatSuccessMessage" xml:space="preserve">
+    <value>Formatted {0} of {1} file(s).</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatIssuesTitle" xml:space="preserve">
+    <value>INI formatting incomplete</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatIssuesMessage" xml:space="preserve">
+    <value>Formatted {0} of {1} file(s). First error: {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.OperationCancelled" xml:space="preserve">
+    <value>Operation cancelled.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ProgressValidating" xml:space="preserve">
+    <value>Validating ({0}/{1}): {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ProgressFormatting" xml:space="preserve">
+    <value>Formatting ({0}/{1}): {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonValidateIni" xml:space="preserve">
+    <value>Validate INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipValidateIni" xml:space="preserve">
+    <value>Validate selected .ini files</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonFormatIni" xml:space="preserve">
+    <value>Format INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipFormatIni" xml:space="preserve">
+    <value>Format selected .ini files in canonical form</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonEditIni" xml:space="preserve">
+    <value>Edit in INI Editor</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipEditIni" xml:space="preserve">
+    <value>Open the selected .ini file in the INI editor</value>
+  </data>
 </root>

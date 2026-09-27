@@ -78,6 +78,11 @@ public static class UriConstants
     /// </summary>
     public const string WndEditorIconUri = "avares://GenHub/Assets/Icons/wndeditor-icon.png";
 
+    /// <summary>
+    /// Icon URI for INI Editor tool. Reuses the bundled ModBuilder icon asset.
+    /// </summary>
+    public const string IniEditorIconUri = "avares://GenHub/Assets/Icons/modbuilder-icon.png";
+
     // Icon Path Constants
 
     /// <summary>

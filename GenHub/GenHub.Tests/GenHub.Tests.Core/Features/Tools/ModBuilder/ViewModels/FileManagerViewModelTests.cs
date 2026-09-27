@@ -14,6 +14,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Tools.IniEditor;
 using GenHub.Core.Interfaces.Tools.WndEditor;
 using GenHub.Core.Messages;
 using GenHub.Core.Models.Enums;
@@ -34,6 +35,7 @@ public class FileManagerViewModelTests : IDisposable
     private readonly Mock<IGameInstallationService> _mockGameInstallService;
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IWndDocumentService> _mockWndDocumentService;
+    private readonly Mock<IIniDocumentService> _mockIniDocumentService;
     private readonly Mock<ILocalizationService> _mockLocalizationService;
     private readonly Mock<ILogger<FileManagerViewModel>> _mockLogger;
     private readonly string _tempDir;
@@ -45,6 +47,7 @@ public class FileManagerViewModelTests : IDisposable
         _mockGameInstallService = new Mock<IGameInstallationService>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockWndDocumentService = new Mock<IWndDocumentService>();
+        _mockIniDocumentService = new Mock<IIniDocumentService>();
         _mockLocalizationService = new Mock<ILocalizationService>();
         _mockLogger = new Mock<ILogger<FileManagerViewModel>>();
 
@@ -102,6 +105,7 @@ public class FileManagerViewModelTests : IDisposable
             _mockGameInstallService.Object,
             _mockNotificationService.Object,
             _mockWndDocumentService.Object,
+            _mockIniDocumentService.Object,
             _mockLocalizationService.Object,
             _mockLogger.Object);
 
@@ -122,6 +126,7 @@ public class FileManagerViewModelTests : IDisposable
             _mockGameInstallService.Object,
             _mockNotificationService.Object,
             _mockWndDocumentService.Object,
+            _mockIniDocumentService.Object,
             _mockLocalizationService.Object,
             _mockLogger.Object);
 
@@ -201,6 +206,7 @@ public class FileManagerViewModelTests : IDisposable
             _mockGameInstallService.Object,
             _mockNotificationService.Object,
             wndService,
+            _mockIniDocumentService.Object,
             _mockLocalizationService.Object,
             _mockLogger.Object);
     }
