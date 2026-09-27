@@ -1400,6 +1400,9 @@
   <data name="Maps.Column.Size" xml:space="preserve">
     <value>الحجم</value>
   </data>
+  <data name="Maps.Column.Players" xml:space="preserve">
+    <value>عدد اللاعبين</value>
+  </data>
   <data name="Maps.Column.Type" xml:space="preserve">
     <value>النوع</value>
   </data>
@@ -5013,6 +5016,9 @@
   </data>
   <data name="Tools.ReplayManager.Column.Map" xml:space="preserve">
     <value>الخريطة</value>
+  </data>
+  <data name="Tools.ReplayManager.Column.Players" xml:space="preserve">
+    <value>عدد اللاعبين</value>
   </data>
   <data name="Tools.ReplayManager.Column.ClientBuild" xml:space="preserve">
     <value>العميل / الإصدار</value>
@@ -9742,6 +9748,21 @@ GenHub هو مشغل ومدير حديث لألعاب **Command &amp; Conquer: G
   <data name="GameProfiles.Launcher.Notify.ImportErrorFormat" xml:space="preserve">
     <value>حدث خطأ أثناء استيراد ملف التعريف: {0}</value>
   </data>
+  <data name="GameProfiles.Resources.IconFormat" xml:space="preserve">
+    <value>أيقونة {0}</value>
+  </data>
+  <data name="GameProfiles.Resources.LogoFormat" xml:space="preserve">
+    <value>شعار {0}</value>
+  </data>
+  <data name="GameProfiles.Resources.CoverFormat" xml:space="preserve">
+    <value>غلاف {0}</value>
+  </data>
+  <data name="GameProfiles.Resources.CoverAltFormat" xml:space="preserve">
+    <value>غلاف {0} (بديل)</value>
+  </data>
+  <data name="GameProfiles.Resources.DefaultBackground" xml:space="preserve">
+    <value>الخلفية الافتراضية</value>
+  </data>
   <data name="GameProfiles.Launcher.Notify.SelectProfileFileFailedFormat" xml:space="preserve">
     <value>فشل تحديد ملف التعريف: {0}</value>
   </data>
@@ -14356,5 +14377,62 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Settings.Profiles.DeletedMessage" xml:space="preserve">
     <value>عدد ملفات التعريف المحذوفة بنجاح: {0}.</value>
+  </data>
+  <data name="GameProfiles.Card.Tooltip.MoveLeft" xml:space="preserve">
+    <value>تحريك لليسار</value>
+  </data>
+  <data name="GameProfiles.Card.Tooltip.MoveRight" xml:space="preserve">
+    <value>تحريك لليمين</value>
+  </data>
+  <data name="GameProfiles.Launcher.Tooltip.Sort" xml:space="preserve">
+    <value>فرز ملفات التعريف</value>
+  </data>
+  <data name="GameProfiles.Sort.LastPlayed" xml:space="preserve">
+    <value>تم تشغيلها مؤخراً</value>
+  </data>
+  <data name="GameProfiles.Sort.DateCreated" xml:space="preserve">
+    <value>تاريخ الإنشاء</value>
+  </data>
+  <data name="GameProfiles.Sort.Alphabetical" xml:space="preserve">
+    <value>الاسم (أ إلى ي)</value>
+  </data>
+  <data name="GameProfiles.Sort.AlphabeticalDesc" xml:space="preserve">
+    <value>الاسم (ي إلى أ)</value>
+  </data>
+  <data name="GameProfiles.Sort.Free" xml:space="preserve">
+    <value>ترتيب مخصص</value>
+  </data>
+  <data name="GameProfiles.Settings.CustomImage.InvalidFile.Title" xml:space="preserve">
+    <value>ملف صورة غير صالح</value>
+  </data>
+  <data name="GameProfiles.Settings.CustomImage.InvalidFile.Message" xml:space="preserve">
+    <value>يرجى تحديد ملف صورة صالح (PNG، JPG، JPEG، WEBP، BMP، GIF، ICO).</value>
+  </data>
+  <data name="GameProfiles.Notification.ReorderFailed.Title" xml:space="preserve">
+    <value>فشل حفظ ترتيب ملفات التعريف</value>
+  </data>
+  <data name="GameProfiles.Notification.ReorderFailed.Message" xml:space="preserve">
+    <value>تعذّر حفظ الترتيب الجديد لملفات التعريف وتمت استعادة الترتيب السابق.</value>
+  </data>
+  <data name="GameProfiles.Status.ContentServicesUnavailable" xml:space="preserve">
+    <value>خدمات المحتوى غير متوفرة</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedStatus" xml:space="preserve">
+    <value>تمت إضافة {0}</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedTitle" xml:space="preserve">
+    <value>تمت إضافة المحتوى</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.AddedMessage" xml:space="preserve">
+    <value>تمت إضافة "{0}" بنجاح.</value>
+  </data>
+  <data name="GameProfiles.Settings.Save.DropImportInProgress.Title" xml:space="preserve">
+    <value>الاستيراد قيد التنفيذ</value>
+  </data>
+  <data name="GameProfiles.Settings.Save.DropImportInProgress.Message" xml:space="preserve">
+    <value>يرجى انتظار انتهاء استيراد المحتوى المسقط قبل الحفظ.</value>
+  </data>
+  <data name="GameProfiles.Settings.LocalContent.ImportError" xml:space="preserve">
+    <value>حدث خطأ أثناء استيراد الملفات المسحوبة</value>
   </data>
 </root>

@@ -130,12 +130,43 @@ public class ProfileLauncherFacade(
                 }
             }
 
+            ProfileOperationResult<GameLaunchInfo> launchResult;
             if (profile.IsToolProfile)
             {
-                return await LaunchToolProfileAsync(profile, profileId, cancellationToken);
+                launchResult = await LaunchToolProfileAsync(profile, profileId, cancellationToken);
+            }
+            else
+            {
+                launchResult = await LaunchGameProfileAsync(profile, profileId, skipUserDataCleanup, additionalArguments, cancellationToken);
             }
 
-            return await LaunchGameProfileAsync(profile, profileId, skipUserDataCleanup, additionalArguments, cancellationToken);
+            if (launchResult.Success)
+            {
+                // Reconciliation may have cloned the profile, so stamp the profile that actually launched.
+                var playedProfileId = launchResult.Data?.ProfileId;
+                if (string.IsNullOrWhiteSpace(playedProfileId))
+                {
+                    playedProfileId = profileId;
+                }
+
+                try
+                {
+                    var updateResult = await profileManager.UpdateProfileAsync(
+                        playedProfileId,
+                        new UpdateProfileRequest { LastPlayedAt = DateTime.UtcNow },
+                        cancellationToken);
+                    if (!updateResult.Success)
+                    {
+                        logger.LogWarning("[Launch] Failed to update LastPlayedAt for profile {ProfileId}: {Errors}", playedProfileId, string.Join(", ", updateResult.Errors));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "[Launch] Failed to update LastPlayedAt for profile {ProfileId}", playedProfileId);
+                }
+            }
+
+            return launchResult;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

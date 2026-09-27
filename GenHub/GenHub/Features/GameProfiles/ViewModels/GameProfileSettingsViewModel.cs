@@ -21,6 +21,7 @@ using GenHub.Features.GameProfiles.Helpers;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.Notifications.Services;
 using GenHub.Features.Notifications.ViewModels;
+using GenHub.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
@@ -51,9 +52,15 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private const string DefaultErrorLoadingContent = "Error loading content";
     private const string ProfileManagerUnavailableMessageKey = "Errors.Operations.ServiceNotAvailable.GameProfileManager";
     private const string DefaultProfileManagerUnavailableMessage = "Profile manager not available";
+    private const string InvalidCustomImageTitleKey = "GameProfiles.Settings.CustomImage.InvalidFile.Title";
+    private const string DefaultInvalidCustomImageTitle = "Invalid image file";
+    private const string InvalidCustomImageMessageKey = "GameProfiles.Settings.CustomImage.InvalidFile.Message";
+    private const string DefaultInvalidCustomImageMessage = "Please select a valid image file (PNG, JPG, JPEG, WEBP, BMP, GIF, ICO).";
     private const string ContentLockedMessage = "This content item is locked and cannot be modified";
     private const string ContentLockedTitle = "Content Locked";
     private const string LiveSyncFailedTitle = "Live Sync Failed";
+    private const string ContentResourceIconFormatKey = "GameProfiles.Resources.IconFormat";
+    private const string ContentResourceCoverFormatKey = "GameProfiles.Resources.CoverFormat";
 
     private readonly IGameProfileManager? _gameProfileManager;
     private readonly IConfigurationProviderService? _configurationProvider;
@@ -408,6 +415,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     {
         await RefreshVisibleFiltersAsync();
         await LoadAvailableContentAsync();
+        LoadAvailableIconsAndCovers(GameTypeFilter.ToString());
     }
 
     private static string NormalizeResourcePath(string? path, string defaultUri = "")
@@ -857,6 +865,44 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         return null;
     }
 
+    private static void AppendContentResource(
+        List<ProfileResourceItem> items,
+        string id,
+        string? path,
+        string displayName,
+        string gameType)
+    {
+        if (!string.IsNullOrEmpty(path) && items.All(i => i.Path != path) && IsRenderableResourcePath(path))
+        {
+            items.Add(new ProfileResourceItem
+            {
+                Id = id,
+                Path = path,
+                DisplayName = displayName,
+                IsBuiltIn = false,
+                GameType = gameType,
+            });
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a resource path can be rendered by the image converter.
+    /// Remote artwork renders only when already present in the image memory cache;
+    /// otherwise the tile stays blank and selecting it would save an unusable path.
+    /// </summary>
+    /// <param name="path">The resource path.</param>
+    /// <returns>True when the path renders; otherwise false.</returns>
+    private static bool IsRenderableResourcePath(string path)
+    {
+        if (!path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !path.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return ImageCacheService.Instance.GetBitmapFromMemory(path) != null;
+    }
+
     private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
     {
         var (isLocked, canToggle) = GetItemHotswapState(IsHotswapMode, coreItem.ContentType, coreItem.Manifest);
@@ -1209,7 +1255,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         }
     }
 
-    private async Task OnContentTypeChangedAsync() => await LoadAvailableContentAsync();
+    private async Task OnContentTypeChangedAsync()
+    {
+        await LoadAvailableContentAsync();
+        LoadAvailableIconsAndCovers(GameTypeFilter.ToString());
+    }
 
     private async Task EnableContentInternal(
         ContentDisplayItem? contentItem,
@@ -1928,12 +1978,36 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     {
         try
         {
-            if (_profileResourceService == null) return;
+            if (_profileResourceService == null)
+            {
+                return;
+            }
 
-            var icons = _profileResourceService.GetIconsForGameType(gameType);
+            var icons = _profileResourceService.GetIconsForGameType(gameType).ToList();
+            var covers = _profileResourceService.GetAvailableCovers().ToList();
+
+            if (AvailableContent != null)
+            {
+                foreach (var content in AvailableContent.Concat(EnabledContent))
+                {
+                    var gameTypeStr = content.GameType.ToString();
+                    AppendContentResource(
+                        icons,
+                        $"content-icon-{content.Id}",
+                        content.Manifest?.Metadata?.IconUrl,
+                        _localizationService?.GetString(ContentResourceIconFormatKey, content.DisplayName) ?? $"{content.DisplayName} Icon",
+                        gameTypeStr);
+
+                    AppendContentResource(
+                        covers,
+                        $"content-cover-{content.Id}",
+                        content.Manifest?.Metadata?.CoverUrl,
+                        _localizationService?.GetString(ContentResourceCoverFormatKey, content.DisplayName) ?? $"{content.DisplayName} Cover",
+                        gameTypeStr);
+                }
+            }
+
             AvailableIcons = new ObservableCollection<ProfileResourceItem>(icons);
-
-            var covers = _profileResourceService.GetAvailableCovers();
             AvailableCoversForSelection = new ObservableCollection<ProfileResourceItem>(covers);
 
             if (!string.IsNullOrEmpty(IconPath))
