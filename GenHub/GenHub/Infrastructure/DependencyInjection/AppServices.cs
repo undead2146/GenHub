@@ -53,6 +53,7 @@ public static class AppServices
         services.AddModBuilder();
         services.AddWndEditor();
         services.AddTextureEditor();
+        services.AddIniEditor();
 
         // Register Notification services
         services.AddNotificationModule();

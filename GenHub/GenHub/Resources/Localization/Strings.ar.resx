@@ -14780,5 +14780,298 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="TextureEditor.Dialog.ClearSlices.Cancel" xml:space="preserve">
     <value>إلغاء</value>
+  <data name="Tools.Plugin.genhub.tools.inieditor.Name" xml:space="preserve">
+    <value>محرر INI</value>
+  </data>
+  <data name="Tools.Plugin.genhub.tools.inieditor.Description" xml:space="preserve">
+    <value>محرر مرئي لملفات بيانات INI في Generals وZero Hour. تصفح الكائنات وحرر الترقيات والضرر والدروع ومجموعات الأوامر بمساعدة المخطط.</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.New" xml:space="preserve">
+    <value>جديد</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Open" xml:space="preserve">
+    <value>فتح</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.OpenFolder" xml:space="preserve">
+    <value>فتح مجلد</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.OpenFile" xml:space="preserve">
+    <value>فتح ملف</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Save" xml:space="preserve">
+    <value>حفظ</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.SaveAs" xml:space="preserve">
+    <value>حفظ باسم</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Undo" xml:space="preserve">
+    <value>تراجع</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Redo" xml:space="preserve">
+    <value>إعادة</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Validate" xml:space="preserve">
+    <value>تحقق</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.Format" xml:space="preserve">
+    <value>تنسيق</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.MenuTooltip" xml:space="preserve">
+    <value>إجراءات الملف والتحرير</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddUpgrade" xml:space="preserve">
+    <value>إضافة ترقية</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddUpgradeTooltip" xml:space="preserve">
+    <value>إضافة ربط ترقية إلى كتلة الكائن المحددة</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddDamage" xml:space="preserve">
+    <value>إضافة ضرر</value>
+  </data>
+  <data name="Tools.IniEditor.Toolbar.AddDamageTooltip" xml:space="preserve">
+    <value>إضافة ملف ضرر إلى كتلة السلاح المحددة</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Blocks" xml:space="preserve">
+    <value>الكتل</value>
+  </data>
+  <data name="Tools.IniEditor.Tabs.Files" xml:space="preserve">
+    <value>الملفات</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.FilterWatermark" xml:space="preserve">
+    <value>تصفية الكتل...</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.Hint" xml:space="preserve">
+    <value>الكتل مجمعة حسب النوع. حدد كتلة لتحرير حقولها.</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.NewBlockWatermark" xml:space="preserve">
+    <value>اسم الكتلة الجديدة...</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.AddBlock" xml:space="preserve">
+    <value>إضافة كتلة</value>
+  </data>
+  <data name="Tools.IniEditor.Tree.Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="Tools.IniEditor.Files.Browse" xml:space="preserve">
+    <value>استعراض...</value>
+  </data>
+  <data name="Tools.IniEditor.Files.Refresh" xml:space="preserve">
+    <value>تحديث</value>
+  </data>
+  <data name="Tools.IniEditor.Files.NoIniFilesTitle" xml:space="preserve">
+    <value>لا توجد ملفات INI</value>
+  </data>
+  <data name="Tools.IniEditor.Files.NoIniFilesMessage" xml:space="preserve">
+    <value>لم يتم العثور على ملفات INI (.ini) في المجلد المحدد.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Title" xml:space="preserve">
+    <value>لوحة الكائن</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Subtitle" xml:space="preserve">
+    <value>الإحصاءات الأساسية والترقيات والضرر والمجموعات المرتبطة للكتلة المحددة.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.BlockType" xml:space="preserve">
+    <value>نوع الكتلة</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.BlockName" xml:space="preserve">
+    <value>الاسم</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Schema" xml:space="preserve">
+    <value>المخطط</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.LinkedWeapon" xml:space="preserve">
+    <value>مجموعة الأسلحة المرتبطة</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.LinkedCommandSet" xml:space="preserve">
+    <value>مجموعة الأوامر</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Upgrades" xml:space="preserve">
+    <value>الترقيات</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.Damage" xml:space="preserve">
+    <value>الضرر</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.EmptySelection" xml:space="preserve">
+    <value>حدد كتلة على اليسار لمعاينة إحصاءاتها وترقياتها وضررها هنا.</value>
+  </data>
+  <data name="Tools.IniEditor.Canvas.RawPreview" xml:space="preserve">
+    <value>معاينة خام</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.Title" xml:space="preserve">
+    <value>الحقول</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.NewKeyWatermark" xml:space="preserve">
+    <value>مفتاح الحقل الجديد...</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.NewValueWatermark" xml:space="preserve">
+    <value>قيمة الحقل الجديدة...</value>
+  </data>
+  <data name="Tools.IniEditor.Properties.AddField" xml:space="preserve">
+    <value>إضافة حقل</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.Title" xml:space="preserve">
+    <value>لا يوجد مستند مفتوح</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.Message" xml:space="preserve">
+    <value>افتح ملف .ini أو أنشئ مستندًا جديدًا لبدء التحرير.</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.OpenFile" xml:space="preserve">
+    <value>فتح ملف</value>
+  </data>
+  <data name="Tools.IniEditor.Empty.OpenFolder" xml:space="preserve">
+    <value>فتح مجلد</value>
+  </data>
+  <data name="Tools.IniEditor.Open.FailureTitle" xml:space="preserve">
+    <value>فشل فتح ملف INI</value>
+  </data>
+  <data name="Tools.IniEditor.Open.FailureMessage" xml:space="preserve">
+    <value>تعذر فتح ملف INI: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.OpenTitle" xml:space="preserve">
+    <value>فتح ملف بيانات INI</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.FilterName" xml:space="preserve">
+    <value>ملفات بيانات INI</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.FolderTitle" xml:space="preserve">
+    <value>اختر مجلد بيانات INI</value>
+  </data>
+  <data name="Tools.IniEditor.FileDialog.SaveTitle" xml:space="preserve">
+    <value>حفظ ملف بيانات INI</value>
+  </data>
+  <data name="Tools.IniEditor.Save.SuccessTitle" xml:space="preserve">
+    <value>تم حفظ ملف INI</value>
+  </data>
+  <data name="Tools.IniEditor.Save.SuccessMessage" xml:space="preserve">
+    <value>تم الحفظ {0}.</value>
+  </data>
+  <data name="Tools.IniEditor.Save.FailureTitle" xml:space="preserve">
+    <value>فشل حفظ ملف INI</value>
+  </data>
+  <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
+    <value>تعذر حفظ ملف INI: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.NoDocumentTitle" xml:space="preserve">
+    <value>لا يوجد مستند مفتوح</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.NoDocumentMessage" xml:space="preserve">
+    <value>افتح ملف INI قبل التحقق.</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.SuccessTitle" xml:space="preserve">
+    <value>نجح التحقق من INI</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.SuccessMessage" xml:space="preserve">
+    <value>{0} من الكتل صالحة.</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.IssuesTitle" xml:space="preserve">
+    <value>وجد التحقق من INI مشكلات</value>
+  </data>
+  <data name="Tools.IniEditor.Validate.IssuesMessage" xml:space="preserve">
+    <value>تم العثور على {0} من المشكلات. أول مشكلة: {1}</value>
+  </data>
+  <data name="Tools.IniEditor.Format.NoFileTitle" xml:space="preserve">
+    <value>لا يوجد ملف للتنسيق</value>
+  </data>
+  <data name="Tools.IniEditor.Format.NoFileMessage" xml:space="preserve">
+    <value>احفظ المستند في ملف قبل التنسيق.</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddBlock" xml:space="preserve">
+    <value>إضافة كتلة</value>
+  </data>
+  <data name="Tools.IniEditor.History.DeleteBlock" xml:space="preserve">
+    <value>حذف كتلة</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddField" xml:space="preserve">
+    <value>إضافة حقل</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddUpgrade" xml:space="preserve">
+    <value>إضافة ربط ترقية</value>
+  </data>
+  <data name="Tools.IniEditor.History.AddDamage" xml:space="preserve">
+    <value>إضافة ملف ضرر</value>
+  </data>
+  <data name="Tools.IniEditor.Upgrade.ObjectOnlyTitle" xml:space="preserve">
+    <value>كتل الكائنات فقط</value>
+  </data>
+  <data name="Tools.IniEditor.Upgrade.ObjectOnlyMessage" xml:space="preserve">
+    <value>يمكن إضافة ربط الترقيات إلى كتل الكائنات فقط.</value>
+  </data>
+  <data name="Tools.IniEditor.Damage.WeaponOnlyTitle" xml:space="preserve">
+    <value>كتل الأسلحة فقط</value>
+  </data>
+  <data name="Tools.IniEditor.Damage.WeaponOnlyMessage" xml:space="preserve">
+    <value>يمكن إضافة ملفات الضرر إلى كتل الأسلحة فقط.</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Title" xml:space="preserve">
+    <value>تغييرات غير محفوظة</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Message" xml:space="preserve">
+    <value>يحتوي المستند الحالي على تغييرات غير محفوظة. هل تريد تجاهلها؟</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Discard" xml:space="preserve">
+    <value>تجاهل</value>
+  </data>
+  <data name="Tools.IniEditor.UnsavedChanges.Cancel" xml:space="preserve">
+    <value>إلغاء</value>
+  </data>
+  <data name="Tools.IniEditor.Document.Untitled" xml:space="preserve">
+    <value>بدون عنوان</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.NoSelectionTitle" xml:space="preserve">
+    <value>لم يتم تحديد ملفات INI</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.NoSelectionMessage" xml:space="preserve">
+    <value>حدد ملف .ini واحدًا أو أكثر في شجرة المشروع.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateSuccessTitle" xml:space="preserve">
+    <value>نجح التحقق من INI</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateSuccessMessage" xml:space="preserve">
+    <value>{0} من {1} من الملفات صالحة.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateIssuesTitle" xml:space="preserve">
+    <value>وجد التحقق من INI مشكلات</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ValidateIssuesMessage" xml:space="preserve">
+    <value>{0} من {1} من الملفات صالحة. أول مشكلة: {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatSuccessTitle" xml:space="preserve">
+    <value>تم تنسيق ملفات INI</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatSuccessMessage" xml:space="preserve">
+    <value>تم تنسيق {0} من {1} من الملفات.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatIssuesTitle" xml:space="preserve">
+    <value>تنسيق INI غير مكتمل</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.FormatIssuesMessage" xml:space="preserve">
+    <value>تم تنسيق {0} من {1} من الملفات. أول خطأ: {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.OperationCancelled" xml:space="preserve">
+    <value>تم إلغاء العملية.</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ProgressValidating" xml:space="preserve">
+    <value>جارٍ التحقق ({0}/{1}): {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.Ini.ProgressFormatting" xml:space="preserve">
+    <value>جارٍ التنسيق ({0}/{1}): {2}</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonValidateIni" xml:space="preserve">
+    <value>التحقق من INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipValidateIni" xml:space="preserve">
+    <value>التحقق من ملفات .ini المحددة</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonFormatIni" xml:space="preserve">
+    <value>تنسيق INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipFormatIni" xml:space="preserve">
+    <value>تنسيق ملفات .ini المحددة بالشكل القياسي</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.ButtonEditIni" xml:space="preserve">
+    <value>تحرير في محرر INI</value>
+  </data>
+  <data name="Tools.ModBuilder.FileManager.TooltipEditIni" xml:space="preserve">
+    <value>افتح ملف .ini المحدد في محرر INI</value>
   </data>
 </root>
