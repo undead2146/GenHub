@@ -205,10 +205,23 @@ public partial class MappedImagePickerControl : UserControl
             .Select(image => new MappedImagePickerItem(image, provider?.Invoke(image)))
             .ToList();
 
-        _filteredItems.Clear();
-        foreach (var item in matches)
+        try
         {
-            _filteredItems.Add(item);
+            _syncingSelection = true;
+            _filteredItems.Clear();
+            foreach (var item in matches)
+            {
+                _filteredItems.Add(item);
+            }
+        }
+        finally
+        {
+            _syncingSelection = false;
+        }
+
+        if (SelectedImage is not null && !_filteredItems.Any(item => string.Equals(item.Definition.Name, SelectedImage.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectedImage = null;
         }
 
         SyncListSelection();

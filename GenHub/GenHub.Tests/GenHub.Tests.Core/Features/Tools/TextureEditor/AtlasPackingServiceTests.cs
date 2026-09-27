@@ -217,6 +217,8 @@ public sealed class AtlasPackingServiceTests
         Assert.True(result.Success);
         Assert.NotNull(result.Data);
         Assert.Equal(4096, result.Data.SheetHeight);
+        Assert.Equal(2, result.Data.Placements.Count);
+        Assert.NotEqual(result.Data.Placements[0].Y, result.Data.Placements[1].Y);
     }
 
     /// <summary>

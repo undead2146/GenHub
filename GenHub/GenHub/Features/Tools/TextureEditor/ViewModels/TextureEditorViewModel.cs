@@ -41,6 +41,7 @@ public sealed partial class TextureEditorViewModel(
     : EditorToolViewModelBase(notificationService, localizationService, dialogService)
 {
     private const string SavedMessageFallback = "Saved {0}.";
+    private const string PackFailedTitleFallback = "Auto-pack failed";
 
     private DecodedTexture? _atlasDecoded;
     private FileExplorerViewModel? _fileExplorer;
@@ -103,6 +104,7 @@ public sealed partial class TextureEditorViewModel(
     /// <summary>
     /// Gets the atlas dimensions display text.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Reads source-generated AtlasBitmap instance state and is bound from XAML.")]
     public string AtlasDimensions => AtlasBitmap is null ? string.Empty : $"{AtlasBitmap.PixelSize.Width} x {AtlasBitmap.PixelSize.Height}";
 
     /// <summary>
@@ -626,7 +628,7 @@ public sealed partial class TextureEditorViewModel(
                 if (built.Failed || built.Data is null)
                 {
                     Notifications.ShowError(
-                        Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
+                        Localize("TextureEditor.Notify.PackFailed.Title", PackFailedTitleFallback),
                         built.FirstError ?? string.Empty,
                         NotificationDurations.Long);
                     return;
@@ -664,9 +666,9 @@ public sealed partial class TextureEditorViewModel(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Auto-pack failed");
+            logger.LogError(ex, PackFailedTitleFallback);
             Notifications.ShowError(
-                Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
+                Localize("TextureEditor.Notify.PackFailed.Title", PackFailedTitleFallback),
                 ex.Message,
                 NotificationDurations.Long);
         }
@@ -1226,7 +1228,7 @@ public sealed partial class TextureEditorViewModel(
 
     private async Task<bool> WritePackOutputsAsync(TextureAtlasBuildRequest request, byte[] textureBytes, string iniContent, CancellationToken cancellationToken)
     {
-        byte[]? previousTexture = await ReadExistingFileBytesAsync(request.TargetTexture).ConfigureAwait(true);
+        var (previousTexture, hadTexture) = await ReadExistingFileBytesAsync(request.TargetTexture).ConfigureAwait(true);
         await AtomicFile.WriteAllBytesAsync(request.TargetTexture, textureBytes, cancellationToken).ConfigureAwait(true);
         try
         {
@@ -1234,15 +1236,15 @@ public sealed partial class TextureEditorViewModel(
         }
         catch (OperationCanceledException)
         {
-            await RestorePackTextureAsync(request.TargetTexture, previousTexture).ConfigureAwait(true);
+            await RestorePackTextureAsync(request.TargetTexture, previousTexture, hadTexture).ConfigureAwait(true);
             throw;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             logger.LogWarning(ex, "Auto-pack INI write failed; restoring the previous atlas texture.");
-            await RestorePackTextureAsync(request.TargetTexture, previousTexture).ConfigureAwait(true);
+            await RestorePackTextureAsync(request.TargetTexture, previousTexture, hadTexture).ConfigureAwait(true);
             Notifications.ShowError(
-                Localize("TextureEditor.Notify.PackFailed.Title", "Auto-pack failed"),
+                Localize("TextureEditor.Notify.PackFailed.Title", PackFailedTitleFallback),
                 ex.Message,
                 NotificationDurations.Long);
             return false;
@@ -1251,32 +1253,45 @@ public sealed partial class TextureEditorViewModel(
         return true;
     }
 
-    private async Task<byte[]?> ReadExistingFileBytesAsync(string path)
+    private async Task<(byte[]? Bytes, bool Existed)> ReadExistingFileBytesAsync(string path)
     {
+        if (!File.Exists(path))
+        {
+            return (null, false);
+        }
+
         try
         {
-            return File.Exists(path) ? await File.ReadAllBytesAsync(path).ConfigureAwait(true) : null;
+            return (await File.ReadAllBytesAsync(path).ConfigureAwait(true), true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             logger.LogWarning(ex, "Unable to back up existing atlas texture {Path} before auto-pack.", path);
-            return null;
+            return (null, true);
         }
     }
 
-    private async Task RestorePackTextureAsync(string path, byte[]? previousTexture)
+    private async Task RestorePackTextureAsync(string path, byte[]? previousTexture, bool hadTexture)
     {
         // Best effort on a detached path: the failure result is already decided,
         // so the restore must neither throw nor honor the cancelled operation token.
         try
         {
-            if (previousTexture is null)
+            if (!hadTexture)
             {
                 if (File.Exists(path))
                 {
                     File.Delete(path);
                 }
 
+                return;
+            }
+
+            if (previousTexture is null)
+            {
+                // The backup failed while the file existed: keep the new output
+                // rather than deleting a texture that cannot be restored.
+                logger.LogWarning("Atlas texture {Path} was overwritten without a backup; keeping the new output.", path);
                 return;
             }
 

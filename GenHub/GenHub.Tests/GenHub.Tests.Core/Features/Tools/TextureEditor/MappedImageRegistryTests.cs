@@ -361,6 +361,38 @@ public sealed class MappedImageRegistryTests
         }
     }
 
+    /// <summary>
+    /// Verifies that clearing during a scan invalidates the stale scan instead of being repopulated.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ScanDirectoryAsync_ClearDuringScan_InvalidatesStaleScanAsync()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "a.ini"), Block("Old", "old.tga"));
+
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var parser = new GatedParser(gate.Task, directory, entered);
+            var registry = new MappedImageRegistry(parser, NullLogger<MappedImageRegistry>.Instance);
+
+            var slow = registry.ScanDirectoryAsync(directory);
+            await entered.Task.ConfigureAwait(true);
+            registry.Clear();
+            gate.SetResult();
+
+            await Assert.ThrowsAsync<OperationCanceledException>(async () => await slow);
+            Assert.Equal(0, registry.Count);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     private static string Block(string name, string texture) =>
         $"MappedImage {name}\n  Texture = {texture}\n  TextureWidth = 64\n  TextureHeight = 64\n  Coords = Left:0 Top:0 Right:63 Bottom:63\n  Status = NONE\nEnd\n";
 }

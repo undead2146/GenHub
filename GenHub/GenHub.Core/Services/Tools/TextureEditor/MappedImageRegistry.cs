@@ -166,6 +166,8 @@ public sealed class MappedImageRegistry(ISageMappedImageParser parser, ILogger<M
     {
         lock (_syncLock)
         {
+            // Invalidate in-progress scans so a stale generation cannot repopulate the catalog after this returns.
+            _scanGeneration++;
             _entries.Clear();
         }
     }
