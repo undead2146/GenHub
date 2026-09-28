@@ -17132,4 +17132,120 @@ How do you want to apply this update?</value>
   <data name="Info.Demo.SizeExpanded" xml:space="preserve">
     <value>Expanded (980x680)</value>
   </data>
+  <data name="Tools.IniEditor.Assembled.ArmorLabel" xml:space="preserve">
+    <value>Armor Set</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ArmorTooltip" xml:space="preserve">
+    <value>Armor: {0} -> {1} ({2} coefficients)</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.CommandSetLabel" xml:space="preserve">
+    <value>Command Set</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.CommandSlotLabel" xml:space="preserve">
+    <value>Slot {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.CommandSlotTooltip" xml:space="preserve">
+    <value>Button: {0}, Command: {1}, Target: {2}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.DamageLabel" xml:space="preserve">
+    <value>Damage</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.DamageTooltip" xml:space="preserve">
+    <value>Damage: {0} ({1}), Range: {2}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.LocalDetail" xml:space="preserve">
+    <value>Local document block</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.LocalTooltip" xml:space="preserve">
+    <value>Local {0} block: {1}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ModuleDetail" xml:space="preserve">
+    <value>{0} fields, {1} sub-blocks</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ModuleLabel" xml:space="preserve">
+    <value>Module: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ModuleTooltip" xml:space="preserve">
+    <value>{0}
+Fields: {1}, Sub-blocks: {2}
+{3}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ProjectileLabel" xml:space="preserve">
+    <value>Projectile</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.RangeDetail" xml:space="preserve">
+    <value>Range: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ReferenceTooltip" xml:space="preserve">
+    <value>{0} reference: {1} ({2} from {3})</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.TextureDetail" xml:space="preserve">
+    <value>Mapped image texture</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.TextureTooltip" xml:space="preserve">
+    <value>Mapped image texture reference: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.UnresolvedDetail" xml:space="preserve">
+    <value>Unresolved reference</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.UnresolvedTooltip" xml:space="preserve">
+    <value>Could not resolve {0} reference '{1}' in reference data.</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.UpgradeLabel" xml:space="preserve">
+    <value>Upgrade</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.WeaponSetLabel" xml:space="preserve">
+    <value>Weapon Set</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.WeaponSlotLabel" xml:space="preserve">
+    <value>Weapon ({0})</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.WeaponSlotTooltip" xml:space="preserve">
+    <value>Weapon: {0} (Damage: {1} {2})</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.CustomTooltip" xml:space="preserve">
+    <value>Custom field: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.OptionsTooltip" xml:space="preserve">
+    <value>{0}
+Allowed values: {1} options</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.ReferenceTooltip" xml:space="preserve">
+    <value>{0}
+References: {1}</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.TextureTooltip" xml:space="preserve">
+    <value>{0}
+Mapped image texture reference</value>
+  </data>
+  <data name="Tools.IniEditor.History.DeleteField" xml:space="preserve">
+    <value>Delete field</value>
+  </data>
+  <data name="Tools.IniEditor.History.DuplicateBlock" xml:space="preserve">
+    <value>Duplicate block</value>
+  </data>
+  <data name="Tools.IniEditor.History.InsertReference" xml:space="preserve">
+    <value>Insert reference</value>
+  </data>
+  <data name="Tools.IniEditor.History.PasteBlocks" xml:space="preserve">
+    <value>Paste blocks</value>
+  </data>
+  <data name="Tools.IniEditor.Paste.NoBlocksMessage" xml:space="preserve">
+    <value>Clipboard does not contain valid INI blocks.</value>
+  </data>
+  <data name="Tools.IniEditor.Paste.NoBlocksTitle" xml:space="preserve">
+    <value>No Blocks to Paste</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.CloneFailureMessage" xml:space="preserve">
+    <value>Could not clone referenced block: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.CloneFailureTitle" xml:space="preserve">
+    <value>Failed to Clone Reference</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.NotFoundMessage" xml:space="preserve">
+    <value>Could not find definition for '{0}' in reference data.</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.NotFoundTitle" xml:space="preserve">
+    <value>Definition Not Found</value>
+  </data>
 </root>

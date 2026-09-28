@@ -17073,4 +17073,120 @@ Error: не удалось: {3}
   <data name="Info.Demo.SizeExpanded" xml:space="preserve">
     <value>Расширенный (980x680)</value>
   </data>
+  <data name="Tools.IniEditor.Assembled.ArmorLabel" xml:space="preserve">
+    <value>Набор брони</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ArmorTooltip" xml:space="preserve">
+    <value>Броня: {0} -> {1} ({2} коэффициентов)</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.CommandSetLabel" xml:space="preserve">
+    <value>Набор команд</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.CommandSlotLabel" xml:space="preserve">
+    <value>Слот {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.CommandSlotTooltip" xml:space="preserve">
+    <value>Кнопка: {0}, команда: {1}, цель: {2}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.DamageLabel" xml:space="preserve">
+    <value>Урон</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.DamageTooltip" xml:space="preserve">
+    <value>Урон: {0} ({1}), дальность: {2}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.LocalDetail" xml:space="preserve">
+    <value>Локальный блок документа</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.LocalTooltip" xml:space="preserve">
+    <value>Локальный блок {0}: {1}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ModuleDetail" xml:space="preserve">
+    <value>{0} полей, {1} подблоков</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ModuleLabel" xml:space="preserve">
+    <value>Модуль: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ModuleTooltip" xml:space="preserve">
+    <value>{0}
+Поля: {1}, Подблоки: {2}
+{3}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ProjectileLabel" xml:space="preserve">
+    <value>Снаряд</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.RangeDetail" xml:space="preserve">
+    <value>Дальность: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.ReferenceTooltip" xml:space="preserve">
+    <value>Ссылка {0}: {1} ({2} из {3})</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.TextureDetail" xml:space="preserve">
+    <value>Текстура карты изображения</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.TextureTooltip" xml:space="preserve">
+    <value>Ссылка на текстуру карты изображения: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.UnresolvedDetail" xml:space="preserve">
+    <value>Неразрешенная ссылка</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.UnresolvedTooltip" xml:space="preserve">
+    <value>Не удалось разрешить ссылку {0} '{1}' в справочных данных.</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.UpgradeLabel" xml:space="preserve">
+    <value>Улучшение</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.WeaponSetLabel" xml:space="preserve">
+    <value>Набор оружия</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.WeaponSlotLabel" xml:space="preserve">
+    <value>Оружие ({0})</value>
+  </data>
+  <data name="Tools.IniEditor.Assembled.WeaponSlotTooltip" xml:space="preserve">
+    <value>Оружие: {0} (Урон: {1} {2})</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.CustomTooltip" xml:space="preserve">
+    <value>Пользовательское поле: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.OptionsTooltip" xml:space="preserve">
+    <value>{0}
+Допустимые значения: {1} вариантов</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.ReferenceTooltip" xml:space="preserve">
+    <value>{0}
+Ссылки: {1}</value>
+  </data>
+  <data name="Tools.IniEditor.Fields.TextureTooltip" xml:space="preserve">
+    <value>{0}
+Ссылка на текстуру карты изображения</value>
+  </data>
+  <data name="Tools.IniEditor.History.DeleteField" xml:space="preserve">
+    <value>Удалить поле</value>
+  </data>
+  <data name="Tools.IniEditor.History.DuplicateBlock" xml:space="preserve">
+    <value>Дублировать блок</value>
+  </data>
+  <data name="Tools.IniEditor.History.InsertReference" xml:space="preserve">
+    <value>Вставить ссылку</value>
+  </data>
+  <data name="Tools.IniEditor.History.PasteBlocks" xml:space="preserve">
+    <value>Вставить блоки</value>
+  </data>
+  <data name="Tools.IniEditor.Paste.NoBlocksMessage" xml:space="preserve">
+    <value>Буфер обмена не содержит допустимых блоков INI.</value>
+  </data>
+  <data name="Tools.IniEditor.Paste.NoBlocksTitle" xml:space="preserve">
+    <value>Нет блоков для вставки</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.CloneFailureMessage" xml:space="preserve">
+    <value>Не удалось клонировать указанный блок: {0}</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.CloneFailureTitle" xml:space="preserve">
+    <value>Не удалось клонировать ссылку</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.NotFoundMessage" xml:space="preserve">
+    <value>Не удалось найти определение для '{0}' в справочных данных.</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.NotFoundTitle" xml:space="preserve">
+    <value>Определение не найдено</value>
+  </data>
 </root>
