@@ -14891,6 +14891,9 @@ Publish Tier 1 publisher definitions and Tier 2 catalogs whose release records c
   <data name="TextureEditor.Notify.ExportInvalid.Message" xml:space="preserve">
     <value>Slice '{0}' extends outside the texture bounds.</value>
   </data>
+  <data name="TextureEditor.Notify.InvalidName.Message" xml:space="preserve">
+    <value>Slice name '{0}' is empty or duplicated.</value>
+  </data>
   <data name="TextureEditor.Notify.PackComplete.Title" xml:space="preserve">
     <value>Atlas packed</value>
   </data>
@@ -15266,6 +15269,9 @@ Publish Tier 1 publisher definitions and Tier 2 catalogs whose release records c
   </data>
   <data name="Tools.IniEditor.Reference.TypeLabel" xml:space="preserve">
     <value>Block type</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.ClearTypeTooltip" xml:space="preserve">
+    <value>Clear type filter</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
     <value>Could not save the INI file: {0}</value>

@@ -1055,6 +1055,7 @@ public sealed partial class TextureEditorViewModel(
         _atlasDecoded = decoded;
         AtlasPath = path;
         AtlasBitmap = bitmap.Data;
+        RefreshRegistryImages();
         AddSliceCommand.NotifyCanExecuteChanged();
         ExportIniCommand.NotifyCanExecuteChanged();
         ExportSheetCommand.NotifyCanExecuteChanged();
@@ -1174,6 +1175,7 @@ public sealed partial class TextureEditorViewModel(
         _savedIniPath = null;
         _copiedSlice = null;
         _isCutOperation = false;
+        RefreshRegistryImages();
     }
 
     private async Task<bool> TryWriteMappedImagesAsync(string path, CancellationToken cancellationToken)
@@ -1185,6 +1187,21 @@ public sealed partial class TextureEditorViewModel(
             Notifications.ShowError(
                 Localize("TextureEditor.Notify.ExportInvalid.Title", "Cannot export slices"),
                 Localize("TextureEditor.Notify.ExportInvalid.Message", "Slice '{0}' extends outside the texture bounds.", invalid.Name),
+                NotificationDurations.Long);
+            return false;
+        }
+
+        var badName = Slices.FirstOrDefault(slice => string.IsNullOrWhiteSpace(slice.Name))
+            ?? Slices.GroupBy(slice => slice.Name, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.First())
+                .FirstOrDefault();
+        if (badName is not null)
+        {
+            logger.LogWarning("INI save aborted: slice name '{Slice}' is empty or duplicated", badName.Name);
+            Notifications.ShowError(
+                Localize("TextureEditor.Notify.ExportInvalid.Title", "Cannot export slices"),
+                Localize("TextureEditor.Notify.InvalidName.Message", "Slice name '{0}' is empty or duplicated.", badName.Name),
                 NotificationDurations.Long);
             return false;
         }

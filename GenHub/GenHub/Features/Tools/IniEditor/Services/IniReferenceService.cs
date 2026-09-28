@@ -134,43 +134,11 @@ public sealed class IniReferenceService(
     internal static List<(string BlockType, string Name)> ScanBlockHeaders(string content)
     {
         var headers = new List<(string BlockType, string Name)>();
-        var depth = 0;
-        var lines = content.Split(["\r\n", "\n"], StringSplitOptions.None);
-        foreach (var raw in lines)
+        var indentStack = new Stack<int>();
+        var lines = content.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
+        for (var i = 0; i < lines.Length; i++)
         {
-            var line = StripComment(raw).Trim();
-            if (line.Length == 0 || line.StartsWith('#'))
-            {
-                continue;
-            }
-
-            if (string.Equals(line, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase))
-            {
-                depth = Math.Max(0, depth - 1);
-                continue;
-            }
-
-            if (depth > 0)
-            {
-                if (!line.Contains(IniConstants.Syntax.KeyValueSeparator))
-                {
-                    depth++;
-                }
-
-                continue;
-            }
-
-            if (line.Contains(IniConstants.Syntax.KeyValueSeparator))
-            {
-                continue;
-            }
-
-            var tokens = line.Split([' '], StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length > 0)
-            {
-                headers.Add((tokens[0], tokens.Length > 1 ? string.Join(' ', tokens[1..]) : string.Empty));
-                depth++;
-            }
+            ProcessScanLine(lines, i, indentStack, headers);
         }
 
         return headers;
@@ -208,19 +176,62 @@ public sealed class IniReferenceService(
         return copy;
     }
 
-    private static IniBlock? FindBlock(List<IniBlock> blocks, IniReferenceEntry entry)
+    private static void ProcessScanLine(
+        string[] lines,
+        int index,
+        Stack<int> indentStack,
+        List<(string BlockType, string Name)> headers)
     {
-        foreach (var block in blocks)
+        var raw = lines[index];
+        var line = StripComment(raw).Trim();
+        if (line.Length == 0 || line.StartsWith('#'))
         {
-            if (string.Equals(block.BlockType, entry.BlockType, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(block.Name, entry.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                return block;
-            }
+            return;
         }
 
-        return null;
+        if (string.Equals(line, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase))
+        {
+            if (indentStack.Count > 0)
+            {
+                indentStack.Pop();
+            }
+
+            return;
+        }
+
+        if (indentStack.Count > 0)
+        {
+            var separatorIndex = line.IndexOf(IniConstants.Syntax.KeyValueSeparator);
+            if (separatorIndex >= 0)
+            {
+                var key = line[..separatorIndex].Trim();
+                var indent = IniDocumentService.GetIndent(raw);
+                if (IniDocumentService.OpensModuleBlock(key, indentStack.Peek(), indent, lines, index))
+                {
+                    indentStack.Push(indent);
+                }
+            }
+
+            return;
+        }
+
+        if (line.Contains(IniConstants.Syntax.KeyValueSeparator))
+        {
+            return;
+        }
+
+        var tokens = line.Split([' '], StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length > 0)
+        {
+            headers.Add((tokens[0], tokens.Length > 1 ? string.Join(' ', tokens[1..]) : string.Empty));
+            indentStack.Push(IniDocumentService.GetIndent(raw));
+        }
     }
+
+    private static IniBlock? FindBlock(List<IniBlock> blocks, IniReferenceEntry entry) =>
+        blocks.FirstOrDefault(block =>
+            string.Equals(block.BlockType, entry.BlockType, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(block.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
 
     private static string StripComment(string raw)
     {

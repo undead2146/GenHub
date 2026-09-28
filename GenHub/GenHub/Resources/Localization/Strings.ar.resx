@@ -14832,6 +14832,9 @@ https://example.com/screenshot2.png</value>
   <data name="TextureEditor.Notify.ExportInvalid.Message" xml:space="preserve">
     <value>الشريحة '{0}' تمتد خارج حدود القوام.</value>
   </data>
+  <data name="TextureEditor.Notify.InvalidName.Message" xml:space="preserve">
+    <value>اسم الشريحة '{0}' فارغ أو مكرر.</value>
+  </data>
   <data name="TextureEditor.Notify.PackComplete.Title" xml:space="preserve">
     <value>تم جمع الأطلس</value>
   </data>
@@ -15207,6 +15210,9 @@ https://example.com/screenshot2.png</value>
   </data>
   <data name="Tools.IniEditor.Reference.TypeLabel" xml:space="preserve">
     <value>نوع الكتلة</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.ClearTypeTooltip" xml:space="preserve">
+    <value>مسح عامل تصفية النوع</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
     <value>تعذر حفظ ملف INI: {0}</value>

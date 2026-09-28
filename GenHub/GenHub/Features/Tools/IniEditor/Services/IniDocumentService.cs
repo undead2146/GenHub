@@ -1,3 +1,4 @@
+using System.Linq;
 using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Tools.IniEditor;
@@ -39,10 +40,11 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var stack = new Stack<BlockFrame>();
         var pendingComments = new List<IniComment>();
         var lines = content.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
+        var context = new IniParseContext(lines, document, stack, pendingComments, errors);
 
         for (var i = 0; i < lines.Length; i++)
         {
-            ParseLine(lines, i, document, stack, pendingComments, errors);
+            ParseLine(context, i);
         }
 
         FlushTrailingComments(document, stack, pendingComments);
@@ -145,10 +147,6 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
             logger.LogInformation("Formatted INI file {Path}", filePath);
             return OperationResult<bool>.CreateSuccess(true, stopwatch.Elapsed);
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
         catch (IOException ex)
         {
             logger.LogError(ex, "Failed to format INI file {Path}", filePath);
@@ -235,160 +233,48 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         }
     }
 
-    private static void ParseLine(
-        string[] lines,
-        int index,
-        IniDocument document,
-        Stack<BlockFrame> stack,
-        List<IniComment> pendingComments,
-        List<string> errors)
+    /// <summary>
+    /// Checks if a key represents a valueless bare keyword.
+    /// </summary>
+    /// <param name="line">The line text to check.</param>
+    /// <returns>True if the line matches a valueless keyword; otherwise, false.</returns>
+    internal static bool IsValuelessKey(string line) =>
+        IniConstants.ValuelessKeys.All.Any(valuelessKey => string.Equals(valuelessKey, line, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Checks if a key is a recognized module keyword.
+    /// </summary>
+    /// <param name="key">The key name to check.</param>
+    /// <returns>True if the key represents a module block; otherwise, false.</returns>
+    internal static bool IsModuleKey(string key) =>
+        IniConstants.ModuleKeys.All.Any(moduleKey => string.Equals(moduleKey, key, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Calculates the number of leading spaces in a line.
+    /// </summary>
+    /// <param name="raw">The raw line text.</param>
+    /// <returns>The indentation depth in spaces.</returns>
+    internal static int GetIndent(string raw)
     {
-        var raw = lines[index];
-        var lineNumber = index + 1;
-        var (code, comment) = SplitComment(raw);
-        if (code.Contains('\t'))
+        var indent = 0;
+        while (indent < raw.Length && raw[indent] == ' ')
         {
-            errors.Add($"Line {lineNumber}: Tab characters are not allowed in INI files.");
-            return;
+            indent++;
         }
 
-        var line = code.Trim();
-        if (line.Length == 0)
-        {
-            if (comment != null)
-            {
-                pendingComments.Add(new IniComment(comment, false));
-            }
-
-            return;
-        }
-
-        if (line.StartsWith('#'))
-        {
-            pendingComments.Add(new IniComment(line, true));
-            return;
-        }
-
-        if (string.Equals(line, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase))
-        {
-            if (comment != null)
-            {
-                pendingComments.Add(new IniComment(comment, false));
-            }
-
-            CloseBlock(lineNumber, document, stack, pendingComments, errors);
-            return;
-        }
-
-        var separatorIndex = line.IndexOf(IniConstants.Syntax.KeyValueSeparator);
-        if (separatorIndex >= 0 && stack.Count > 0)
-        {
-            AddFieldOrModule(lines, index, line, separatorIndex, lineNumber, comment, stack, pendingComments, errors);
-            return;
-        }
-
-        if (separatorIndex >= 0)
-        {
-            AddGlobalField(line, separatorIndex, lineNumber, comment, document, pendingComments, errors);
-            return;
-        }
-
-        if (stack.Count > 0 && IsValuelessKey(line))
-        {
-            AddBareField(line, comment, stack, pendingComments);
-            return;
-        }
-
-        OpenBlock(line, GetIndent(raw), lineNumber, comment, stack, pendingComments, document);
+        return indent;
     }
 
-    private static bool IsValuelessKey(string line)
-    {
-        foreach (var valuelessKey in IniConstants.ValuelessKeys.All)
-        {
-            if (string.Equals(valuelessKey, line, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static void AddGlobalField(
-        string line,
-        int separatorIndex,
-        int lineNumber,
-        string? comment,
-        IniDocument document,
-        List<IniComment> pendingComments,
-        List<string> errors)
-    {
-        var key = line[..separatorIndex].Trim();
-        var value = line[(separatorIndex + 1)..].Trim();
-        if (key.Length == 0)
-        {
-            errors.Add($"Line {lineNumber}: Field is missing a key.");
-            return;
-        }
-
-        var field = new IniField(key, value, comment);
-        field.LeadingComments.AddRange(pendingComments);
-        pendingComments.Clear();
-        if (document.GlobalFields.Count == 0 && document.Blocks.Count == 0)
-        {
-            document.HeaderComments.AddRange(field.LeadingComments);
-            field.LeadingComments.Clear();
-        }
-
-        document.GlobalFields.Add(field);
-    }
-
-    private static void AddBareField(
-        string line,
-        string? comment,
-        Stack<BlockFrame> stack,
-        List<IniComment> pendingComments)
-    {
-        var field = new IniField(line, string.Empty, comment) { IsBare = true };
-        field.LeadingComments.AddRange(pendingComments);
-        pendingComments.Clear();
-        stack.Peek().Block.Fields.Add(field);
-    }
-
-    private static void AddFieldOrModule(
-        string[] lines,
-        int index,
-        string line,
-        int separatorIndex,
-        int lineNumber,
-        string? comment,
-        Stack<BlockFrame> stack,
-        List<IniComment> pendingComments,
-        List<string> errors)
-    {
-        var key = line[..separatorIndex].Trim();
-        var value = line[(separatorIndex + 1)..].Trim();
-        if (key.Length == 0)
-        {
-            errors.Add($"Line {lineNumber}: Field is missing a key.");
-            return;
-        }
-
-        var indent = GetIndent(lines[index]);
-        if (OpensModuleBlock(key, stack.Peek().Indent, indent, lines, index))
-        {
-            OpenModuleBlock(key, value, indent, lineNumber, comment, stack, pendingComments);
-            return;
-        }
-
-        var field = new IniField(key, value, comment);
-        field.LeadingComments.AddRange(pendingComments);
-        pendingComments.Clear();
-        stack.Peek().Block.Fields.Add(field);
-    }
-
-    private static bool OpensModuleBlock(string key, int parentIndent, int indent, string[] lines, int index)
+    /// <summary>
+    /// Determines whether a line opens an indented module block.
+    /// </summary>
+    /// <param name="key">The key of the current line.</param>
+    /// <param name="parentIndent">The indentation depth of the parent block.</param>
+    /// <param name="indent">The indentation depth of the current line.</param>
+    /// <param name="lines">The full set of lines in the document.</param>
+    /// <param name="index">The 0-based index of the current line.</param>
+    /// <returns>True if the line opens a module block; otherwise, false.</returns>
+    internal static bool OpensModuleBlock(string key, int parentIndent, int indent, string[] lines, int index)
     {
         if (IsModuleKey(key))
         {
@@ -406,29 +292,163 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
             next.Value.Indent > indent;
     }
 
-    private static bool IsModuleKey(string key)
+    private sealed record IniParseContext(
+        string[] Lines,
+        IniDocument Document,
+        Stack<BlockFrame> Stack,
+        List<IniComment> PendingComments,
+        List<string> Errors);
+
+    private static void ParseLine(IniParseContext context, int index)
     {
-        foreach (var moduleKey in IniConstants.ModuleKeys.All)
+        var raw = context.Lines[index];
+        var lineNumber = index + 1;
+        var (code, comment) = SplitComment(raw);
+        if (code.Contains('\t'))
         {
-            if (string.Equals(moduleKey, key, StringComparison.OrdinalIgnoreCase))
+            context.Errors.Add($"Line {lineNumber}: Tab characters are not allowed in INI files.");
+            return;
+        }
+
+        var line = code.Trim();
+        if (line.Length == 0)
+        {
+            if (comment != null)
             {
-                return true;
+                context.PendingComments.Add(new IniComment(comment, false));
             }
+
+            return;
         }
 
-        return false;
-    }
-
-    private static int GetIndent(string raw)
-    {
-        var indent = 0;
-        while (indent < raw.Length && raw[indent] == ' ')
+        if (line.StartsWith('#'))
         {
-            indent++;
+            context.PendingComments.Add(new IniComment(line, true));
+            return;
         }
 
-        return indent;
+        if (string.Equals(line, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase))
+        {
+            if (comment != null)
+            {
+                context.PendingComments.Add(new IniComment(comment, false));
+            }
+
+            CloseBlock(lineNumber, context.Document, context.Stack, context.PendingComments, context.Errors);
+            return;
+        }
+
+        var separatorIndex = line.IndexOf(IniConstants.Syntax.KeyValueSeparator);
+        if (separatorIndex >= 0 && context.Stack.Count > 0)
+        {
+            AddFieldOrModule(context, index, line, separatorIndex, lineNumber, comment);
+            return;
+        }
+
+        if (separatorIndex >= 0)
+        {
+            AddGlobalField(context, line, separatorIndex, lineNumber, comment);
+            return;
+        }
+
+        if (context.Stack.Count > 0)
+        {
+            if (IsValuelessKey(line))
+            {
+                AddBareField(line, comment, context.Stack, context.PendingComments);
+                return;
+            }
+
+            var spaceIndex = line.IndexOf(' ');
+            if (spaceIndex > 0)
+            {
+                var key = line[..spaceIndex].Trim();
+                var value = line[(spaceIndex + 1)..].Trim();
+                var field = new IniField(key, value, comment);
+                field.LeadingComments.AddRange(context.PendingComments);
+                context.PendingComments.Clear();
+                context.Stack.Peek().Block.Fields.Add(field);
+                return;
+            }
+
+            AddBareField(line, comment, context.Stack, context.PendingComments);
+            return;
+        }
+
+        OpenBlock(line, GetIndent(raw), lineNumber, comment, context.Stack, context.PendingComments, context.Document);
     }
+
+
+
+    private static void AddGlobalField(
+        IniParseContext context,
+        string line,
+        int separatorIndex,
+        int lineNumber,
+        string? comment)
+    {
+        var key = line[..separatorIndex].Trim();
+        var value = line[(separatorIndex + 1)..].Trim();
+        if (key.Length == 0)
+        {
+            context.Errors.Add($"Line {lineNumber}: Field is missing a key.");
+            return;
+        }
+
+        var field = new IniField(key, value, comment);
+        field.LeadingComments.AddRange(context.PendingComments);
+        context.PendingComments.Clear();
+        if (context.Document.GlobalFields.Count == 0 && context.Document.Blocks.Count == 0)
+        {
+            context.Document.HeaderComments.AddRange(field.LeadingComments);
+            field.LeadingComments.Clear();
+        }
+
+        context.Document.GlobalFields.Add(field);
+    }
+
+    private static void AddBareField(
+        string line,
+        string? comment,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments)
+    {
+        var field = new IniField(line, string.Empty, comment) { IsBare = true };
+        field.LeadingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        stack.Peek().Block.Fields.Add(field);
+    }
+
+    private static void AddFieldOrModule(
+        IniParseContext context,
+        int index,
+        string line,
+        int separatorIndex,
+        int lineNumber,
+        string? comment)
+    {
+        var key = line[..separatorIndex].Trim();
+        var value = line[(separatorIndex + 1)..].Trim();
+        if (key.Length == 0)
+        {
+            context.Errors.Add($"Line {lineNumber}: Field is missing a key.");
+            return;
+        }
+
+        var indent = GetIndent(context.Lines[index]);
+        if (OpensModuleBlock(key, context.Stack.Peek().Indent, indent, context.Lines, index))
+        {
+            OpenModuleBlock(key, value, indent, lineNumber, comment, context.Stack, context.PendingComments);
+            return;
+        }
+
+        var field = new IniField(key, value, comment);
+        field.LeadingComments.AddRange(context.PendingComments);
+        context.PendingComments.Clear();
+        context.Stack.Peek().Block.Fields.Add(field);
+    }
+
+
 
     private static (string Text, int Indent)? FindNextSignificant(string[] lines, int start)
     {

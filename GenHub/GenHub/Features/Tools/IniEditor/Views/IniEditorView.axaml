@@ -386,11 +386,21 @@
                            FontSize="10" FontWeight="SemiBold"
                            Foreground="{DynamicResource TextSecondary}"
                            Margin="0,6,0,2"/>
-                <ComboBox Grid.Row="3"
-                          ItemsSource="{Binding ReferenceTypeOptions}"
-                          SelectedItem="{Binding ReferenceTypeFilter, Mode=TwoWay}"
-                          ToolTip.Tip="{localization:Localize Tools.IniEditor.Reference.TypeLabel}"
-                          FontSize="11" HorizontalAlignment="Stretch"/>
+                <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+                  <ComboBox Grid.Column="0"
+                            ItemsSource="{Binding ReferenceTypeOptions}"
+                            SelectedItem="{Binding ReferenceTypeFilter, Mode=TwoWay}"
+                            ToolTip.Tip="{localization:Localize Tools.IniEditor.Reference.TypeLabel}"
+                            FontSize="11" HorizontalAlignment="Stretch"/>
+                  <Button Grid.Column="1"
+                          Command="{Binding ClearReferenceTypeFilterCommand}"
+                          IsVisible="{Binding ReferenceTypeFilter, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                          ToolTip.Tip="{localization:Localize Tools.IniEditor.Reference.ClearTypeTooltip}"
+                          Background="Transparent" BorderThickness="0"
+                          Padding="4,2" Margin="4,0,0,0">
+                    <material:MaterialIcon Kind="Close" Width="14" Height="14"/>
+                  </Button>
+                </Grid>
                 <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,6,0,4">
                   <TextBox Grid.Column="0"
                            Text="{Binding ReferenceFilter, Mode=TwoWay}"

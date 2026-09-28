@@ -47,7 +47,7 @@ The Texture Editor interface consists of three columns:
 
 ## Shared Editor Shell
 
-The Texture Editor and the WND editor share one editor shell in `GenHub.Common.Editors`, so common behavior is implemented once and propagates to every present and future editor (including the planned INI editor):
+The Texture, WND, and INI editors share one editor shell in `GenHub.Common.Editors`, so common behavior is implemented once and propagates to every present and future editor:
 
 - `EditorToolViewModelBase`: Standard document verbs (new, open, save, save-as, undo, redo, copy, cut, paste, duplicate, delete), canvas zoom, busy tracking with cancellation, and discard confirmation. Editors enable verbs by overriding the matching members.
 - `FileExplorerViewModel` and `EditorFileExplorerControl`: Shared project folder browser with file tree, current-file tracking, and per-editor file patterns.

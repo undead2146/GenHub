@@ -75,7 +75,7 @@ public sealed partial class IniEditorViewModel(
     private bool _cultureSubscribed;
     private bool _installationsLoaded;
     private int _thumbnailGeneration;
-    private int _savedUndoDepth;
+    private IniEditAction? _savedTopAction;
     private bool _isRebuilding;
     private CancellationTokenSource? _previewCts;
     private CancellationTokenSource? _filterCts;
@@ -1152,17 +1152,8 @@ public sealed partial class IniEditorViewModel(
         }
 
         var fields = row.OwnerFields;
-        var index = -1;
-        for (var i = 0; i < fields.Count; i++)
-        {
-            if (string.Equals(fields[i].Key, row.Key, StringComparison.OrdinalIgnoreCase))
-            {
-                index = i;
-                break;
-            }
-        }
-
-        if (index < 0)
+        var index = row.FieldIndex;
+        if (index < 0 || index >= fields.Count || !string.Equals(fields[index].Key, row.Key, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -1283,11 +1274,18 @@ public sealed partial class IniEditorViewModel(
     /// Rebuilds the reference index, rescanning cached folder and vanilla entries.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <summary>
+    /// Clears the active reference type filter.
+    /// </summary>
     [RelayCommand]
-    private async Task RefreshReferenceIndexAsync(CancellationToken cancellationToken = default)
+    private void ClearReferenceTypeFilter()
     {
-        await RunOperationAsync(token => RebuildReferenceIndexAsync(true, CancellationTokenSource.CreateLinkedTokenSource(token, cancellationToken).Token)).ConfigureAwait(false);
+        ReferenceTypeFilter = null;
     }
+
+    [RelayCommand]
+    private Task RefreshReferenceIndexAsync(CancellationToken cancellationToken = default) =>
+        RebuildReferenceIndexAsync(true, cancellationToken);
 
     /// <summary>
     /// Inserts a copy of the selected reference block into the open document.
@@ -1374,7 +1372,8 @@ public sealed partial class IniEditorViewModel(
             RebuildAll();
         }).ConfigureAwait(false);
         MarkSaved();
-        _savedUndoDepth = _undoStack.Count;
+        _undoStack.TryPeek(out var topAction);
+        _savedTopAction = topAction;
         await RebuildReferenceIndexAsync(false, cancellationToken).ConfigureAwait(false);
         await LoadTexturePickerItemsAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -1470,15 +1469,17 @@ public sealed partial class IniEditorViewModel(
             var key = block.Fields[i].Key;
             var fieldIndex = i;
             var known = schemaService.TryGetField(block.BlockType, key, out var schema);
+            var metadata = new IniFieldMetadata(
+                schema?.Description,
+                known,
+                BuildFieldTooltip(key, schema),
+                ResolveSuggestions(schema),
+                schema?.ReferenceBlockType,
+                schema?.IsTexture ?? false);
             FieldRows.Add(new IniFieldRowViewModel(
                 block.Fields,
                 fieldIndex,
-                schema?.Description,
-                known,
-                BuildFieldTooltip(block.BlockType, key, schema),
-                ResolveSuggestions(schema),
-                schema?.ReferenceBlockType,
-                schema?.IsTexture ?? false,
+                metadata,
                 MarkDocumentDirty,
                 (oldValue, newValue) => PushFieldValueUndo(block.Fields, key, fieldIndex, oldValue, newValue)));
         }
@@ -1498,15 +1499,12 @@ public sealed partial class IniEditorViewModel(
         {
             var key = fields[i].Key;
             var fieldIndex = i;
+            var metadata = new IniFieldMetadata(
+                Tooltip: BuildFieldTooltip(key, null));
             GlobalFieldRows.Add(new IniFieldRowViewModel(
                 fields,
                 fieldIndex,
-                null,
-                false,
-                BuildFieldTooltip(string.Empty, key, null),
-                null,
-                null,
-                false,
+                metadata,
                 MarkDocumentDirty,
                 (oldValue, newValue) => PushFieldValueUndo(fields, key, fieldIndex, oldValue, newValue)));
         }
@@ -1765,10 +1763,25 @@ public sealed partial class IniEditorViewModel(
             AssembledRows.Add(new IniAssembledRowViewModel(
                 Localization.GetString("Tools.IniEditor.Assembled.CommandSlotLabel", slot.Key),
                 button.Name,
-                command == null ? target : target == null ? command : $"{command} → {target}",
+                FormatCommandButtonAction(command, target),
                 Localization.GetString("Tools.IniEditor.Assembled.CommandSlotTooltip", button.Name, command ?? "?", target ?? "?"),
                 texture));
         }
+    }
+
+    private string FormatCommandButtonAction(string? command, string? target)
+    {
+        if (command == null)
+        {
+            return target ?? string.Empty;
+        }
+
+        if (target == null)
+        {
+            return command;
+        }
+
+        return $"{command} → {target}";
     }
 
     private void AddReferenceRow(string label, string value, string blockType)
@@ -1918,7 +1931,8 @@ public sealed partial class IniEditorViewModel(
 
     private void SyncDirtyAfterHistory()
     {
-        if (_undoStack.Count == _savedUndoDepth)
+        _undoStack.TryPeek(out var top);
+        if (ReferenceEquals(top, _savedTopAction))
         {
             MarkSaved();
         }
@@ -2236,7 +2250,7 @@ public sealed partial class IniEditorViewModel(
         return null;
     }
 
-    private string? BuildFieldTooltip(string blockType, string key, IniFieldSchema? schema)
+    private string? BuildFieldTooltip(string key, IniFieldSchema? schema)
     {
         if (schema == null)
         {
@@ -2312,20 +2326,14 @@ public sealed partial class IniEditorViewModel(
     private List<string> CollectTextureNames()
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var row in FieldRows)
+        foreach (var row in FieldRows.Where(r => r.IsTexture && !string.IsNullOrWhiteSpace(r.Value)))
         {
-            if (row.IsTexture && !string.IsNullOrWhiteSpace(row.Value))
-            {
-                names.Add(row.Value.Trim());
-            }
+            names.Add(row.Value.Trim());
         }
 
-        foreach (var row in AssembledRows)
+        foreach (var row in AssembledRows.Where(r => !string.IsNullOrWhiteSpace(r.TextureName)))
         {
-            if (!string.IsNullOrWhiteSpace(row.TextureName))
-            {
-                names.Add(row.TextureName.Trim());
-            }
+            names.Add(row.TextureName!.Trim());
         }
 
         foreach (var item in TexturePickerItems.Take(IniConstants.Editor.MaxPickerThumbnails))
@@ -2358,24 +2366,40 @@ public sealed partial class IniEditorViewModel(
             return;
         }
 
+        var decoded = new Dictionary<string, Bitmap?>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, png) in result.Data)
         {
             try
             {
                 using var stream = new MemoryStream(png);
-                _textureThumbnails[name] = new Bitmap(stream);
+                decoded[name] = new Bitmap(stream);
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException)
             {
                 logger.LogWarning(ex, "Failed to decode texture thumbnail {Name}", name);
-                _textureThumbnails[name] = null;
+                decoded[name] = null;
             }
         }
 
         foreach (var name in names)
         {
-            _textureThumbnails.TryAdd(name, null);
+            decoded.TryAdd(name, null);
         }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        await InvokeOnUIThreadAsync(() =>
+        {
+            foreach (var (name, bitmap) in decoded)
+            {
+                _textureThumbnails[name] = bitmap;
+            }
+
+            ApplyCachedThumbnails();
+        }).ConfigureAwait(false);
     }
 
     private void ApplyCachedThumbnails()
@@ -2531,15 +2555,12 @@ public sealed partial class IniEditorViewModel(
                 UpdateExplorerForFile(filePath);
             }).ConfigureAwait(false);
             MarkSaved();
-            _savedUndoDepth = _undoStack.Count;
+            _undoStack.TryPeek(out var topAction);
+            _savedTopAction = topAction;
             Notifications.ShowSuccess(
                 Localization.GetString("Tools.IniEditor.Save.SuccessTitle"),
                 Localization.GetString("Tools.IniEditor.Save.SuccessMessage", DocumentTitle),
                 NotificationDurations.Medium);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {

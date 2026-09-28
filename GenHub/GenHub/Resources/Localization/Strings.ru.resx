@@ -14832,6 +14832,9 @@ GenHub сравнивает Exe CRC и INI CRC повтора с каталог�
   <data name="TextureEditor.Notify.ExportInvalid.Message" xml:space="preserve">
     <value>Срез «{0}» выходит за пределы текстуры.</value>
   </data>
+  <data name="TextureEditor.Notify.InvalidName.Message" xml:space="preserve">
+    <value>Имя фрагмента '{0}' пустое или дублируется.</value>
+  </data>
   <data name="TextureEditor.Notify.PackComplete.Title" xml:space="preserve">
     <value>Атлас упакован</value>
   </data>
@@ -15207,6 +15210,9 @@ GenHub сравнивает Exe CRC и INI CRC повтора с каталог�
   </data>
   <data name="Tools.IniEditor.Reference.TypeLabel" xml:space="preserve">
     <value>Тип блока</value>
+  </data>
+  <data name="Tools.IniEditor.Reference.ClearTypeTooltip" xml:space="preserve">
+    <value>Очистить фильтр типов</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureMessage" xml:space="preserve">
     <value>Не удалось сохранить INI-файл: {0}</value>

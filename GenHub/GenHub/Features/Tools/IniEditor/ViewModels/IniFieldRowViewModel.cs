@@ -23,39 +23,35 @@ public sealed partial class IniFieldRowViewModel : ObservableObject
     /// </summary>
     /// <param name="fields">The owning field list.</param>
     /// <param name="fieldIndex">Index of the field within the list.</param>
-    /// <param name="description">Schema description, when known.</param>
-    /// <param name="isKnown">Whether the field is covered by the schema.</param>
-    /// <param name="tooltip">Full tooltip text for the row.</param>
-    /// <param name="suggestions">Searchable value suggestions, when any.</param>
-    /// <param name="referenceBlockType">Referenced block type for go-to-definition, when any.</param>
-    /// <param name="isTexture">Whether the value names a mapped image texture.</param>
+    /// <param name="metadata">Display and schema metadata for the field row.</param>
     /// <param name="onChanged">Callback invoked when the value changes.</param>
     /// <param name="onEditCommitted">Callback invoked with the pre-edit and current value for undo tracking.</param>
     public IniFieldRowViewModel(
         IList<IniField> fields,
         int fieldIndex,
-        string? description,
-        bool isKnown,
-        string? tooltip,
-        IReadOnlyList<string>? suggestions,
-        string? referenceBlockType,
-        bool isTexture,
+        IniFieldMetadata metadata,
         Action onChanged,
         Action<string, string> onEditCommitted)
     {
+        ArgumentNullException.ThrowIfNull(metadata);
         _fields = fields;
         _fieldIndex = fieldIndex;
-        Description = description;
-        IsKnown = isKnown;
-        Tooltip = tooltip ?? description;
-        Suggestions = suggestions;
-        ReferenceBlockType = referenceBlockType;
-        IsTexture = isTexture;
+        Description = metadata.Description;
+        IsKnown = metadata.IsKnown;
+        Tooltip = metadata.Tooltip ?? metadata.Description;
+        Suggestions = metadata.Suggestions;
+        ReferenceBlockType = metadata.ReferenceBlockType;
+        IsTexture = metadata.IsTexture;
         _onChanged = onChanged;
         _onEditCommitted = onEditCommitted;
         _value = fields[fieldIndex].Value;
         _editBase = _value;
     }
+
+    /// <summary>
+    /// Gets the index of the field within the owning list.
+    /// </summary>
+    public int FieldIndex => _fieldIndex;
 
     /// <summary>
     /// Gets the owning field list, used to route row actions such as delete.
