@@ -246,6 +246,23 @@ public class MockReplayDirectoryService : IReplayDirectoryService
                 SizeInBytes = 1024 * 500,
                 LastModified = DateTime.UtcNow.AddDays(-1),
                 GameVersion = version, // Use requested type so it appears valid
+                Metadata = new ReplayMetadata
+                {
+                    MapName = "Tournament Desert",
+                    VersionString = "1.04",
+                    ExeCrc = 0x401D89EA,
+                    IniCrc = 0x76B251A3,
+                    Players = ["Commander Alpha", "General Bravo"],
+                },
+                MatchedClient = new CrcMappingEntry
+                {
+                    Description = "Official Steam Zero Hour 1.04",
+                    Publisher = PublisherTypeConstants.Steam,
+                    GameType = nameof(GameType.ZeroHour),
+                    Version = "1.04",
+                    ManifestId = "1.104.steam.gameclient.zerohour",
+                },
+                CompatibilityStatus = ReplayCompatibilityStatus.RequiresProfile,
                 SupportsCheckpoints = true,
                 RecoveryProfileId = "demo-recovery-profile",
                 RecoveryProfileName = "Zero Hour 1.04 (Recovery)",
@@ -257,6 +274,23 @@ public class MockReplayDirectoryService : IReplayDirectoryService
                 SizeInBytes = 1024 * 1200,
                 LastModified = DateTime.UtcNow.AddHours(-5),
                 GameVersion = version, // Use requested type so it appears valid
+                Metadata = new ReplayMetadata
+                {
+                    MapName = "Twilight Flame",
+                    VersionString = "1.04",
+                    ExeCrc = 0xDA2B4B18,
+                    IniCrc = 0x8FB8AE76,
+                    Players = ["ShockWave", "Viper", "Ironclad", "DuneFox"],
+                },
+                MatchedClient = new CrcMappingEntry
+                {
+                    Description = "Zero Hour 1.04 (Community Patch)",
+                    Publisher = PublisherTypeConstants.CommunityOutpost,
+                    GameType = nameof(GameType.ZeroHour),
+                    Version = "1.04",
+                    ManifestId = "1.104.retail.gameclient.zerohour",
+                },
+                CompatibilityStatus = ReplayCompatibilityStatus.Downloadable,
             },
         };
 
@@ -541,6 +575,7 @@ public class MockMapDirectoryService : IMapDirectoryService
                 LastModified = DateTime.UtcNow,
                 DirectoryName = "Tournament Desert",
                 AssetFiles = ["map.ini", "map.str", "map.tga"],
+                PlayerCount = 2,
             },
             new()
             {
@@ -553,6 +588,7 @@ public class MockMapDirectoryService : IMapDirectoryService
                 LastModified = DateTime.UtcNow.AddDays(-10),
                 DirectoryName = "Twilight Flame",
                 AssetFiles = ["map.ini", "map.str", "map.tga"],
+                PlayerCount = 4,
             },
             new()
             {
@@ -565,6 +601,7 @@ public class MockMapDirectoryService : IMapDirectoryService
                 LastModified = DateTime.UtcNow.AddDays(-5),
                 DirectoryName = "Alpine Assault",
                 AssetFiles = ["map.ini", "map.str", "map.tga"],
+                PlayerCount = 3,
             },
             new()
             {
@@ -577,6 +614,7 @@ public class MockMapDirectoryService : IMapDirectoryService
                 LastModified = DateTime.UtcNow.AddDays(-20),
                 DirectoryName = "Flash Fire",
                 AssetFiles = ["map.ini", "map.str", "map.tga"],
+                PlayerCount = 2,
             },
         };
 

@@ -100,6 +100,7 @@ public partial class GameProfileLauncherViewModel(
     private bool _lastOperationSuccess;
     private string? _expectedProfileIdForSuccess;
     private bool _isCreatingNewProfile;
+    private bool _isRestoringSelection;
 
     /// <summary>
     /// Represents a profile sorting option.
@@ -198,6 +199,11 @@ public partial class GameProfileLauncherViewModel(
         OnPropertyChanged(nameof(CanEditProfile));
         LaunchProfileCommand.NotifyCanExecuteChanged();
         EditProfileCommand.NotifyCanExecuteChanged();
+
+        if (!_isRestoringSelection && value is not null and not AddProfileItemViewModel)
+        {
+            PersistLastUsedProfileId(value.ProfileId);
+        }
     }
 
     [ObservableProperty]
@@ -302,6 +308,11 @@ public partial class GameProfileLauncherViewModel(
     internal Func<Task<GameInstallation?>>? ManualDirectoryPrompter { get; set; }
 
     /// <summary>
+    /// Gets the most recent save of the last used profile id, so tests can await it.
+    /// </summary>
+    internal Task LastUsedProfileSave { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
     /// Performs asynchronous initialization for the GameProfileLauncherViewModel.
     /// Loads all game profiles and subscribes to process exit events.
     /// </summary>
@@ -376,6 +387,7 @@ public partial class GameProfileLauncherViewModel(
             StatusMessage = localizationService["GameProfiles.Status.LoadingProfiles"];
             ErrorMessage = string.Empty;
             HasLoadedProfilesSuccessfully = false;
+            var selectedProfileId = SelectedProfile?.ProfileId ?? userSettingsService?.Get().LastUsedProfileId;
             Profiles.Clear();
 
             var profilesResult = await gameProfileManager.GetAllProfilesAsync();
@@ -419,6 +431,7 @@ public partial class GameProfileLauncherViewModel(
 
                 // Add "Add New Profile" item at the end
                 Profiles.Add(new AddProfileItemViewModel());
+                RestoreSelectedProfile(selectedProfileId);
 
                 ApplySorting();
 
@@ -649,6 +662,7 @@ public partial class GameProfileLauncherViewModel(
                 if (profile != null)
                 {
                     Profiles.Remove(profile);
+                    ClearSelectionIfRemoved(profile);
                     ApplySorting();
                 }
             }
@@ -2308,8 +2322,7 @@ public partial class GameProfileLauncherViewModel(
             // Mirror the persisted LastPlayedAt so LastPlayed sorting reflects this launch immediately.
             liveProfile.LastPlayedAt = DateTime.UtcNow;
             ApplySorting();
-
-            if (liveProfile != profile && Profiles.Contains(liveProfile))
+            if (Profiles.Contains(liveProfile))
             {
                 SelectedProfile = liveProfile;
             }
@@ -2358,6 +2371,70 @@ public partial class GameProfileLauncherViewModel(
                 [TelemetryConstants.Properties.TimeToLaunchMs] = timeToLaunchMs,
                 [TelemetryConstants.Properties.ErrorCategory] = TelemetryConstants.ErrorCategories.LaunchFailed,
             });
+        }
+    }
+
+    private void RestoreSelectedProfile(string? profileId)
+    {
+        var match = string.IsNullOrEmpty(profileId)
+            ? null
+            : Profiles.FirstOrDefault(p => p is not AddProfileItemViewModel && string.Equals(p.ProfileId, profileId, StringComparison.OrdinalIgnoreCase));
+
+        if (match == null && !string.IsNullOrEmpty(profileId))
+        {
+            logger.LogInformation("Last used profile {ProfileId} no longer exists, so no profile is selected", profileId);
+        }
+
+        _isRestoringSelection = true;
+        try
+        {
+            SelectedProfile = match;
+        }
+        finally
+        {
+            _isRestoringSelection = false;
+        }
+    }
+
+    private void ClearSelectionIfRemoved(GameProfileItemViewModel profile)
+    {
+        if (ReferenceEquals(SelectedProfile, profile))
+        {
+            SelectedProfile = null;
+        }
+    }
+
+    private void PersistLastUsedProfileId(string profileId)
+    {
+        if (userSettingsService == null ||
+            (LastUsedProfileSave.IsCompleted &&
+                string.Equals(userSettingsService.Get().LastUsedProfileId, profileId, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        LastUsedProfileSave = SaveLastUsedProfileIdAsync(userSettingsService, profileId, LastUsedProfileSave);
+    }
+
+    private async Task SaveLastUsedProfileIdAsync(IUserSettingsService settingsService, string profileId, Task previousSave)
+    {
+        try
+        {
+            await previousSave;
+            await Task.Run(() => settingsService.TryUpdateAndSaveAsync(settings =>
+            {
+                if (string.Equals(settings.LastUsedProfileId, profileId, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                settings.LastUsedProfileId = profileId;
+                return true;
+            }));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to save {ProfileId} as the last used profile; it will not be selected after a restart", profileId);
         }
     }
 
@@ -2472,6 +2549,7 @@ public partial class GameProfileLauncherViewModel(
             if (deleteResult.Success)
             {
                 Profiles.Remove(profile);
+                ClearSelectionIfRemoved(profile);
                 StatusMessage = localizationService.GetString("GameProfiles.Status.ProfileDeletedSuccess", profile.Name);
                 logger.LogInformation("Deleted profile {ProfileName}", profile.Name);
 
