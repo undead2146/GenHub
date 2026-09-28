@@ -729,4 +729,28 @@ public sealed class IniDocumentServiceTests : IDisposable
         set.Fields.Should().HaveCount(3);
         set.Children.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Verifies that whitespace-separated key/value lines inside blocks are parsed as fields.
+    /// </summary>
+    [Fact]
+    public void ParseText_WhitespaceSeparatedFields_ParsedAsFields()
+    {
+        const string content =
+            "ControlBarScheme Retail\n" +
+            "  ScreenHeight 768\n" +
+            "  Side America\n" +
+            "End\n";
+
+        var result = _service.ParseText(content);
+
+        result.Success.Should().BeTrue();
+        result.Data!.Blocks.Should().ContainSingle();
+        var block = result.Data.Blocks[0];
+        block.Fields.Should().HaveCount(2);
+        block.Fields[0].Key.Should().Be("ScreenHeight");
+        block.Fields[0].Value.Should().Be("768");
+        block.Fields[1].Key.Should().Be("Side");
+        block.Fields[1].Value.Should().Be("America");
+    }
 }

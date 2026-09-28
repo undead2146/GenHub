@@ -1271,10 +1271,6 @@ public sealed partial class IniEditorViewModel(
     }
 
     /// <summary>
-    /// Rebuilds the reference index, rescanning cached folder and vanilla entries.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <summary>
     /// Clears the active reference type filter.
     /// </summary>
     [RelayCommand]

@@ -1,4 +1,3 @@
-using System.Linq;
 using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Tools.IniEditor;
@@ -10,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -250,6 +250,15 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         IniConstants.ModuleKeys.All.Any(moduleKey => string.Equals(moduleKey, key, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
+    /// Checks if a token represents a recognized block type or module key.
+    /// </summary>
+    /// <param name="token">The token to check.</param>
+    /// <returns>True if the token is a recognized block or module keyword; otherwise, false.</returns>
+    internal static bool IsBlockType(string token) =>
+        IniConstants.BlockTypes.All.Any(blockType => string.Equals(blockType, token, StringComparison.OrdinalIgnoreCase)) ||
+        IsModuleKey(token);
+
+    /// <summary>
     /// Calculates the number of leading spaces in a line.
     /// </summary>
     /// <param name="raw">The raw line text.</param>
@@ -359,16 +368,26 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
                 return;
             }
 
+            var firstToken = line.Split(' ', 2)[0];
+            if (IsBlockType(firstToken))
+            {
+                OpenBlock(line, GetIndent(raw), lineNumber, comment, context.Stack, context.PendingComments, context.Document);
+                return;
+            }
+
             var spaceIndex = line.IndexOf(' ');
             if (spaceIndex > 0)
             {
                 var key = line[..spaceIndex].Trim();
                 var value = line[(spaceIndex + 1)..].Trim();
-                var field = new IniField(key, value, comment);
-                field.LeadingComments.AddRange(context.PendingComments);
-                context.PendingComments.Clear();
-                context.Stack.Peek().Block.Fields.Add(field);
-                return;
+                if (key.Length > 0)
+                {
+                    var field = new IniField(key, value, comment);
+                    field.LeadingComments.AddRange(context.PendingComments);
+                    context.PendingComments.Clear();
+                    context.Stack.Peek().Block.Fields.Add(field);
+                    return;
+                }
             }
 
             AddBareField(line, comment, context.Stack, context.PendingComments);
@@ -377,8 +396,6 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
 
         OpenBlock(line, GetIndent(raw), lineNumber, comment, context.Stack, context.PendingComments, context.Document);
     }
-
-
 
     private static void AddGlobalField(
         IniParseContext context,
@@ -447,8 +464,6 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         context.PendingComments.Clear();
         context.Stack.Peek().Block.Fields.Add(field);
     }
-
-
 
     private static (string Text, int Indent)? FindNextSignificant(string[] lines, int start)
     {
