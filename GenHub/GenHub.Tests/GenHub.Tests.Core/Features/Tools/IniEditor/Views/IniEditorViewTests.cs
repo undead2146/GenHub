@@ -205,6 +205,31 @@ public class IniEditorViewTests
     }
 
     /// <summary>
+    /// Verifies that consecutive edits to a field preserve the original value on undo and final value on redo.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task FieldEdit_ConsecutiveEdits_UndoRestoresOriginalValueAsync()
+    {
+        using var viewModel = CreateViewModel();
+        await viewModel.NewDocumentCommand.ExecuteAsync(null);
+        viewModel.NewBlockType = "Object";
+        viewModel.NewBlockName = "Edited";
+        viewModel.AddBlockCommand.Execute(null);
+
+        viewModel.FieldRows.First(row => row.Key == "Health").Value = "150.0";
+        viewModel.FieldRows.First(row => row.Key == "Health").Value = "200.0";
+
+        Assert.Equal("200.0", viewModel.FieldRows.First(row => row.Key == "Health").Value);
+
+        viewModel.UndoCommand.Execute(null);
+        Assert.Equal("100.0", viewModel.FieldRows.First(row => row.Key == "Health").Value);
+
+        viewModel.RedoCommand.Execute(null);
+        Assert.Equal("200.0", viewModel.FieldRows.First(row => row.Key == "Health").Value);
+    }
+
+    /// <summary>
     /// Verifies that duplicate block names are rejected.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>

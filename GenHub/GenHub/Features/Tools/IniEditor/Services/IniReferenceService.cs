@@ -211,6 +211,11 @@ public sealed class IniReferenceService(
                     indentStack.Push(indent);
                 }
             }
+            else if (!IniDocumentService.IsValuelessKey(line) &&
+                     IniDocumentService.IsBlockType(line.Split(' ', 2)[0]))
+            {
+                indentStack.Push(IniDocumentService.GetIndent(raw));
+            }
 
             return;
         }

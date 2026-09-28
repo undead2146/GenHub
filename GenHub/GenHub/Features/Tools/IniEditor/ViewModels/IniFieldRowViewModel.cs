@@ -16,7 +16,6 @@ public sealed partial class IniFieldRowViewModel : ObservableObject
     private readonly int _fieldIndex;
     private readonly Action _onChanged;
     private readonly Action<string, string> _onEditCommitted;
-    private readonly string _editBase;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IniFieldRowViewModel"/> class.
@@ -45,7 +44,6 @@ public sealed partial class IniFieldRowViewModel : ObservableObject
         _onChanged = onChanged;
         _onEditCommitted = onEditCommitted;
         _value = fields[fieldIndex].Value;
-        _editBase = _value;
     }
 
     /// <summary>
@@ -120,6 +118,6 @@ public sealed partial class IniFieldRowViewModel : ObservableObject
         var current = _fields[_fieldIndex];
         _fields[_fieldIndex] = current with { Value = value, IsBare = current.IsBare && value.Length == 0 };
         _onChanged();
-        _onEditCommitted(_editBase, value);
+        _onEditCommitted(current.Value, value);
     }
 }

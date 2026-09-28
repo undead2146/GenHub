@@ -753,4 +753,40 @@ public sealed class IniDocumentServiceTests : IDisposable
         block.Fields[1].Key.Should().Be("Side");
         block.Fields[1].Value.Should().Be("America");
     }
+
+    /// <summary>
+    /// Verifies that scanning block headers handles nameless nested blocks without desynchronizing.
+    /// </summary>
+    [Fact]
+    public void ScanBlockHeaders_WithNamelessNestedBlocks_ReturnsOnlyTopLevelHeaders()
+    {
+        const string docWithNestedBlocks = """
+            ; Generals object definition
+            Object AmericaVehicleHumvee
+              DisplayName = OBJECT:Humvee
+              Side = USA
+              BuildCost = 800
+              Health = 300.0
+              WeaponSet
+                Conditions = None
+                PRIMARY = HumveeMissileWeapon
+              End
+              ArmorSet
+                Conditions = None
+                Armor = HumveeArmor
+              End
+            End
+
+            Weapon HumveeMissileWeapon
+              PrimaryDamage = 50.0
+              DamageType = EXPLOSION
+            End
+            """;
+
+        var headers = IniReferenceService.ScanBlockHeaders(docWithNestedBlocks);
+
+        headers.Should().HaveCount(2);
+        headers[0].Should().Be(("Object", "AmericaVehicleHumvee"));
+        headers[1].Should().Be(("Weapon", "HumveeMissileWeapon"));
+    }
 }

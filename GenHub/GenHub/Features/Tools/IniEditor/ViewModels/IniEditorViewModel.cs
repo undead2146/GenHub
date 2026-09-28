@@ -2029,6 +2029,7 @@ public sealed partial class IniEditorViewModel(
             Equals(top.CoalesceKey, action.CoalesceKey))
         {
             _undoStack.Pop();
+            action = action with { Undo = top.Undo };
         }
 
         _undoStack.Push(action);
