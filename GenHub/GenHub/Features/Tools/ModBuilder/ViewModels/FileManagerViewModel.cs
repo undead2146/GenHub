@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.Notifications;
@@ -777,7 +778,9 @@ public partial class FileManagerViewModel(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to add files to project");
-            notificationService.ShowError("Add Files Failed", "Failed to add files to project");
+            notificationService.ShowError(
+                localizationService.GetLocalizedString("Tools.ModBuilder.Notification.AddFilesFailed.Title", "Add Files Failed"),
+                localizationService.GetLocalizedString("Tools.ModBuilder.Notification.AddFilesFailed.ProjectMessage", "Failed to add files to project"));
             StatusMessage = "Failed to add files";
         }
         finally
@@ -825,7 +828,9 @@ public partial class FileManagerViewModel(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to remove files from project");
-            notificationService.ShowError("Operation Failed", "Failed to remove some files from the project");
+            notificationService.ShowError(
+                localizationService.GetLocalizedString("Tools.ModBuilder.Notification.OperationFailed.Title", "Operation Failed"),
+                localizationService.GetLocalizedString("Tools.ModBuilder.Notification.OperationFailed.RemoveFilesMessage", "Failed to remove some files from the project"));
         }
         finally
         {

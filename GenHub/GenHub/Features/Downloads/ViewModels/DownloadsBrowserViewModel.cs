@@ -2268,24 +2268,24 @@ public sealed partial class DownloadsBrowserViewModel(
                     {
                         if (!result.Success)
                         {
-                            var errorMsg = result.FirstError ?? "Check your connection and try again.";
+                            var errorMsg = result.FirstError ?? localizationService.GetLocalizedString("Downloads.Notification.DiscoveryConnectionHint", "Check your connection and try again.");
                             notificationService.ShowWarning(
-                                "Discovery Failed",
-                                $"{publisherId} discovery failed: {errorMsg}");
+                                localizationService.GetLocalizedString("Downloads.Notification.DiscoveryFailed.Title", "Discovery Failed"),
+                                localizationService.GetLocalizedString("Downloads.Notification.DiscoveryFailed.Message", $"{publisherId} discovery failed: {errorMsg}", publisherId, errorMsg));
                         }
                         else
                         {
                             notificationService.ShowInfo(
-                                "No content loaded",
-                                $"{publisherId} returned no content.");
+                                localizationService.GetLocalizedString("Downloads.Notification.NoContentLoaded.Title", "No content loaded"),
+                                localizationService.GetLocalizedString("Downloads.Notification.NoContentLoaded.Message", $"{publisherId} returned no content.", publisherId));
                         }
                     }
                     else if (!result.Success)
                     {
-                        var errorMsg = result.FirstError ?? "Check your connection and try again.";
+                        var errorMsg = result.FirstError ?? localizationService.GetLocalizedString("Downloads.Notification.DiscoveryConnectionHint", "Check your connection and try again.");
                         notificationService.ShowWarning(
-                            "Failed to Load More",
-                            $"Could not load more content for {publisherId}: {errorMsg}");
+                            localizationService.GetLocalizedString("Downloads.Notification.LoadMoreFailed.Title", "Failed to Load More"),
+                            localizationService.GetLocalizedString("Downloads.Notification.LoadMoreFailed.Message", $"Could not load more content for {publisherId}: {errorMsg}", publisherId, errorMsg));
                     }
                 }
             });
@@ -2799,7 +2799,8 @@ public sealed partial class DownloadsBrowserViewModel(
                     notificationService,
                     logger,
                     targetItem.SearchResult?.ProviderName ?? DefaultPublisherName,
-                    "[Downloads Update]");
+                    "[Downloads Update]",
+                    localizationService);
 
                 var updateOutcome = await PublisherReconcilerHelper.ApplyUpdateStrategyAsync(
                     new UpdateStrategyExecutionArgs(
@@ -2873,8 +2874,8 @@ public sealed partial class DownloadsBrowserViewModel(
 
         var activeNotificationService = notificationService ?? serviceProvider.GetService<INotificationService>();
         activeNotificationService?.ShowSuccess(
-            "Update Completed",
-            $"Updated {targetItem.Name} to latest version.",
+            localizationService.GetLocalizedString("Content.Notification.UpdateCompleted.Title", "Update Completed"),
+            localizationService.GetLocalizedString("Downloads.Notification.ItemUpdated.Message", $"Updated {targetItem.Name} to latest version.", targetItem.Name),
             NotificationDurations.Medium);
 
         if (SelectedPublisher != null)
@@ -3352,7 +3353,10 @@ public sealed partial class DownloadsBrowserViewModel(
         _filterViewModels[CNCLabsConstants.PublisherType] = new CNCLabsFilterViewModel();
         _filterViewModels[AODMapsConstants.PublisherType] = new AODMapsFilterViewModel();
         _filterViewModels[ModDBConstants.PublisherType] = new ModDBFilterViewModel();
-        _filterViewModels[PublisherTypeConstants.GenLauncher] = new StaticPublisherFilterViewModel(PublisherTypeConstants.GenLauncher);
+        _filterViewModels[PublisherTypeConstants.GenLauncher] = new StaticPublisherFilterViewModel(PublisherTypeConstants.GenLauncher)
+        {
+            LocalizationService = _localizationService,
+        };
     }
 
     [RelayCommand]
@@ -3630,7 +3634,9 @@ public sealed partial class DownloadsBrowserViewModel(
         if (!item.EffectiveIsDownloaded && item.EffectiveCurrentState is not (ContentState.Downloaded or ContentState.UpdateAvailable))
         {
             item.DownloadStatus = ContentConstants.PleaseDownloadFirstStatusMessage;
-            notificationService.ShowError("Cannot Add to Profile", "Please download the content first before adding it to a profile.");
+            notificationService.ShowError(
+                localizationService.GetLocalizedString("Downloads.Notification.CannotAddToProfile.Title", "Cannot Add to Profile"),
+                localizationService.GetLocalizedString("Downloads.Notification.CannotAddToProfile.DownloadFirstMessage", "Please download the content first before adding it to a profile."));
             logger.LogWarning("Cannot add content to profile: content '{Name}' is not downloaded", item.Name);
             return;
         }
@@ -3650,8 +3656,8 @@ public sealed partial class DownloadsBrowserViewModel(
                 {
                     item.DownloadStatus = ContentConstants.PleaseDownloadFirstStatusMessage;
                     notificationService.ShowError(
-                        "Cannot Add to Profile",
-                        "Download every selected bundle item (including the chosen variants) before adding them to a profile.");
+                        localizationService.GetLocalizedString("Downloads.Notification.CannotAddToProfile.Title", "Cannot Add to Profile"),
+                        localizationService.GetLocalizedString("Downloads.Notification.CannotAddToProfile.BundleMessage", "Download every selected bundle item (including the chosen variants) before adding them to a profile."));
                     logger.LogWarning(
                         "Cannot add bundle to profile: missing acquired members for '{ContentName}'",
                         item.Name);
@@ -3699,7 +3705,9 @@ public sealed partial class DownloadsBrowserViewModel(
                 {
                     // Content hasn't been downloaded yet
                     item.DownloadStatus = ContentConstants.PleaseDownloadFirstStatusMessage;
-                    notificationService.ShowError("Cannot Add to Profile", "Please download the content first before adding it to a profile.");
+                    notificationService.ShowError(
+                        localizationService.GetLocalizedString("Downloads.Notification.CannotAddToProfile.Title", "Cannot Add to Profile"),
+                        localizationService.GetLocalizedString("Downloads.Notification.CannotAddToProfile.DownloadFirstMessage", "Please download the content first before adding it to a profile."));
                     logger.LogWarning("Cannot add content to profile: no manifest found for '{ContentName}'", item.Name);
                     return;
                 }
@@ -3719,7 +3727,8 @@ public sealed partial class DownloadsBrowserViewModel(
                 profileManager,
                 profileContentService,
                 manifestPool,
-                notificationService);
+                notificationService,
+                localizationService ?? _localizationService);
 
             // Load profiles for the target game
             await profileSelectionVm.LoadProfilesAsync(
@@ -3792,8 +3801,8 @@ public sealed partial class DownloadsBrowserViewModel(
         {
             item.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{ex.Message}";
             notificationService.ShowError(
-                "Error Adding to Profile",
-                $"An unexpected error occurred: {ex.Message}");
+                localizationService.GetLocalizedString("Downloads.Notification.AddToProfileError.Title", "Error Adding to Profile"),
+                localizationService.GetLocalizedString("Downloads.Notification.AddToProfileError.Message", $"An unexpected error occurred: {ex.Message}", ex.Message));
             logger.LogError(ex, "Exception adding content '{ContentName}' to profile", item.Name);
         }
     }
