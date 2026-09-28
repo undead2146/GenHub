@@ -1472,8 +1472,10 @@ public sealed partial class IniEditorViewModel(
         if (!string.IsNullOrEmpty(filePath))
         {
             FileExplorer.CurrentPath = filePath;
-            var hasExistingDirectory = !string.IsNullOrEmpty(FileExplorer.Directory) && Directory.Exists(FileExplorer.Directory);
-            if (!hasExistingDirectory || !IsSubPathOf(filePath, FileExplorer.Directory!))
+            var currentDirectory = FileExplorer.Directory;
+            if (string.IsNullOrEmpty(currentDirectory) ||
+                !Directory.Exists(currentDirectory) ||
+                !IsSubPathOf(filePath, currentDirectory))
             {
                 var directory = ResolveExplorerDirectory(Path.GetDirectoryName(filePath));
                 if (!string.IsNullOrEmpty(directory) &&
