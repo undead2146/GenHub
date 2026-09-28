@@ -1389,6 +1389,283 @@ public class DownloadsBrowserViewModelTests
     }
 
     /// <summary>
+    /// Verifies that on a single card grouping parallel resolution variants, a partially
+    /// installed set (for example after deleting unneeded resolutions) does not mark the
+    /// remaining installed variant as UpdateAvailable. Sibling resolutions are install
+    /// options, not newer versions of each other.
+    /// </summary>
+    [Fact]
+    public void ReconcileReleaseUpdateStates_WhenParallelResolutionVariantsPartiallyInstalled_DoesNotShowUpdate()
+    {
+        // Arrange
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+
+        var cardSr = new ContentSearchResult
+        {
+            Id = "1.0.communityoutpost.addon.cbpx-1080p",
+            Name = "Control Bar Pro (Xezon) - 1080p (Recommended)",
+            Version = "1.0",
+            ProviderName = CommunityOutpostConstants.PublisherType,
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            VariantFamilyName = "Control Bar Pro (Xezon)",
+            VariantGroupId = "communityoutpost.addon.cbpx.1.0",
+        };
+        var card = new ContentGridItemViewModel(cardSr, stateServiceMock.Object, loggerMock.Object);
+
+        InstallableVariant AddSibling(string variantId, string name, ContentState state) =>
+            AddCardVariant(card, $"1.0.communityoutpost.addon.cbpx-{variantId}", name, "1.0", state);
+
+        AddSibling("720p", "Control Bar Pro (Xezon) - 720p", ContentState.NotDownloaded);
+        AddSibling("900p", "Control Bar Pro (Xezon) - 900p", ContentState.NotDownloaded);
+        var downloaded = AddSibling("1080p", "Control Bar Pro (Xezon) - 1080p (Recommended)", ContentState.Downloaded);
+
+        // A newer valid version on an uninstalled parallel option still must not
+        // produce an update: resolutions are install choices, not releases.
+        AddCardVariant(card, "1.0.communityoutpost.addon.cbpx-1440p", "Control Bar Pro (Xezon) - 1440p (2K)", "2.0", ContentState.NotDownloaded);
+
+        card.SelectedVariant = downloaded;
+        card.CurrentState = ContentState.Downloaded;
+        card.IsDownloaded = true;
+
+        // A second, unrelated card so the reconcile pass runs; the cbpx card must
+        // still form a single-item family and keep its installed variant current.
+        var unrelated = CreateUnrelatedCard(stateServiceMock.Object, loggerMock.Object);
+
+        // Act
+        DownloadsBrowserViewModel.ReconcileReleaseUpdateStates([card, unrelated]);
+
+        // Assert: the installed resolution stays current; no update is offered.
+        Assert.Equal(ContentState.Downloaded, downloaded.CurrentState);
+        Assert.Equal(ContentState.Downloaded, card.CurrentState);
+        Assert.True(card.IsDownloaded);
+        Assert.Null(card.UpdateTargetVm);
+        Assert.False(card.ShowUpdateButton);
+        Assert.True(card.ShowAddToProfileButton);
+        Assert.False(card.ShowDownloadButton);
+    }
+
+    /// <summary>
+    /// Verifies that on a single card grouping parallel language variants, installing only
+    /// one language does not mark it as UpdateAvailable. Sibling languages are install
+    /// options, not newer versions of each other.
+    /// </summary>
+    [Fact]
+    public void ReconcileReleaseUpdateStates_WhenParallelLanguageVariantsPartiallyInstalled_DoesNotShowUpdate()
+    {
+        // Arrange
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+
+        var cardSr = new ContentSearchResult
+        {
+            Id = "1.0.communityoutpost.addon.hlei-zerohour-en",
+            Name = "Leikeze's Hotkeys (EN)",
+            Version = "1.0",
+            ProviderName = CommunityOutpostConstants.PublisherType,
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            VariantFamilyName = "Leikeze's Hotkeys",
+            VariantGroupId = "communityoutpost.addon.hlei.1.0",
+        };
+        var card = new ContentGridItemViewModel(cardSr, stateServiceMock.Object, loggerMock.Object);
+
+        InstallableVariant AddSibling(string variantId, string name, ContentState state) =>
+            AddCardVariant(card, $"1.0.communityoutpost.addon.hlei-{variantId}", name, "1.0", state);
+
+        var downloaded = AddSibling("zerohour-en", "Leikeze's Hotkeys (EN)", ContentState.Downloaded);
+
+        // A newer valid version on an uninstalled parallel option still must not
+        // produce an update: languages are install choices, not releases.
+        AddCardVariant(card, "1.0.communityoutpost.addon.hlei-zerohour-de", "Leikeze's Hotkeys (DE)", "2.0", ContentState.NotDownloaded);
+        AddSibling("zerohour-ru", "Leikeze's Hotkeys (RU)", ContentState.NotDownloaded);
+
+        card.SelectedVariant = downloaded;
+        card.CurrentState = ContentState.Downloaded;
+        card.IsDownloaded = true;
+
+        // A second, unrelated card so the reconcile pass runs; the hlei card must
+        // still form a single-item family and keep its installed variant current.
+        var unrelated = CreateUnrelatedCard(stateServiceMock.Object, loggerMock.Object);
+
+        // Act
+        DownloadsBrowserViewModel.ReconcileReleaseUpdateStates([card, unrelated]);
+
+        // Assert: the installed language stays current; no update is offered.
+        Assert.Equal(ContentState.Downloaded, downloaded.CurrentState);
+        Assert.Equal(ContentState.Downloaded, card.CurrentState);
+        Assert.True(card.IsDownloaded);
+        Assert.Null(card.UpdateTargetVm);
+        Assert.False(card.ShowUpdateButton);
+        Assert.True(card.ShowAddToProfileButton);
+    }
+
+    /// <summary>
+    /// Verifies that a sibling variant with a genuinely newer release version never
+    /// produces a card-level self-update claim. Cross-variant comparisons cannot tell
+    /// parallel options and unrelated content apart from releases, and a self-target
+    /// would re-download the installed result; genuine updates surface through
+    /// per-variant states and cross-release families instead.
+    /// </summary>
+    [Fact]
+    public void ReconcileReleaseUpdateStates_WhenSiblingVariantHasNewerVersion_DoesNotClaimSelfUpdate()
+    {
+        // Arrange
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+
+        var cardSr = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-08-28.zerohour",
+            Name = "GeneralsGameCode weekly-2026-08-28 — Zero Hour",
+            Version = "2026-08-28",
+            ProviderName = "thesuperhackers",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+        };
+        var card = new ContentGridItemViewModel(cardSr, stateServiceMock.Object, loggerMock.Object);
+
+        InstallableVariant AddSibling(string date, ContentState state) =>
+            AddCardVariant(
+                card,
+                $"1.{date.Replace("-", string.Empty)}.thesuperhackers.gameclient.zerohour",
+                "Zero Hour",
+                date,
+                state);
+
+        var downloaded = AddSibling("2026-08-28", ContentState.Downloaded);
+        AddSibling("2026-09-05", ContentState.NotDownloaded);
+
+        card.SelectedVariant = downloaded;
+        card.CurrentState = ContentState.Downloaded;
+        card.IsDownloaded = true;
+
+        // A second, unrelated card so the reconcile pass runs.
+        var unrelated = CreateUnrelatedCard(stateServiceMock.Object, loggerMock.Object);
+
+        // Act
+        DownloadsBrowserViewModel.ReconcileReleaseUpdateStates([card, unrelated]);
+
+        // Assert: no card-level self-update is claimed for the newer sibling.
+        Assert.Equal(ContentState.Downloaded, downloaded.CurrentState);
+        Assert.Equal(ContentState.Downloaded, card.CurrentState);
+        Assert.True(card.IsDownloaded);
+        Assert.Null(card.UpdateTargetVm);
+        Assert.False(card.ShowUpdateButton);
+        Assert.True(card.ShowAddToProfileButton);
+        Assert.False(card.ShowDownloadButton);
+    }
+
+    /// <summary>
+    /// Verifies that sibling variants carrying unparseable version labels (such as
+    /// tag-style "nightly" builds) never mark a downloaded variant as UpdateAvailable.
+    /// Without structured version evidence the comparison fails closed.
+    /// </summary>
+    /// <param name="candidateVersion">The uninstalled sibling's version label.</param>
+    /// <param name="downloadedVersion">The downloaded variant's version label.</param>
+    [Theory]
+    [InlineData("weekly", "nightly")]
+    [InlineData("nightly", "weekly")]
+    public void ReconcileReleaseUpdateStates_WhenSiblingVariantVersionsAreUnparseable_DoesNotShowUpdate(
+        string candidateVersion,
+        string downloadedVersion)
+    {
+        // Arrange
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+
+        var cardSr = new ContentSearchResult
+        {
+            Id = "1.0.github.gameclient.zerohourb",
+            Name = "Zero Hour",
+            Version = downloadedVersion,
+            ProviderName = "github",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+        };
+        var card = new ContentGridItemViewModel(cardSr, stateServiceMock.Object, loggerMock.Object);
+
+        var downloaded = AddCardVariant(card, "1.0.github.gameclient.zerohourb", "Zero Hour", downloadedVersion, ContentState.Downloaded);
+        AddCardVariant(card, "1.0.github.gameclient.zerohoura", "Zero Hour", candidateVersion, ContentState.NotDownloaded);
+
+        card.SelectedVariant = downloaded;
+        card.CurrentState = ContentState.Downloaded;
+        card.IsDownloaded = true;
+
+        // A second, unrelated card so the reconcile pass runs.
+        var unrelated = CreateUnrelatedCard(stateServiceMock.Object, loggerMock.Object);
+
+        // Act
+        DownloadsBrowserViewModel.ReconcileReleaseUpdateStates([card, unrelated]);
+
+        // Assert: unparseable labels are not version evidence; no update is offered.
+        Assert.Equal(ContentState.Downloaded, downloaded.CurrentState);
+        Assert.Equal(ContentState.Downloaded, card.CurrentState);
+        Assert.True(card.IsDownloaded);
+        Assert.Null(card.UpdateTargetVm);
+        Assert.False(card.ShowUpdateButton);
+        Assert.True(card.ShowAddToProfileButton);
+    }
+
+    /// <summary>
+    /// Verifies that on a GenLauncher card grouping a whole mod (releases plus addons
+    /// as sibling variants), downloading a single addon does not mark it as
+    /// UpdateAvailable, even when other siblings carry valid newer versions.
+    /// Siblings are different content items, not newer releases of each other.
+    /// </summary>
+    [Fact]
+    public void ReconcileReleaseUpdateStates_WhenGenLauncherCardHasOneAddonDownloaded_DoesNotShowUpdate()
+    {
+        // Arrange
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+
+        var cardSr = new ContentSearchResult
+        {
+            Id = "genlauncher-zerohour-shockwave-cursor-pack-hd",
+            Name = "ShockWave Cursor Pack HD",
+            Version = "1.3",
+            ProviderName = "genlauncher",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            VariantFamilyName = "C&C ShockWave",
+            VariantGroupId = "zerohour-c-c-shockwave",
+        };
+        var card = new ContentGridItemViewModel(cardSr, stateServiceMock.Object, loggerMock.Object);
+
+        // Sibling content types are simplified: reconciliation only inspects variant
+        // states, identities, and versions, never the content type.
+        AddCardVariant(card, "genlauncher-zerohour-c-c-shockwave-public-beta", "C&C Shockwave Public Beta", "1.25 Beta 8", ContentState.NotDownloaded);
+        AddCardVariant(card, "genlauncher-zerohour-c-c-shockwave-1-201-genlauncher-fix-1", "C&C Shockwave 1.201 GenLauncher Fix 1", "1.201 GenLauncher Fix 1", ContentState.NotDownloaded);
+        AddCardVariant(card, "genlauncher-zerohour-shockwave-single-player-experience", "Shockwave Single Player Experience", "1.0", ContentState.NotDownloaded);
+        var downloaded = AddCardVariant(card, "genlauncher-zerohour-shockwave-cursor-pack-hd", "ShockWave Cursor Pack HD", "1.3", ContentState.Downloaded);
+        AddCardVariant(card, "genlauncher-zerohour-shockwave-russifier", "ShockWave Russifier", "2.0", ContentState.NotDownloaded);
+        AddCardVariant(card, "genlauncher-zerohour-lemon-shockwave-hotkeys", "Lemon Shockwave Hotkeys", "1.1", ContentState.NotDownloaded);
+        AddCardVariant(card, "genlauncher-zerohour-lemon-shockwave-beta-8-hotkeys", "Lemon Shockwave Beta 8 Hotkeys", "1.1", ContentState.NotDownloaded);
+        AddCardVariant(card, "genlauncher-zerohour-control-bar-pro-shockwave", "Control Bar Pro (Shockwave)", "1.0", ContentState.NotDownloaded);
+
+        card.SelectedVariant = downloaded;
+        card.CurrentState = ContentState.Downloaded;
+        card.IsDownloaded = true;
+
+        // A second, unrelated card so the reconcile pass runs.
+        var unrelated = CreateUnrelatedCard(stateServiceMock.Object, loggerMock.Object);
+
+        // Act
+        DownloadsBrowserViewModel.ReconcileReleaseUpdateStates([card, unrelated]);
+
+        // Assert: the installed addon stays current; sibling content is not an update.
+        Assert.Equal(ContentState.Downloaded, downloaded.CurrentState);
+        Assert.Equal(ContentState.Downloaded, card.CurrentState);
+        Assert.True(card.IsDownloaded);
+        Assert.Null(card.UpdateTargetVm);
+        Assert.False(card.ShowUpdateButton);
+        Assert.True(card.ShowAddToProfileButton);
+        Assert.False(card.ShowDownloadButton);
+    }
+
+    /// <summary>
     /// Verifies that UpdateContentCommand invokes the publisher reconciler when one is registered.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
@@ -2231,6 +2508,52 @@ public class DownloadsBrowserViewModelTests
         Assert.Equal(ContentState.NotDownloaded, card.CurrentState);
         Assert.True(card.ShowDownloadButton);
         Assert.False(card.ShowAddToProfileButton);
+    }
+
+    private static InstallableVariant AddCardVariant(
+        ContentGridItemViewModel card,
+        string manifestId,
+        string name,
+        string version,
+        ContentState state)
+    {
+        var sibling = new ContentSearchResult
+        {
+            Id = manifestId,
+            Name = name,
+            Version = version,
+            ProviderName = card.SearchResult.ProviderName,
+            ContentType = card.SearchResult.ContentType,
+            TargetGame = card.SearchResult.TargetGame,
+        };
+        var installable = new InstallableVariant
+        {
+            Name = name,
+            ManifestId = manifestId,
+            CurrentState = state,
+        };
+        card.AddVariant(installable, sibling);
+        return installable;
+    }
+
+    private static ContentGridItemViewModel CreateUnrelatedCard(
+        IContentStateService stateService,
+        ILogger<ContentGridItemViewModel> logger)
+    {
+        var sr = new ContentSearchResult
+        {
+            Id = "1.0.github.mod.unrelatedfixture",
+            Name = "Unrelated Fixture",
+            Version = "1.0",
+            ProviderName = "github",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+        return new ContentGridItemViewModel(sr, stateService, logger)
+        {
+            CurrentState = ContentState.NotDownloaded,
+            IsDownloaded = false,
+        };
     }
 
     private static DownloadsBrowserViewModel CreateViewModel(

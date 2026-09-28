@@ -518,13 +518,15 @@ public sealed partial class DownloadsBrowserViewModel(
                 .OrderByDescending(it => it.SearchResult.LastUpdated ?? DateTime.MinValue)
                 .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create((a, b) => ContentStateService.CompareVersions(a, b, isGeneralsOnline)))
                 .ToList();
+
+            // Single-item families need no reconciliation. In particular, sibling
+            // variants on one card are never compared against each other: they are
+            // parallel install options or unrelated content (such as the releases
+            // plus addons GenLauncher groups per mod), and a self-targeted update
+            // claim would re-download the installed result. Genuine updates surface
+            // through per-variant states and cross-release families instead.
             if (familyItems.Count <= 1)
             {
-                if (familyItems.Count == 1)
-                {
-                    ReconcileItemVariants(familyItems[0]);
-                }
-
                 continue;
             }
 
@@ -723,44 +725,6 @@ public sealed partial class DownloadsBrowserViewModel(
                 item.UpdateTargetVm = null;
                 item.NotifyStateChanged();
             }
-        }
-    }
-
-    private static void ReconcileItemVariants(ContentGridItemViewModel item)
-    {
-        if (item.Variants.Count <= 1)
-        {
-            return;
-        }
-
-        var downloadedVariants = item.Variants.Where(v => v.CurrentState == ContentState.Downloaded).ToList();
-        if (downloadedVariants.Count == 0)
-        {
-            return;
-        }
-
-        var hasNewerVariant = false;
-        foreach (var downloaded in downloadedVariants)
-        {
-            var isAnyNewer = item.Variants.Any(v =>
-                v.CurrentState != ContentState.Downloaded &&
-                !string.IsNullOrEmpty(v.ManifestId) &&
-                !string.IsNullOrEmpty(downloaded.ManifestId) &&
-                ContentStateService.IsNewerVersion(v.ManifestId, downloaded.ManifestId, v.Name, downloaded.Name));
-
-            if (isAnyNewer)
-            {
-                downloaded.CurrentState = ContentState.UpdateAvailable;
-                hasNewerVariant = true;
-            }
-        }
-
-        if (hasNewerVariant)
-        {
-            item.CurrentState = ContentState.UpdateAvailable;
-            item.IsDownloaded = true;
-            item.UpdateTargetVm = item;
-            item.NotifyStateChanged();
         }
     }
 
