@@ -254,7 +254,7 @@
                 Background="{DynamicResource CardBackground}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                 CornerRadius="10" Padding="8,6" ClipToBounds="True" MinWidth="180">
-          <TabControl SelectedIndex="0" Padding="0">
+          <TabControl SelectedIndex="{Binding LeftSidebarTabIndex, Mode=TwoWay}" Padding="0">
             <TabItem Header="{localization:Localize Tools.IniEditor.Tabs.Blocks}">
               <Grid RowDefinitions="Auto,Auto,*,Auto">
                 <TextBox Grid.Row="0"

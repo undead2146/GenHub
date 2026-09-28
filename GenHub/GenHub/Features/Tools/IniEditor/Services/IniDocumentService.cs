@@ -362,39 +362,65 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
 
         if (context.Stack.Count > 0)
         {
-            if (IsValuelessKey(line))
-            {
-                AddBareField(line, comment, context.Stack, context.PendingComments);
-                return;
-            }
-
-            var firstToken = line.Split(' ', 2)[0];
-            if (IsBlockType(firstToken))
-            {
-                OpenBlock(line, GetIndent(raw), lineNumber, comment, context.Stack, context.PendingComments, context.Document);
-                return;
-            }
-
-            var spaceIndex = line.IndexOf(' ');
-            if (spaceIndex > 0)
-            {
-                var key = line[..spaceIndex].Trim();
-                var value = line[(spaceIndex + 1)..].Trim();
-                if (key.Length > 0)
-                {
-                    var field = new IniField(key, value, comment);
-                    field.LeadingComments.AddRange(context.PendingComments);
-                    context.PendingComments.Clear();
-                    context.Stack.Peek().Block.Fields.Add(field);
-                    return;
-                }
-            }
-
-            AddBareField(line, comment, context.Stack, context.PendingComments);
+            ParseBlockContentLine(context, line, raw, lineNumber, comment);
             return;
         }
 
         OpenBlock(line, GetIndent(raw), lineNumber, comment, context.Stack, context.PendingComments, context.Document);
+    }
+
+    private static void ParseBlockContentLine(
+        IniParseContext context,
+        string line,
+        string raw,
+        int lineNumber,
+        string? comment)
+    {
+        if (IsValuelessKey(line))
+        {
+            AddBareField(line, comment, context.Stack, context.PendingComments);
+            return;
+        }
+
+        var firstToken = line.Split(' ', 2)[0];
+        if (IsBlockType(firstToken))
+        {
+            OpenBlock(line, GetIndent(raw), lineNumber, comment, context.Stack, context.PendingComments, context.Document);
+            return;
+        }
+
+        if (TryAddWhitespaceField(line, comment, context.Stack, context.PendingComments))
+        {
+            return;
+        }
+
+        AddBareField(line, comment, context.Stack, context.PendingComments);
+    }
+
+    private static bool TryAddWhitespaceField(
+        string line,
+        string? comment,
+        Stack<BlockFrame> stack,
+        List<IniComment> pendingComments)
+    {
+        var spaceIndex = line.IndexOf(' ');
+        if (spaceIndex <= 0)
+        {
+            return false;
+        }
+
+        var key = line[..spaceIndex].Trim();
+        var value = line[(spaceIndex + 1)..].Trim();
+        if (key.Length == 0)
+        {
+            return false;
+        }
+
+        var field = new IniField(key, value, comment);
+        field.LeadingComments.AddRange(pendingComments);
+        pendingComments.Clear();
+        stack.Peek().Block.Fields.Add(field);
+        return true;
     }
 
     private static void AddGlobalField(

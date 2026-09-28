@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
@@ -294,6 +295,12 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
     /// </summary>
     public void RefreshEditorCommands()
     {
+        if (Avalonia.Application.Current != null && !Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(RefreshEditorCommands);
+            return;
+        }
+
         foreach (var command in _editorCommands)
         {
             command.NotifyCanExecuteChanged();

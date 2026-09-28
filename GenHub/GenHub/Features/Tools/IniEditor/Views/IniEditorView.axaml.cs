@@ -35,9 +35,9 @@ public partial class IniEditorView : UserControl
 
     private void OnPickerEditRequested(object? sender, MappedImageDefinition definition)
     {
-        if (DataContext is IniEditorViewModel viewModel)
+        if (DataContext is IniEditorViewModel)
         {
-            viewModel.OpenTextureInEditor(definition);
+            IniEditorViewModel.OpenTextureInEditor(definition);
         }
     }
 

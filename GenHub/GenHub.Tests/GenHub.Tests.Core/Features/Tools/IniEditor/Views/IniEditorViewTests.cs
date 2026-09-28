@@ -296,7 +296,153 @@ public class IniEditorViewTests
         }
     }
 
-    private static IniEditorViewModel CreateViewModel()
+    /// <summary>
+    /// Verifies that opening an INI file while the editor view is bound and attached to a visual tree
+    /// does not crash with a dispatcher thread access violation on command refresh.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task OpenFileAsync_WithAttachedVisualTree_DoesNotThrowThreadAccessViolationAsync()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"GenHubThreadCheck{Guid.NewGuid():N}.ini");
+        await File.WriteAllTextAsync(filePath, "Object TestObject\n  Health = 100.0\nEnd\n");
+        try
+        {
+            using var viewModel = CreateViewModel();
+            var view = new IniEditorView { DataContext = viewModel };
+            var window = new Window { Width = 1600, Height = 900, Content = view };
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs(null);
+
+            var opened = await viewModel.OpenFileAsync(filePath);
+            Dispatcher.UIThread.RunJobs(null);
+
+            Assert.True(opened);
+            Assert.True(viewModel.HasDocument);
+            Assert.Single(viewModel.RootNodes);
+            Assert.Equal("TestObject", viewModel.RootNodes[0].Block.Name);
+
+            window.Close();
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that OpenFolderAsync populates the file explorer, opens the first INI file,
+    /// and activates the Files tab.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task OpenFolderAsync_WithIniFiles_LoadsFirstFileAndSelectsFilesTabAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"GenHubFolderTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var subDir = Path.Combine(tempDir, "Sub");
+        Directory.CreateDirectory(subDir);
+        var firstIni = Path.Combine(subDir, "First.ini");
+        await File.WriteAllTextAsync(firstIni, "Object FirstObject\n  Health = 50.0\nEnd\n");
+
+        try
+        {
+            using var viewModel = CreateViewModel();
+            var opened = await viewModel.OpenFolderAsync(tempDir);
+            Dispatcher.UIThread.RunJobs(null);
+
+            Assert.True(opened);
+            Assert.True(viewModel.HasDocument);
+            Assert.Equal(1, viewModel.LeftSidebarTabIndex);
+            Assert.Equal(tempDir, viewModel.FileExplorer.Directory);
+            Assert.Equal(firstIni, viewModel.FileExplorer.CurrentPath);
+            Assert.Single(viewModel.RootNodes);
+            Assert.Equal("FirstObject", viewModel.RootNodes[0].Block.Name);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that OpenFolderAsync without INI files sets the explorer directory,
+    /// activates the Files tab, and displays an informative notification.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task OpenFolderAsync_WithoutIniFiles_ShowsInfoNotificationAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"GenHubEmptyFolderTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var txtFile = Path.Combine(tempDir, "Readme.txt");
+        await File.WriteAllTextAsync(txtFile, "Not an ini file");
+
+        var mockNotifications = new Mock<INotificationService>();
+
+        try
+        {
+            using var viewModel = CreateViewModel(mockNotifications.Object);
+            var opened = await viewModel.OpenFolderAsync(tempDir);
+            Dispatcher.UIThread.RunJobs(null);
+
+            Assert.True(opened);
+            Assert.False(viewModel.HasDocument);
+            Assert.Equal(1, viewModel.LeftSidebarTabIndex);
+            Assert.Equal(tempDir, viewModel.FileExplorer.Directory);
+
+            mockNotifications.Verify(
+                n => n.ShowInfo(
+                    It.Is<string>(s => s.Contains("NoIniFilesTitle", StringComparison.OrdinalIgnoreCase) || s.Contains("INI", StringComparison.OrdinalIgnoreCase)),
+                    It.IsAny<string>(),
+                    It.IsAny<int?>(),
+                    It.IsAny<bool>()),
+                Times.Once);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that opening a file inside an already-opened directory preserves
+    /// the directory root in the file explorer.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task OpenFile_WithinActiveFolder_PreservesExplorerRootDirectoryAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"GenHubPreserveRoot_{Guid.NewGuid():N}");
+        var subDir = Path.Combine(tempDir, "Data", "INI");
+        Directory.CreateDirectory(subDir);
+        var file1 = Path.Combine(subDir, "File1.ini");
+        var file2 = Path.Combine(subDir, "File2.ini");
+        await File.WriteAllTextAsync(file1, "Object Object1\nEnd\n");
+        await File.WriteAllTextAsync(file2, "Object Object2\nEnd\n");
+
+        try
+        {
+            using var viewModel = CreateViewModel();
+            await viewModel.OpenFolderAsync(tempDir);
+            Dispatcher.UIThread.RunJobs(null);
+
+            Assert.Equal(tempDir, viewModel.FileExplorer.Directory);
+
+            await viewModel.OpenFileAsync(file2);
+            Dispatcher.UIThread.RunJobs(null);
+
+            Assert.Equal(tempDir, viewModel.FileExplorer.Directory);
+            Assert.Equal(file2, viewModel.FileExplorer.CurrentPath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    private static IniEditorViewModel CreateViewModel(INotificationService? notificationService = null)
     {
         var mockLocalization = new Mock<ILocalizationService>();
         mockLocalization
@@ -325,7 +471,7 @@ public class IniEditorViewTests
             Mock.Of<ISageMappedImageParser>(),
             Mock.Of<IWndImageAssetService>(),
             Mock.Of<IGameInstallationService>(),
-            Mock.Of<INotificationService>(),
+            notificationService ?? Mock.Of<INotificationService>(),
             mockLocalization.Object,
             Mock.Of<IDialogService>(),
             Mock.Of<ILogger<IniEditorViewModel>>());

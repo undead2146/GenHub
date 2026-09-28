@@ -29,6 +29,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -124,6 +125,13 @@ public sealed partial class IniEditorViewModel(
     /// <summary>
     /// Gets or sets the selected block node.
     /// </summary>
+        /// <summary>
+    /// Gets or sets the active tab index of the left sidebar.
+    /// 0 = Blocks, 1 = Files, 2 = Reference.
+    /// </summary>
+    [ObservableProperty]
+    private int _leftSidebarTabIndex;
+
     [ObservableProperty]
     private IniTreeNodeViewModel? _selectedNode;
 
@@ -307,6 +315,18 @@ public sealed partial class IniEditorViewModel(
         _textureThumbnails.TryGetValue(definition.Name, out var thumbnail) ? thumbnail : null;
 
     /// <summary>
+    /// Opens a mapped image in the Texture Editor tool.
+    /// </summary>
+    /// <param name="definition">The mapped image definition.</param>
+    public static void OpenTextureInEditor(MappedImageDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        WeakReferenceMessenger.Default.Send(new OpenFileInToolMessage(
+            TextureEditorConstants.ToolId,
+            definition.SourcePath ?? definition.Name));
+    }
+
+    /// <summary>
     /// Opens an INI file, asking to discard unsaved changes first.
     /// </summary>
     /// <param name="filePath">The full path of the file to open.</param>
@@ -336,15 +356,53 @@ public sealed partial class IniEditorViewModel(
     }
 
     /// <summary>
-    /// Opens a mapped image in the Texture Editor tool.
+    /// Opens a folder in the file explorer and optionally loads the first INI file.
     /// </summary>
-    /// <param name="definition">The mapped image definition.</param>
-    public void OpenTextureInEditor(MappedImageDefinition definition)
+    /// <param name="folderPath">The path of the directory to open.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True when the folder was opened.</returns>
+    public async Task<bool> OpenFolderAsync(string folderPath, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(definition);
-        WeakReferenceMessenger.Default.Send(new OpenFileInToolMessage(
-            TextureEditorConstants.ToolId,
-            definition.SourcePath ?? definition.Name));
+        if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
+        {
+            return false;
+        }
+
+        var gameFilesEdited = Path.Combine(folderPath, ModBuilderConstants.GameFilesEditedDir);
+        if (Directory.Exists(gameFilesEdited))
+        {
+            folderPath = gameFilesEdited;
+        }
+
+        await InvokeOnUIThreadAsync(() =>
+        {
+            FileExplorer.Directory = folderPath;
+            LeftSidebarTabIndex = 1;
+        }).ConfigureAwait(false);
+
+        if (HasDocument && !string.IsNullOrEmpty(FilePath) && IsSubPathOf(FilePath, folderPath))
+        {
+            FileExplorer.CurrentPath = FilePath;
+            return true;
+        }
+
+        var first = FileExplorer.FindFirstFile();
+        if (!string.IsNullOrEmpty(first))
+        {
+            var opened = await OpenFileAsync(first, cancellationToken).ConfigureAwait(false);
+            if (opened)
+            {
+                await InvokeOnUIThreadAsync(() => LeftSidebarTabIndex = 1).ConfigureAwait(false);
+            }
+
+            return opened;
+        }
+
+        Notifications.ShowInfo(
+            Localization.GetString("Tools.IniEditor.Files.NoIniFilesTitle"),
+            Localization.GetString("Tools.IniEditor.Files.NoIniFilesMessage"),
+            NotificationDurations.Medium);
+        return true;
     }
 
     /// <inheritdoc />
@@ -361,11 +419,6 @@ public sealed partial class IniEditorViewModel(
     /// <inheritdoc />
     protected override async Task OnOpenFolderAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmDiscardUnsavedAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return;
-        }
-
         var topLevel = GetTopLevel();
         if (topLevel == null)
         {
@@ -386,8 +439,7 @@ public sealed partial class IniEditorViewModel(
         if (!string.IsNullOrEmpty(localPath))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var gameFilesEdited = Path.Combine(localPath, ModBuilderConstants.GameFilesEditedDir);
-            FileExplorer.Directory = Directory.Exists(gameFilesEdited) ? gameFilesEdited : localPath;
+            await OpenFolderAsync(localPath, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -688,6 +740,24 @@ public sealed partial class IniEditorViewModel(
         return directory;
     }
 
+    private static bool IsSubPathOf(string path, string basePath)
+    {
+        try
+        {
+            var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            var normalizedPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var normalizedBase = Path.GetFullPath(basePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return normalizedPath.StartsWith(normalizedBase + Path.DirectorySeparatorChar, comparison)
+                || string.Equals(normalizedPath, normalizedBase, comparison);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or SecurityException)
+        {
+            return false;
+        }
+    }
+
     private static void SetAllExpanded(IEnumerable<IniTreeNodeViewModel> nodes, bool expanded)
     {
         foreach (var node in nodes)
@@ -983,6 +1053,29 @@ public sealed partial class IniEditorViewModel(
         {
             Dispatcher.UIThread.Post(action);
         }
+    }
+
+    private static string FormatCommandButtonAction(string? command, string? target)
+    {
+        if (command == null)
+        {
+            return target ?? string.Empty;
+        }
+
+        if (target == null)
+        {
+            return command;
+        }
+
+        return $"{command} → {target}";
+    }
+
+    private static void ScheduleDeferred(ref CancellationTokenSource? slot, int delayMs, Action refresh)
+    {
+        slot?.Cancel();
+        var cts = new CancellationTokenSource();
+        slot = cts;
+        _ = Task.Run(() => RunDeferredRefreshAsync(cts, delayMs, refresh), CancellationToken.None);
     }
 
     /// <summary>
@@ -1357,19 +1450,19 @@ public sealed partial class IniEditorViewModel(
     private async Task AdoptDocumentAsync(IniDocument document, string? filePath, CancellationToken cancellationToken)
     {
         EnsureCultureSubscription();
-        _document = document;
-        _undoStack.Clear();
-        _redoStack.Clear();
-        HasDocument = true;
         await InvokeOnUIThreadAsync(() =>
         {
+            _document = document;
+            _undoStack.Clear();
+            _redoStack.Clear();
             FilePath = filePath;
             UpdateExplorerForFile(filePath);
             RebuildAll();
+            MarkSaved();
+            _undoStack.TryPeek(out var topAction);
+            _savedTopAction = topAction;
         }).ConfigureAwait(false);
-        MarkSaved();
-        _undoStack.TryPeek(out var topAction);
-        _savedTopAction = topAction;
+
         await RebuildReferenceIndexAsync(false, cancellationToken).ConfigureAwait(false);
         await LoadTexturePickerItemsAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -1379,11 +1472,15 @@ public sealed partial class IniEditorViewModel(
         if (!string.IsNullOrEmpty(filePath))
         {
             FileExplorer.CurrentPath = filePath;
-            var directory = ResolveExplorerDirectory(Path.GetDirectoryName(filePath));
-            if (!string.IsNullOrEmpty(directory) &&
-                !string.Equals(FileExplorer.Directory, directory, PathHelper.PathComparison))
+            var hasExistingDirectory = !string.IsNullOrEmpty(FileExplorer.Directory) && Directory.Exists(FileExplorer.Directory);
+            if (!hasExistingDirectory || !IsSubPathOf(filePath, FileExplorer.Directory!))
             {
-                FileExplorer.Directory = directory;
+                var directory = ResolveExplorerDirectory(Path.GetDirectoryName(filePath));
+                if (!string.IsNullOrEmpty(directory) &&
+                    !string.Equals(FileExplorer.Directory, directory, PathHelper.PathComparison))
+                {
+                    FileExplorer.Directory = directory;
+                }
             }
         }
 
@@ -1763,21 +1860,6 @@ public sealed partial class IniEditorViewModel(
                 Localization.GetString("Tools.IniEditor.Assembled.CommandSlotTooltip", button.Name, command ?? "?", target ?? "?"),
                 texture));
         }
-    }
-
-    private string FormatCommandButtonAction(string? command, string? target)
-    {
-        if (command == null)
-        {
-            return target ?? string.Empty;
-        }
-
-        if (target == null)
-        {
-            return command;
-        }
-
-        return $"{command} → {target}";
     }
 
     private void AddReferenceRow(string label, string value, string blockType)
@@ -2549,10 +2631,10 @@ public sealed partial class IniEditorViewModel(
             {
                 FilePath = filePath;
                 UpdateExplorerForFile(filePath);
+                MarkSaved();
+                _undoStack.TryPeek(out var topAction);
+                _savedTopAction = topAction;
             }).ConfigureAwait(false);
-            MarkSaved();
-            _undoStack.TryPeek(out var topAction);
-            _savedTopAction = topAction;
             Notifications.ShowSuccess(
                 Localization.GetString("Tools.IniEditor.Save.SuccessTitle"),
                 Localization.GetString("Tools.IniEditor.Save.SuccessMessage", DocumentTitle),
@@ -2597,14 +2679,6 @@ public sealed partial class IniEditorViewModel(
         RebuildAssembledRows();
         FilterReferenceResults();
         RefreshEditorCommands();
-    }
-
-    private void ScheduleDeferred(ref CancellationTokenSource? slot, int delayMs, Action refresh)
-    {
-        slot?.Cancel();
-        var cts = new CancellationTokenSource();
-        slot = cts;
-        _ = Task.Run(() => RunDeferredRefreshAsync(cts, delayMs, refresh), CancellationToken.None);
     }
 
     partial void OnSelectedNodeChanged(IniTreeNodeViewModel? value)
