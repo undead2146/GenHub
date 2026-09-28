@@ -387,6 +387,7 @@ public class ToolDemoViewModelTests
         while (viewModel.PublishShareViewModel == null && DateTime.UtcNow < deadline)
         {
             await Task.Delay(50);
+
             // Only pump jobs when executing on the UI thread ([AvaloniaFact]).
             // Avoids cross-thread dispatcher pumping that throws PlatformNotSupportedException on headless Linux.
             if (Dispatcher.UIThread.CheckAccess())
@@ -394,10 +395,5 @@ public class ToolDemoViewModelTests
                 Dispatcher.UIThread.RunJobs();
             }
         }
-    }
-
-    private sealed class SynchronousProgress<T>(Action<T> action) : IProgress<T>
-    {
-        public void Report(T value) => action(value);
     }
 }
