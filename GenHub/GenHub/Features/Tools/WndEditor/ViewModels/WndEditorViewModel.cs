@@ -16,6 +16,7 @@ using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Telemetry;
 using GenHub.Core.Interfaces.Tools.WndEditor;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Tools.WndEditor;
@@ -50,7 +51,8 @@ public sealed partial class WndEditorViewModel(
     IWndEditorAssetService assetService,
     IWndTextureImportService textureImportService,
     IChallengeMedalService medalService,
-    ILogger<WndEditorViewModel> logger) : EditorToolViewModelBase(notificationService, localizationService, dialogService)
+    ILogger<WndEditorViewModel> logger,
+    ITelemetryService? telemetryService = null) : EditorToolViewModelBase(notificationService, localizationService, dialogService)
 {
     private const int MaxUndoHistory = 200;
     private const string NoSelectionTitleKey = "Tools.WndEditor.Apply.NoSelectionTitle";
@@ -456,6 +458,11 @@ public sealed partial class WndEditorViewModel(
         await InvokeOnUIThreadAsync(() => AdoptDocument(result.Data, filePath)).ConfigureAwait(false);
         await EnsureInstallationsLoadedAsync(cancellationToken).ConfigureAwait(false);
         RefreshAssetPreviews();
+        telemetryService?.TrackEvent(TelemetryConstants.Events.WndDocumentOpened, new Dictionary<string, object?>
+        {
+            [TelemetryConstants.Properties.FilePath] = TelemetryConstants.WndEditor.AnonymousDocumentName,
+            [TelemetryConstants.Properties.WindowCount] = result.Data.Windows.Count,
+        });
         logger.LogInformation("Opened window definition file {Path}", filePath);
         return true;
     }
@@ -2047,6 +2054,10 @@ public sealed partial class WndEditorViewModel(
 
         if (imported > 0)
         {
+            telemetryService?.TrackEvent(TelemetryConstants.Events.WndTexturesImported, new Dictionary<string, object?>
+            {
+                [TelemetryConstants.Properties.TextureCount] = imported,
+            });
             Notifications.ShowSuccess(
                 Localization.GetString("Tools.WndEditor.Import.SuccessTitle"),
                 Localization.GetString("Tools.WndEditor.Import.SuccessMessage", imported, projectDirectory),
@@ -2289,6 +2300,11 @@ public sealed partial class WndEditorViewModel(
 
         var target = FilePath ?? Localization.GetString("Tools.WndEditor.Document.Untitled");
         var result = wndDocumentService.ValidateDocument(_document, target);
+        telemetryService?.TrackEvent(TelemetryConstants.Events.WndDocumentValidated, new Dictionary<string, object?>
+        {
+            [TelemetryConstants.Properties.IsValid] = result.IsValid,
+            [TelemetryConstants.Properties.WindowCount] = _document.Windows.Count,
+        });
         if (result.IsValid)
         {
             Notifications.ShowSuccess(
@@ -2635,6 +2651,12 @@ public sealed partial class WndEditorViewModel(
             {
                 _savedHistoryVersion = _historyVersion;
                 IsModified = false;
+                telemetryService?.TrackEvent(TelemetryConstants.Events.WndDocumentSaved, new Dictionary<string, object?>
+                {
+                    [TelemetryConstants.Properties.FilePath] = TelemetryConstants.WndEditor.AnonymousDocumentName,
+                    [TelemetryConstants.Properties.WindowCount] = _document.Windows.Count,
+                    [TelemetryConstants.Properties.HasLinkedAssets] = HasLinkedAssets,
+                });
                 Notifications.ShowSuccess(
                     Localization.GetString("Tools.WndEditor.Save.SuccessTitle"),
                     Localization.GetString("Tools.WndEditor.Save.SuccessMessage", Path.GetFileName(filePath)),
