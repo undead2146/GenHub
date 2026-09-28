@@ -3,8 +3,9 @@ namespace GenHub.Core.Constants;
 /// <summary>
 /// Constants for Generals and Zero Hour INI data files
 /// (game objects, weapons, upgrades, damage, armor, command sets).
-/// Syntax follows the engine INI parser: semicolon comments, no tab characters,
-/// blocks opened by a block type line and closed by <c>End</c>.
+/// Syntax follows the engine INI parser: semicolon comments, blocks opened by a
+/// block type line and closed by <c>End</c>. The engine tolerates tab characters,
+/// but this tool rejects them so files stay in canonical form.
 /// </summary>
 public static class IniConstants
 {
@@ -80,9 +81,6 @@ public static class IniConstants
         /// <summary>Defines a player template.</summary>
         public const string PlayerTemplate = "PlayerTemplate";
 
-        /// <summary>Defines a faction template.</summary>
-        public const string FactionTemplate = "FactionTemplate";
-
         /// <summary>Defines experience levels.</summary>
         public const string ExperienceLevels = "ExperienceLevels";
 
@@ -99,7 +97,7 @@ public static class IniConstants
         [
             Object, Weapon, Armor, ArmorSet, WeaponSet, CommandButton, CommandSet,
             Upgrade, Science, SpecialPower, Locomotor, ObjectCreationList,
-            DamageFX, PlayerTemplate, FactionTemplate, ExperienceLevels, Veterancy,
+            DamageFX, PlayerTemplate, ExperienceLevels, Veterancy,
             MappedImage,
         ];
     }
@@ -256,6 +254,48 @@ public static class IniConstants
 
         /// <summary>Triggered by key.</summary>
         public const string TriggeredBy = "TriggeredBy";
+
+        /// <summary>Health key.</summary>
+        public const string Health = "Health";
+
+        /// <summary>Side key.</summary>
+        public const string Side = "Side";
+
+        /// <summary>Icon key.</summary>
+        public const string Icon = "Icon";
+
+        /// <summary>Attack range key.</summary>
+        public const string AttackRange = "AttackRange";
+
+        /// <summary>Weapon speed key.</summary>
+        public const string WeaponSpeed = "WeaponSpeed";
+
+        /// <summary>Command key.</summary>
+        public const string Command = "Command";
+
+        /// <summary>Object key.</summary>
+        public const string Object = "Object";
+
+        /// <summary>Text label key.</summary>
+        public const string TextLabel = "TextLabel";
+
+        /// <summary>Type key.</summary>
+        public const string Type = "Type";
+
+        /// <summary>Speed key.</summary>
+        public const string Speed = "Speed";
+
+        /// <summary>Turn rate key.</summary>
+        public const string TurnRate = "TurnRate";
+
+        /// <summary>Lift key.</summary>
+        public const string Lift = "Lift";
+
+        /// <summary>Appearance key.</summary>
+        public const string Appearance = "Appearance";
+
+        /// <summary>Upgrades key.</summary>
+        public const string Upgrades = "Upgrades";
     }
 
     /// <summary>
@@ -298,5 +338,8 @@ public static class IniConstants
 
         /// <summary>Maximum mapped image definitions offered by texture pickers.</summary>
         public const int MaxPickerDefinitions = 2000;
+
+        /// <summary>Maximum characters rendered in the raw text preview.</summary>
+        public const int MaxRawPreviewChars = 100000;
     }
 }

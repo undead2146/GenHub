@@ -49,7 +49,6 @@ public sealed class IniSchemaServiceTests
     [InlineData(IniConstants.BlockTypes.ObjectCreationList)]
     [InlineData(IniConstants.BlockTypes.PlayerTemplate)]
     [InlineData(IniConstants.BlockTypes.DamageFX)]
-    [InlineData(IniConstants.BlockTypes.FactionTemplate)]
     [InlineData(IniConstants.BlockTypes.ExperienceLevels)]
     [InlineData(IniConstants.BlockTypes.Veterancy)]
     public void GetBlockSchema_KnownBlock_ReturnsSchema(string blockType)
@@ -127,19 +126,46 @@ public sealed class IniSchemaServiceTests
     }
 
     /// <summary>
-    /// Verifies that armor tables cover every engine damage type.
+    /// Verifies that armor blocks expose a single repeated armor key suggesting
+    /// every engine damage type, matching the engine armor coefficients parser.
     /// </summary>
     [Fact]
-    public void GetBlockSchema_Armor_CoversAllDamageTypes()
+    public void GetBlockSchema_Armor_ExposesRepeatedArmorKey()
     {
         var schema = _service.GetBlockSchema(IniConstants.BlockTypes.Armor);
 
         schema.Should().NotBeNull();
-        schema!.Fields.Should().HaveCount(EngineDamageTypes.Length);
-        foreach (var damageType in EngineDamageTypes)
-        {
-            schema!.Fields.Should().Contain(field => field.Key == damageType);
-        }
+        schema!.Fields.Should().ContainSingle();
+        schema!.Fields[0].Key.Should().Be("Armor");
+        schema!.Fields[0].Options.Should().Equal(EngineDamageTypes);
+    }
+
+    /// <summary>
+    /// Verifies that special powers follow the engine parse table.
+    /// </summary>
+    [Fact]
+    public void GetBlockSchema_SpecialPower_MatchesEngineParseTable()
+    {
+        var schema = _service.GetBlockSchema(IniConstants.BlockTypes.SpecialPower);
+
+        schema.Should().NotBeNull();
+        var keys = schema!.Fields.Select(field => field.Key).ToList();
+        keys.Should().Contain(["Enum", "RadiusCursorRadius", "RequiredScience", "InitiateSound"]);
+        keys.Should().NotContain(["Cursor", "InvalidCursor", "RadiusCursor"]);
+    }
+
+    /// <summary>
+    /// Verifies that command buttons use the engine cursor key names.
+    /// </summary>
+    [Fact]
+    public void GetBlockSchema_CommandButton_UsesEngineCursorKeys()
+    {
+        var schema = _service.GetBlockSchema(IniConstants.BlockTypes.CommandButton);
+
+        schema.Should().NotBeNull();
+        var keys = schema!.Fields.Select(field => field.Key).ToList();
+        keys.Should().Contain(["CursorName", "InvalidCursorName"]);
+        keys.Should().NotContain(["Cursor", "InvalidCursor"]);
     }
 
     /// <summary>

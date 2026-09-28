@@ -96,7 +96,7 @@ public class IniEditorViewTests
     /// Verifies that deleting the selected block clears the selection and a second delete does not throw.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
+    [AvaloniaFact]
     public async Task DeleteCommand_ClearsSelectionAndFieldRowsAsync()
     {
         using var viewModel = CreateViewModel();
@@ -120,7 +120,7 @@ public class IniEditorViewTests
     /// Verifies that undo removes added blocks and redo re-inserts them in position.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
+    [AvaloniaFact]
     public async Task UndoRedo_AddBlock_RestoresAndReappliesInPositionAsync()
     {
         using var viewModel = CreateViewModel();
@@ -148,7 +148,7 @@ public class IniEditorViewTests
     /// Verifies that editing a field value is undoable and redoable.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
+    [AvaloniaFact]
     public async Task FieldEdit_UndoRedo_RestoresValueAsync()
     {
         using var viewModel = CreateViewModel();
@@ -168,10 +168,47 @@ public class IniEditorViewTests
     }
 
     /// <summary>
+    /// Verifies that undo restores the exact repeated-key row that was edited.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task FieldEdit_RepeatedKey_UndoRestoresEditedRowAsync()
+    {
+        using var viewModel = CreateViewModel();
+        await viewModel.NewDocumentCommand.ExecuteAsync(null);
+        viewModel.NewBlockType = "WeaponSet";
+        viewModel.NewBlockName = "Set";
+        viewModel.AddBlockCommand.Execute(null);
+
+        viewModel.NewFieldKey = "Weapon";
+        viewModel.NewFieldValue = "PRIMARY WeaponA";
+        viewModel.AddFieldCommand.Execute(null);
+        viewModel.NewFieldKey = "Weapon";
+        viewModel.NewFieldValue = "SECONDARY WeaponB";
+        viewModel.AddFieldCommand.Execute(null);
+
+        var rows = viewModel.FieldRows.Where(row => row.Key == "Weapon").ToList();
+        Assert.Equal(2, rows.Count);
+
+        rows[1].Value = "TERTIARY WeaponC";
+
+        viewModel.UndoCommand.Execute(null);
+
+        rows = viewModel.FieldRows.Where(row => row.Key == "Weapon").ToList();
+        Assert.Equal("PRIMARY WeaponA", rows[0].Value);
+        Assert.Equal("SECONDARY WeaponB", rows[1].Value);
+
+        viewModel.RedoCommand.Execute(null);
+
+        rows = viewModel.FieldRows.Where(row => row.Key == "Weapon").ToList();
+        Assert.Equal("TERTIARY WeaponC", rows[1].Value);
+    }
+
+    /// <summary>
     /// Verifies that duplicate block names are rejected.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
+    [AvaloniaFact]
     public async Task AddBlock_DuplicateName_IsRejectedAsync()
     {
         using var viewModel = CreateViewModel();
@@ -189,7 +226,7 @@ public class IniEditorViewTests
     /// Verifies that empty block names are rejected except for blocks that allow them.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
+    [AvaloniaFact]
     public async Task AddBlock_EmptyName_IsRejectedExceptWhenAllowedAsync()
     {
         using var viewModel = CreateViewModel();
@@ -210,7 +247,7 @@ public class IniEditorViewTests
     /// Verifies that template insertions skip fields the block already defines.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
+    [AvaloniaFact]
     public async Task AddUpgradeHookup_ExistingFields_AreSkippedAsync()
     {
         using var viewModel = CreateViewModel();
@@ -232,7 +269,7 @@ public class IniEditorViewTests
     /// and that edits round-trip through save.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
+    [AvaloniaFact]
     public async Task OpenFile_FlatSettings_PopulatesGlobalFieldRowsAsync()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"GenHubIniGlobals{Guid.NewGuid():N}.ini");

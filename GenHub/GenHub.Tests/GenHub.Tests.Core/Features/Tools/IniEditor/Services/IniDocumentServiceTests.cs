@@ -381,6 +381,98 @@ public sealed class IniDocumentServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that a pre-cancelled format throws and leaves no temp file behind.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task FormatFileAsync_Canceled_ThrowsAndLeavesNoTempFile()
+    {
+        var filePath = Path.Combine(_tempDirectory, "Cancelled.ini");
+        await File.WriteAllTextAsync(filePath, SampleDocument);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        var act = () => _service.FormatFileAsync(filePath, canceled.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        Directory.GetFiles(_tempDirectory).Should().ContainSingle();
+        (await File.ReadAllTextAsync(filePath)).Should().Be(SampleDocument);
+    }
+
+    /// <summary>
+    /// Verifies that formatting a file with parse errors fails without touching the original bytes.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task FormatFileAsync_ParseFailure_LeavesOriginalBytesIntact()
+    {
+        var filePath = Path.Combine(_tempDirectory, "Broken.ini");
+        const string broken = "Object BrokenObject\n  Health = 1.0\n";
+        await File.WriteAllTextAsync(filePath, broken);
+
+        var result = await _service.FormatFileAsync(filePath, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        (await File.ReadAllTextAsync(filePath)).Should().Be(broken);
+    }
+
+    /// <summary>
+    /// Verifies that validating a file with parse errors reports a corrupted file issue.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ValidateFileAsync_ParseError_ReportsCorruptedFile()
+    {
+        var filePath = Path.Combine(_tempDirectory, "Broken.ini");
+        await File.WriteAllTextAsync(filePath, "Object BrokenObject\n  Health = 1.0\n");
+
+        var validation = await _service.ValidateFileAsync(filePath, CancellationToken.None);
+
+        validation.IsValid.Should().BeFalse();
+        validation.CorruptedFilesCount.Should().Be(1);
+        validation.Issues.Should().OnlyContain(issue => issue.IssueType == ValidationIssueType.CorruptedFile);
+    }
+
+    /// <summary>
+    /// Verifies that formatting a UTF-8 BOM file preserves the byte order mark.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task FormatFileAsync_Utf8Bom_PreservesBom()
+    {
+        var filePath = Path.Combine(_tempDirectory, "BomFormat.ini");
+        var bytes = new UTF8Encoding(true).GetPreamble()
+            .Concat(Encoding.UTF8.GetBytes("Object BomObject\n  Health = 1.0\nEnd\n"))
+            .ToArray();
+        await File.WriteAllBytesAsync(filePath, bytes);
+
+        var result = await _service.FormatFileAsync(filePath, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        var formatted = await File.ReadAllBytesAsync(filePath);
+        formatted.Take(3).Should().Equal((byte)0xEF, (byte)0xBB, (byte)0xBF);
+    }
+
+    /// <summary>
+    /// Verifies that formatting an ANSI file keeps its single byte encoding.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task FormatFileAsync_AnsiEncoding_PreservesEncoding()
+    {
+        var filePath = Path.Combine(_tempDirectory, "AnsiFormat.ini");
+        var bytes = Encoding.Latin1.GetBytes("; caf\xE9 comment\nObject Caf\xE9\n  DisplayName = Caf\xE9\nEnd\n");
+        await File.WriteAllBytesAsync(filePath, bytes);
+
+        var result = await _service.FormatFileAsync(filePath, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        var formatted = await File.ReadAllBytesAsync(filePath);
+        formatted.Should().Contain((byte)0xE9);
+        formatted.Should().NotContain((byte)0xC3);
+    }
+
+    /// <summary>
     /// Verifies that parsing a missing file fails with a not found error.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>

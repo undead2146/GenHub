@@ -38,7 +38,7 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var document = new IniDocument { SourcePath = sourcePath };
         var stack = new Stack<BlockFrame>();
         var pendingComments = new List<IniComment>();
-        var lines = content.Split(["\r\n", "\n"], StringSplitOptions.None);
+        var lines = content.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
 
         for (var i = 0; i < lines.Length; i++)
         {
@@ -72,9 +72,15 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         try
         {
             var bytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
-            var content = DecodeContent(bytes, filePath);
+            var (content, encoding) = DecodeContent(bytes, filePath);
             cancellationToken.ThrowIfCancellationRequested();
-            return ParseText(content, filePath);
+            var parsed = ParseText(content, filePath);
+            if (parsed.Success && parsed.Data != null)
+            {
+                parsed.Data.SourceEncoding = encoding;
+            }
+
+            return parsed;
         }
         catch (IOException ex)
         {
@@ -135,7 +141,7 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         var canonical = WriteDocument(parseResult.Data);
         try
         {
-            await AtomicFile.WriteAllTextAsync(filePath, canonical, cancellationToken).ConfigureAwait(false);
+            await AtomicFile.WriteAllTextAsync(filePath, canonical, parseResult.Data.SourceEncoding, cancellationToken).ConfigureAwait(false);
             logger.LogInformation("Formatted INI file {Path}", filePath);
             return OperationResult<bool>.CreateSuccess(true, stopwatch.Elapsed);
         }
@@ -265,6 +271,11 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
 
         if (string.Equals(line, IniConstants.BlockTags.End, StringComparison.OrdinalIgnoreCase))
         {
+            if (comment != null)
+            {
+                pendingComments.Add(new IniComment(comment, false));
+            }
+
             CloseBlock(lineNumber, document, stack, pendingComments, errors);
             return;
         }
@@ -672,17 +683,20 @@ public sealed class IniDocumentService(ILogger<IniDocumentService> logger) : IIn
         return bytes;
     }
 
-    private string DecodeContent(byte[] bytes, string filePath)
+    private (string Content, Encoding Encoding) DecodeContent(byte[] bytes, string filePath)
     {
+        var hasBom = bytes.Length >= Utf8Bom.Length &&
+            bytes[0] == Utf8Bom[0] && bytes[1] == Utf8Bom[1] && bytes[2] == Utf8Bom[2];
         var contentBytes = StripUtf8Bom(bytes);
         try
         {
-            return new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(contentBytes).TrimStart('\uFEFF');
+            var encoding = new UTF8Encoding(hasBom, throwOnInvalidBytes: true);
+            return (encoding.GetString(contentBytes).TrimStart('\uFEFF'), encoding);
         }
         catch (DecoderFallbackException ex)
         {
             logger.LogWarning(ex, "File {Path} is not valid UTF-8; decoding as single byte ANSI text", filePath);
-            return Encoding.Latin1.GetString(contentBytes).TrimStart('\uFEFF');
+            return (Encoding.Latin1.GetString(contentBytes).TrimStart('\uFEFF'), Encoding.Latin1);
         }
     }
 }

@@ -294,6 +294,18 @@ public class FileManagerViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task FormatIniFilesCommand_WithNoSelection_ShowsInfo()
+    {
+        var viewModel = CreateViewModelWithRealIniService();
+
+        await viewModel.FormatIniFilesCommand.ExecuteAsync(null);
+
+        _mockNotificationService.Verify(
+            n => n.ShowInfo(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<bool>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task FormatIniFilesCommand_WithMessyIniFile_FormatsAndShowsSuccess()
     {
         var iniPath = Path.Combine(_projectDir, "GameFilesEdited", "Messy.ini");

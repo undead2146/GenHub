@@ -14835,6 +14835,9 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Toolbar.Cut" xml:space="preserve">
     <value>قص</value>
   </data>
+  <data name="Tools.IniEditor.Toolbar.Paste" xml:space="preserve">
+    <value>لصق</value>
+  </data>
   <data name="Tools.IniEditor.Toolbar.Delete" xml:space="preserve">
     <value>حذف</value>
   </data>
@@ -14984,6 +14987,10 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Save.SuccessMessage" xml:space="preserve">
     <value>تم حفظ الملف: {0}.</value>
+  </data>
+  <data name="Tools.IniEditor.Preview.TruncatedMessage" xml:space="preserve">
+    <value>
+... (مختصر، النص الكامل في الملف).</value>
   </data>
   <data name="Tools.IniEditor.Save.FailureTitle" xml:space="preserve">
     <value>فشل حفظ ملف INI</value>
@@ -15354,8 +15361,8 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Schema.Blocks.Armor" xml:space="preserve">
     <value>Armor table: damage multiplier per damage type.</value>
   </data>
-  <data name="Tools.IniEditor.Schema.Fields.Armor.DamageMultiplier" xml:space="preserve">
-    <value>Damage multiplier versus {0}.</value>
+  <data name="Tools.IniEditor.Schema.Fields.Armor.Armor" xml:space="preserve">
+    <value>معامل الدرع: نوع الضرر والنسبة المئوية.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Blocks.ArmorSet" xml:space="preserve">
     <value>Armor set: selects an Armor table when conditions hold.</value>
@@ -15435,11 +15442,11 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Schema.Fields.CommandButton.Options" xml:space="preserve">
     <value>Button options.</value>
   </data>
-  <data name="Tools.IniEditor.Schema.Fields.CommandButton.Cursor" xml:space="preserve">
-    <value>Cursor shown while targeting.</value>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.CursorName" xml:space="preserve">
+    <value>المؤشر المعروض أثناء الاستهداف.</value>
   </data>
-  <data name="Tools.IniEditor.Schema.Fields.CommandButton.InvalidCursor" xml:space="preserve">
-    <value>Cursor for invalid targets.</value>
+  <data name="Tools.IniEditor.Schema.Fields.CommandButton.InvalidCursorName" xml:space="preserve">
+    <value>المؤشر للأهداف غير الصالحة.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.CommandButton.LacksPrerequisiteLabel" xml:space="preserve">
     <value>Missing prerequisite label.</value>
@@ -15555,23 +15562,29 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ReloadTime" xml:space="preserve">
     <value>Recharge time in milliseconds.</value>
   </data>
-  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.RadiusCursor" xml:space="preserve">
-    <value>Targeting cursor radius.</value>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.Enum" xml:space="preserve">
+    <value>معرف نوع القدرة الخاصة.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.RequiredScience" xml:space="preserve">
+    <value>العلم المطلوب.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.InitiateSound" xml:space="preserve">
+    <value>الصوت المشغل عند التفعيل.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.RadiusCursorRadius" xml:space="preserve">
+    <value>حجم مؤشر النطاق.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ViewObjectDuration" xml:space="preserve">
+    <value>مدة عرض الكائن.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ViewObjectRange" xml:space="preserve">
+    <value>نطاق عرض الكائن.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.SpecialPower.DisplayName" xml:space="preserve">
     <value>String table label.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ButtonImage" xml:space="preserve">
     <value>Button icon.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.Cursor" xml:space="preserve">
-    <value>Targeting cursor.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.InvalidCursor" xml:space="preserve">
-    <value>Invalid target cursor.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.SpecialPower.ViewObject" xml:space="preserve">
-    <value>View object.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.SpecialPower.OCL" xml:space="preserve">
     <value>Object creation list.</value>
@@ -15597,6 +15610,15 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Schema.Fields.Locomotor.MinSpeed" xml:space="preserve">
     <value>Minimum speed.</value>
   </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.MinTurnSpeed" xml:space="preserve">
+    <value>أدنى سرعة دوران.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.TurnRateDamaged" xml:space="preserve">
+    <value>سرعة الدوران عند التضرر.</value>
+  </data>
+  <data name="Tools.IniEditor.Schema.Fields.Locomotor.SpeedDamaged" xml:space="preserve">
+    <value>السرعة عند التضرر.</value>
+  </data>
   <data name="Tools.IniEditor.Schema.Fields.Locomotor.Acceleration" xml:space="preserve">
     <value>Acceleration.</value>
   </data>
@@ -15605,9 +15627,6 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.Locomotor.TurnRate" xml:space="preserve">
     <value>Turn rate.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.Locomotor.MaxTurnRate" xml:space="preserve">
-    <value>Maximum turn rate.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.Locomotor.Lift" xml:space="preserve">
     <value>Hover lift.</value>
@@ -15620,9 +15639,6 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.Locomotor.CrushableLevel" xml:space="preserve">
     <value>Crushability.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.Locomotor.CanMoveOverRubber" xml:space="preserve">
-    <value>Rubble traversal.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.Locomotor.Appearance" xml:space="preserve">
     <value>Movement appearance.</value>
@@ -15654,6 +15670,9 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.Count" xml:space="preserve">
     <value>Spawn count.</value>
   </data>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnorePrimaryObstacle" xml:space="preserve">
+    <value>يتجاهل العائق الأساسي.</value>
+  </data>
   <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.SpreadFormation" xml:space="preserve">
     <value>Formation spread.</value>
   </data>
@@ -15663,20 +15682,14 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceA" xml:space="preserve">
     <value>Maximum distance.</value>
   </data>
-  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetA" xml:space="preserve">
-    <value>Spawn offset.</value>
-  </data>
   <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.MinDistanceB" xml:space="preserve">
     <value>Secondary minimum distance.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceB" xml:space="preserve">
     <value>Secondary maximum distance.</value>
   </data>
-  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetB" xml:space="preserve">
-    <value>Secondary offset.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnorePrimaryObstacles" xml:space="preserve">
-    <value>Obstacle handling.</value>
+  <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.Offset" xml:space="preserve">
+    <value>إزاحة الظهور (x y z).</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnoreSecondaryObstacles" xml:space="preserve">
     <value>Secondary obstacle handling.</value>
@@ -15764,21 +15777,6 @@ GameFilesEdited/Data/INI/**/*.ini</value>
   </data>
   <data name="Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingTaunt" xml:space="preserve">
     <value>Starting taunt.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Blocks.FactionTemplate" xml:space="preserve">
-    <value>Faction template: arms dealer and superweapon defaults.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.DisplayName" xml:space="preserve">
-    <value>String table label.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.ArmsDealer" xml:space="preserve">
-    <value>Arms dealer template.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.StartingBuilding" xml:space="preserve">
-    <value>Starting building.</value>
-  </data>
-  <data name="Tools.IniEditor.Schema.Fields.FactionTemplate.Superweapon" xml:space="preserve">
-    <value>Superweapon.</value>
   </data>
   <data name="Tools.IniEditor.Schema.Blocks.ExperienceLevels" xml:space="preserve">
     <value>Experience levels: veterancy thresholds and multipliers.</value>

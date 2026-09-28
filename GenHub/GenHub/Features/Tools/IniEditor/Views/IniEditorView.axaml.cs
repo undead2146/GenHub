@@ -49,7 +49,8 @@ public partial class IniEditorView : UserControl
         }
 
         var modifiers = e.KeyModifiers;
-        if ((modifiers & KeyModifiers.Control) == 0 || (modifiers & ~(KeyModifiers.Control | KeyModifiers.Shift)) != 0)
+        var hasCommandModifier = (modifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0;
+        if (!hasCommandModifier || (modifiers & ~(KeyModifiers.Control | KeyModifiers.Meta | KeyModifiers.Shift)) != 0)
         {
             return;
         }

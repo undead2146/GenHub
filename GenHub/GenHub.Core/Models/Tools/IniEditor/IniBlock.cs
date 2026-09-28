@@ -65,7 +65,7 @@ public sealed class IniBlock
     public string? TrailingComment { get; set; }
 
     /// <summary>
-    /// Gets or sets the 1-based line number where the block starts, when known.
+    /// Gets or sets the 1-based line number where the block starts, or 0 when unknown.
     /// </summary>
     public int LineNumber { get; set; }
 }

@@ -27,8 +27,11 @@ public sealed class IniSchemaService : IIniSchemaService
     private sealed record SchemaBlockEntry(
         string BlockType,
         string DescriptionKey,
-        SchemaFieldEntry[] Fields,
-        string? GeneratedDescriptionKey = null);
+        SchemaFieldEntry[] Fields);
+
+    private sealed record SchemaSnapshot(
+        IReadOnlyList<IniBlockSchema> Blocks,
+        Dictionary<string, IniBlockSchema> Lookup);
 
     private static readonly SchemaBlockEntry[] SchemaTables =
     [
@@ -115,8 +118,9 @@ public sealed class IniSchemaService : IIniSchemaService
             new(
                 IniConstants.BlockTypes.Armor,
                 "Tools.IniEditor.Schema.Blocks.Armor",
-                [],
-                "Tools.IniEditor.Schema.Fields.Armor.DamageMultiplier"),
+                [
+                    new("Armor", "Tools.IniEditor.Schema.Fields.Armor.Armor", false, Options: IniConstants.DamageTypes.All),
+                ]),
             new(
                 IniConstants.BlockTypes.ArmorSet,
                 "Tools.IniEditor.Schema.Blocks.ArmorSet",
@@ -154,8 +158,8 @@ public sealed class IniSchemaService : IIniSchemaService
                     new("NeedUpgrade", "Tools.IniEditor.Schema.Fields.CommandButton.NeedUpgrade", false, ReferenceBlockType: IniConstants.BlockTypes.Upgrade),
                     new("NeedScience", "Tools.IniEditor.Schema.Fields.CommandButton.NeedScience", false, ReferenceBlockType: IniConstants.BlockTypes.Science),
                     new("Options", "Tools.IniEditor.Schema.Fields.CommandButton.Options", false),
-                    new("Cursor", "Tools.IniEditor.Schema.Fields.CommandButton.Cursor", false),
-                    new("InvalidCursor", "Tools.IniEditor.Schema.Fields.CommandButton.InvalidCursor", false),
+                    new("CursorName", "Tools.IniEditor.Schema.Fields.CommandButton.CursorName", false),
+                    new("InvalidCursorName", "Tools.IniEditor.Schema.Fields.CommandButton.InvalidCursorName", false),
                     new("LacksPrerequisiteLabel", "Tools.IniEditor.Schema.Fields.CommandButton.LacksPrerequisiteLabel", false),
                 ]),
             new(
@@ -209,13 +213,15 @@ public sealed class IniSchemaService : IIniSchemaService
                 IniConstants.BlockTypes.SpecialPower,
                 "Tools.IniEditor.Schema.Blocks.SpecialPower",
                 [
+                    new("Enum", "Tools.IniEditor.Schema.Fields.SpecialPower.Enum", false),
                     new("ReloadTime", "Tools.IniEditor.Schema.Fields.SpecialPower.ReloadTime", true),
-                    new("RadiusCursor", "Tools.IniEditor.Schema.Fields.SpecialPower.RadiusCursor", true),
+                    new("RequiredScience", "Tools.IniEditor.Schema.Fields.SpecialPower.RequiredScience", false),
+                    new("InitiateSound", "Tools.IniEditor.Schema.Fields.SpecialPower.InitiateSound", false),
+                    new("RadiusCursorRadius", "Tools.IniEditor.Schema.Fields.SpecialPower.RadiusCursorRadius", true),
+                    new("ViewObjectDuration", "Tools.IniEditor.Schema.Fields.SpecialPower.ViewObjectDuration", true),
+                    new("ViewObjectRange", "Tools.IniEditor.Schema.Fields.SpecialPower.ViewObjectRange", true),
                     new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.SpecialPower.DisplayName", false),
                     new(IniConstants.FieldKeys.ButtonImage, "Tools.IniEditor.Schema.Fields.SpecialPower.ButtonImage", false, IsTexture: true),
-                    new("Cursor", "Tools.IniEditor.Schema.Fields.SpecialPower.Cursor", false),
-                    new("InvalidCursor", "Tools.IniEditor.Schema.Fields.SpecialPower.InvalidCursor", false),
-                    new("ViewObject", "Tools.IniEditor.Schema.Fields.SpecialPower.ViewObject", false),
                     new("OCL", "Tools.IniEditor.Schema.Fields.SpecialPower.OCL", false, ReferenceBlockType: IniConstants.BlockTypes.ObjectCreationList),
                     new("ChangeWeapon", "Tools.IniEditor.Schema.Fields.SpecialPower.ChangeWeapon", false),
                     new("PublicTimer", "Tools.IniEditor.Schema.Fields.SpecialPower.PublicTimer", false),
@@ -231,12 +237,13 @@ public sealed class IniSchemaService : IIniSchemaService
                     new("Acceleration", "Tools.IniEditor.Schema.Fields.Locomotor.Acceleration", true),
                     new("Braking", "Tools.IniEditor.Schema.Fields.Locomotor.Braking", true),
                     new("TurnRate", "Tools.IniEditor.Schema.Fields.Locomotor.TurnRate", true),
-                    new("MaxTurnRate", "Tools.IniEditor.Schema.Fields.Locomotor.MaxTurnRate", true),
+                    new("MinTurnSpeed", "Tools.IniEditor.Schema.Fields.Locomotor.MinTurnSpeed", true),
+                    new("TurnRateDamaged", "Tools.IniEditor.Schema.Fields.Locomotor.TurnRateDamaged", true),
+                    new("SpeedDamaged", "Tools.IniEditor.Schema.Fields.Locomotor.SpeedDamaged", true),
                     new("Lift", "Tools.IniEditor.Schema.Fields.Locomotor.Lift", true),
                     new("HoverHeight", "Tools.IniEditor.Schema.Fields.Locomotor.HoverHeight", true),
                     new("CrusherLevel", "Tools.IniEditor.Schema.Fields.Locomotor.CrusherLevel", true),
                     new("CrushableLevel", "Tools.IniEditor.Schema.Fields.Locomotor.CrushableLevel", true),
-                    new("CanMoveOverRubber", "Tools.IniEditor.Schema.Fields.Locomotor.CanMoveOverRubber", false),
                     new("Appearance", "Tools.IniEditor.Schema.Fields.Locomotor.Appearance", false),
                     new("AccelerationPitch", "Tools.IniEditor.Schema.Fields.Locomotor.AccelerationPitch", true),
                     new("AllowAirborne", "Tools.IniEditor.Schema.Fields.Locomotor.AllowAirborne", false),
@@ -254,11 +261,10 @@ public sealed class IniSchemaService : IIniSchemaService
                     new("SpreadFormation", "Tools.IniEditor.Schema.Fields.ObjectCreationList.SpreadFormation", false),
                     new("MinDistanceA", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MinDistanceA", true),
                     new("MaxDistanceA", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceA", true),
-                    new("OffsetA", "Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetA", false),
                     new("MinDistanceB", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MinDistanceB", true),
                     new("MaxDistanceB", "Tools.IniEditor.Schema.Fields.ObjectCreationList.MaxDistanceB", true),
-                    new("OffsetB", "Tools.IniEditor.Schema.Fields.ObjectCreationList.OffsetB", false),
-                    new("IgnorePrimaryObstacles", "Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnorePrimaryObstacles", false),
+                    new("Offset", "Tools.IniEditor.Schema.Fields.ObjectCreationList.Offset", false),
+                    new("IgnorePrimaryObstacle", "Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnorePrimaryObstacle", false),
                     new("IgnoreSecondaryObstacles", "Tools.IniEditor.Schema.Fields.ObjectCreationList.IgnoreSecondaryObstacles", false),
                     new("StartingWeapon", "Tools.IniEditor.Schema.Fields.ObjectCreationList.StartingWeapon", false, ReferenceBlockType: IniConstants.BlockTypes.Weapon),
                     new("InheritVeterancy", "Tools.IniEditor.Schema.Fields.ObjectCreationList.InheritVeterancy", false),
@@ -298,15 +304,6 @@ public sealed class IniSchemaService : IIniSchemaService
                     new("StartingTaunt", "Tools.IniEditor.Schema.Fields.PlayerTemplate.StartingTaunt", false),
                 ]),
             new(
-                IniConstants.BlockTypes.FactionTemplate,
-                "Tools.IniEditor.Schema.Blocks.FactionTemplate",
-                [
-                    new(IniConstants.FieldKeys.DisplayName, "Tools.IniEditor.Schema.Fields.FactionTemplate.DisplayName", false),
-                    new("ArmsDealer", "Tools.IniEditor.Schema.Fields.FactionTemplate.ArmsDealer", false),
-                    new("StartingBuilding", "Tools.IniEditor.Schema.Fields.FactionTemplate.StartingBuilding", false, ReferenceBlockType: IniConstants.BlockTypes.Object),
-                    new("Superweapon", "Tools.IniEditor.Schema.Fields.FactionTemplate.Superweapon", false),
-                ]),
-            new(
                 IniConstants.BlockTypes.ExperienceLevels,
                 "Tools.IniEditor.Schema.Blocks.ExperienceLevels",
                 [
@@ -340,8 +337,7 @@ public sealed class IniSchemaService : IIniSchemaService
     ];
 
     private readonly ILocalizationService _localizationService;
-    private Dictionary<string, IniBlockSchema> _schemas = new(StringComparer.OrdinalIgnoreCase);
-    private IReadOnlyList<IniBlockSchema> _blockSchemas = [];
+    private SchemaSnapshot _snapshot = new([], new Dictionary<string, IniBlockSchema>(StringComparer.OrdinalIgnoreCase));
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IniSchemaService"/> class.
@@ -355,13 +351,13 @@ public sealed class IniSchemaService : IIniSchemaService
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<IniBlockSchema> BlockSchemas => _blockSchemas;
+    public IReadOnlyList<IniBlockSchema> BlockSchemas => _snapshot.Blocks;
 
     /// <inheritdoc />
     public IniBlockSchema? GetBlockSchema(string blockType)
     {
         ArgumentNullException.ThrowIfNull(blockType);
-        return _schemas.TryGetValue(blockType, out var schema) ? schema : null;
+        return _snapshot.Lookup.TryGetValue(blockType, out var schema) ? schema : null;
     }
 
     /// <inheritdoc />
@@ -370,7 +366,7 @@ public sealed class IniSchemaService : IIniSchemaService
         ArgumentNullException.ThrowIfNull(blockType);
         ArgumentNullException.ThrowIfNull(key);
         schema = null;
-        if (!_schemas.TryGetValue(blockType, out var block))
+        if (!_snapshot.Lookup.TryGetValue(blockType, out var block))
         {
             return false;
         }
@@ -395,22 +391,14 @@ public sealed class IniSchemaService : IIniSchemaService
             schemas.Add(BuildBlockSchema(table));
         }
 
-        _blockSchemas = schemas;
-        _schemas = schemas.ToDictionary(schema => schema.BlockType, StringComparer.OrdinalIgnoreCase);
+        _snapshot = new SchemaSnapshot(
+            schemas,
+            schemas.ToDictionary(schema => schema.BlockType, StringComparer.OrdinalIgnoreCase));
     }
 
     private IniBlockSchema BuildBlockSchema(SchemaBlockEntry table)
     {
         var description = _localizationService.GetString(table.DescriptionKey);
-        if (string.Equals(table.BlockType, IniConstants.BlockTypes.Armor, StringComparison.Ordinal) &&
-            table.GeneratedDescriptionKey != null)
-        {
-            var armorFields = IniConstants.DamageTypes.All
-                .Select(type => new IniFieldSchema(type, _localizationService.GetString(table.GeneratedDescriptionKey, type), true))
-                .ToArray();
-            return new IniBlockSchema(table.BlockType, description, armorFields);
-        }
-
         var fields = table.Fields
             .Select(entry => new IniFieldSchema(entry.Key, _localizationService.GetString(entry.DescriptionKey), entry.IsNumeric, entry.Options, entry.ReferenceBlockType, entry.IsTexture))
             .ToArray();

@@ -301,6 +301,19 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(DocumentTitle));
         OnPropertyChanged(nameof(HasDocument));
+        OnPropertyChanged(nameof(CanNewDocument));
+        OnPropertyChanged(nameof(CanOpenFolder));
+        OnPropertyChanged(nameof(CanOpenFile));
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(CanSaveAs));
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        OnPropertyChanged(nameof(CanCopy));
+        OnPropertyChanged(nameof(CanCut));
+        OnPropertyChanged(nameof(CanPaste));
+        OnPropertyChanged(nameof(CanDuplicate));
+        OnPropertyChanged(nameof(CanDelete));
+        OnPropertyChanged(nameof(CanZoom));
     }
 
     /// <inheritdoc />
@@ -321,7 +334,7 @@ public abstract class EditorToolViewModelBase : ObservableObject, IDisposable
             return null;
         }
 
-        return TopLevel.GetTopLevel(lifetime.MainWindow);
+        return lifetime.MainWindow is null ? null : TopLevel.GetTopLevel(lifetime.MainWindow);
     }
 
     /// <summary>

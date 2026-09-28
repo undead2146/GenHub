@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 
 namespace GenHub.Core.Models.Tools.IniEditor;
 
@@ -11,6 +12,13 @@ public sealed class IniDocument
     /// Gets or sets the source path this document was loaded from, when known.
     /// </summary>
     public string? SourcePath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the text encoding detected when the document was loaded.
+    /// Saves and format operations write back with this encoding so ANSI files
+    /// and UTF-8 byte order marks round-trip instead of being re-encoded.
+    /// </summary>
+    public Encoding SourceEncoding { get; set; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>
     /// Gets the ordered top-level blocks.

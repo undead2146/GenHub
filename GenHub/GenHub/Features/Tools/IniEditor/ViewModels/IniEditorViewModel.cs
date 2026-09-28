@@ -75,6 +75,8 @@ public sealed partial class IniEditorViewModel(
     private bool _cultureSubscribed;
     private bool _installationsLoaded;
     private int _thumbnailGeneration;
+    private int _savedUndoDepth;
+    private bool _isRebuilding;
     private CancellationTokenSource? _previewCts;
     private CancellationTokenSource? _filterCts;
     private CancellationTokenSource? _thumbnailCts;
@@ -359,6 +361,11 @@ public sealed partial class IniEditorViewModel(
     /// <inheritdoc />
     protected override async Task OnOpenFolderAsync(CancellationToken cancellationToken)
     {
+        if (!await ConfirmDiscardUnsavedAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var topLevel = GetTopLevel();
         if (topLevel == null)
         {
@@ -474,7 +481,7 @@ public sealed partial class IniEditorViewModel(
         var action = _undoStack.Pop();
         action.Undo();
         _redoStack.Push(action);
-        MarkDirty();
+        SyncDirtyAfterHistory();
         RebuildAll();
     }
 
@@ -489,7 +496,7 @@ public sealed partial class IniEditorViewModel(
         var action = _redoStack.Pop();
         action.Redo();
         _undoStack.Push(action);
-        MarkDirty();
+        SyncDirtyAfterHistory();
         RebuildAll();
     }
 
@@ -770,30 +777,30 @@ public sealed partial class IniEditorViewModel(
     {
         if (string.Equals(blockType, IniConstants.BlockTypes.Object, StringComparison.OrdinalIgnoreCase))
         {
-            return ["Health", IniConstants.FieldKeys.BuildCost, IniConstants.FieldKeys.BuildTime, "Side", IniConstants.FieldKeys.DisplayName, IniConstants.BlockTypes.ArmorSet, IniConstants.BlockTypes.WeaponSet, IniConstants.BlockTypes.CommandSet, "Icon", IniConstants.FieldKeys.ButtonImage];
+            return [IniConstants.FieldKeys.Health, IniConstants.FieldKeys.BuildCost, IniConstants.FieldKeys.BuildTime, IniConstants.FieldKeys.Side, IniConstants.FieldKeys.DisplayName, IniConstants.BlockTypes.ArmorSet, IniConstants.BlockTypes.WeaponSet, IniConstants.BlockTypes.CommandSet, IniConstants.FieldKeys.Icon, IniConstants.FieldKeys.ButtonImage];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.Weapon, StringComparison.OrdinalIgnoreCase))
         {
-            return [IniConstants.FieldKeys.PrimaryDamage, IniConstants.FieldKeys.PrimaryDamageRadius, "AttackRange", IniConstants.FieldKeys.DamageType, IniConstants.FieldKeys.DeathType, "WeaponSpeed"];
+            return [IniConstants.FieldKeys.PrimaryDamage, IniConstants.FieldKeys.PrimaryDamageRadius, IniConstants.FieldKeys.AttackRange, IniConstants.FieldKeys.DamageType, IniConstants.FieldKeys.DeathType, IniConstants.FieldKeys.WeaponSpeed];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.CommandButton, StringComparison.OrdinalIgnoreCase))
         {
-            return ["Command", "Object", IniConstants.FieldKeys.Upgrade, "TextLabel", IniConstants.FieldKeys.ButtonImage];
+            return [IniConstants.FieldKeys.Command, IniConstants.FieldKeys.Object, IniConstants.FieldKeys.Upgrade, IniConstants.FieldKeys.TextLabel, IniConstants.FieldKeys.ButtonImage];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.Upgrade, StringComparison.OrdinalIgnoreCase))
         {
-            return ["Type", IniConstants.FieldKeys.BuildCost, IniConstants.FieldKeys.BuildTime, IniConstants.FieldKeys.DisplayName, IniConstants.FieldKeys.ButtonImage];
+            return [IniConstants.FieldKeys.Type, IniConstants.FieldKeys.BuildCost, IniConstants.FieldKeys.BuildTime, IniConstants.FieldKeys.DisplayName, IniConstants.FieldKeys.ButtonImage];
         }
 
         if (string.Equals(blockType, IniConstants.BlockTypes.Locomotor, StringComparison.OrdinalIgnoreCase))
         {
-            return ["Speed", "TurnRate", "Lift", "Appearance"];
+            return [IniConstants.FieldKeys.Speed, IniConstants.FieldKeys.TurnRate, IniConstants.FieldKeys.Lift, IniConstants.FieldKeys.Appearance];
         }
 
-        return [IniConstants.FieldKeys.DisplayName, IniConstants.FieldKeys.ButtonImage, "Icon"];
+        return [IniConstants.FieldKeys.DisplayName, IniConstants.FieldKeys.ButtonImage, IniConstants.FieldKeys.Icon];
     }
 
     private static string? FindFieldValue(IniBlock block, string key)
@@ -806,21 +813,21 @@ public sealed partial class IniEditorViewModel(
         if (string.Equals(block.BlockType, IniConstants.BlockTypes.Object, StringComparison.OrdinalIgnoreCase))
         {
             block.Fields.Add(new IniField(IniConstants.FieldKeys.DisplayName, "OBJECT:Name"));
-            block.Fields.Add(new IniField("Side", "USA"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.Side, "USA"));
             block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildCost, "100"));
             block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildTime, "5.0"));
-            block.Fields.Add(new IniField("Health", "100.0"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.Health, "100.0"));
         }
         else if (string.Equals(block.BlockType, IniConstants.BlockTypes.Weapon, StringComparison.OrdinalIgnoreCase))
         {
             block.Fields.Add(new IniField(IniConstants.FieldKeys.PrimaryDamage, "50.0"));
             block.Fields.Add(new IniField(IniConstants.FieldKeys.PrimaryDamageRadius, "20.0"));
-            block.Fields.Add(new IniField("AttackRange", "200.0"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.AttackRange, "200.0"));
             block.Fields.Add(new IniField(IniConstants.FieldKeys.DamageType, "EXPLOSION"));
         }
         else if (string.Equals(block.BlockType, IniConstants.BlockTypes.Upgrade, StringComparison.OrdinalIgnoreCase))
         {
-            block.Fields.Add(new IniField("Type", "OBJECT"));
+            block.Fields.Add(new IniField(IniConstants.FieldKeys.Type, "OBJECT"));
             block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildCost, "500"));
             block.Fields.Add(new IniField(IniConstants.FieldKeys.BuildTime, "30.0"));
         }
@@ -845,6 +852,63 @@ public sealed partial class IniEditorViewModel(
                 fields[i] = fields[i] with { Value = value };
                 return;
             }
+        }
+    }
+
+    private static void SetFieldValue(IList<IniField> fields, int index, string key, string value)
+    {
+        if (index >= 0 &&
+            index < fields.Count &&
+            string.Equals(fields[index].Key, key, StringComparison.OrdinalIgnoreCase))
+        {
+            fields[index] = fields[index] with { Value = value };
+            return;
+        }
+
+        SetFieldValueByKey(fields, key, value);
+    }
+
+    private static async Task RunDeferredRefreshAsync(CancellationTokenSource source, int delayMs, Action refresh)
+    {
+        try
+        {
+            await Task.Delay(delayMs, source.Token).ConfigureAwait(false);
+            if (source.IsCancellationRequested)
+            {
+                return;
+            }
+
+            PostToUIThread(refresh);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+            // Superseded by a newer edit, or the view model was disposed.
+        }
+    }
+
+    private static void CollectExpandedBlocks(IEnumerable<IniTreeNodeViewModel> nodes, HashSet<IniBlock> expanded)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.IsExpanded)
+            {
+                expanded.Add(node.Block);
+            }
+
+            CollectExpandedBlocks(node.Children, expanded);
+        }
+    }
+
+    private static void RestoreExpandedBlocks(IEnumerable<IniTreeNodeViewModel> nodes, HashSet<IniBlock> expanded)
+    {
+        foreach (var node in nodes)
+        {
+            if (expanded.Contains(node.Block))
+            {
+                node.IsExpanded = true;
+            }
+
+            RestoreExpandedBlocks(node.Children, expanded);
         }
     }
 
@@ -1310,6 +1374,7 @@ public sealed partial class IniEditorViewModel(
             RebuildAll();
         }).ConfigureAwait(false);
         MarkSaved();
+        _savedUndoDepth = _undoStack.Count;
         await RebuildReferenceIndexAsync(false, cancellationToken).ConfigureAwait(false);
         await LoadTexturePickerItemsAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -1332,21 +1397,31 @@ public sealed partial class IniEditorViewModel(
 
     private void RebuildAll()
     {
-        RebuildTree();
-        RebuildFieldRows();
-        RebuildGlobalFieldRows();
-        RebuildCanvasSummary();
-        RebuildAssembledRows();
-        RefreshRawText();
-        HasDocument = _document != null;
-        InsertReferenceCommand.NotifyCanExecuteChanged();
-        RefreshEditorCommands();
-        QueueThumbnailRefresh();
+        _isRebuilding = true;
+        try
+        {
+            RebuildTree();
+            RebuildFieldRows();
+            RebuildGlobalFieldRows();
+            RebuildCanvasSummary();
+            RebuildAssembledRows();
+            RefreshRawText();
+            HasDocument = _document != null;
+            InsertReferenceCommand.NotifyCanExecuteChanged();
+            RefreshEditorCommands();
+            QueueThumbnailRefresh();
+        }
+        finally
+        {
+            _isRebuilding = false;
+        }
     }
 
     private void RebuildTree()
     {
         var selectedBlock = SelectedNode?.Block;
+        var expanded = new HashSet<IniBlock>();
+        CollectExpandedBlocks(RootNodes, expanded);
         RootNodes.Clear();
         if (_document == null)
         {
@@ -1364,6 +1439,7 @@ public sealed partial class IniEditorViewModel(
             RootNodes.Add(BuildTreeNode(block, null));
         }
 
+        RestoreExpandedBlocks(RootNodes, expanded);
         if (selectedBlock == null)
         {
             return;
@@ -1775,7 +1851,7 @@ public sealed partial class IniEditorViewModel(
 
         var upgrades = block.Fields.Where(field =>
             string.Equals(field.Key, IniConstants.FieldKeys.Upgrade, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(field.Key, "Upgrades", StringComparison.OrdinalIgnoreCase)).ToList();
+            string.Equals(field.Key, IniConstants.FieldKeys.Upgrades, StringComparison.OrdinalIgnoreCase)).ToList();
         if (upgrades.Count > 0)
         {
             CanvasSummary.Add(new IniCanvasSummaryRow(
@@ -1815,7 +1891,16 @@ public sealed partial class IniEditorViewModel(
 
     private void RefreshRawText()
     {
-        RawText = _document == null ? string.Empty : iniDocumentService.WriteDocument(_document);
+        if (_document == null)
+        {
+            RawText = string.Empty;
+            return;
+        }
+
+        var text = iniDocumentService.WriteDocument(_document);
+        RawText = text.Length > IniConstants.Editor.MaxRawPreviewChars
+            ? text[..IniConstants.Editor.MaxRawPreviewChars] + Localization.GetString("Tools.IniEditor.Preview.TruncatedMessage")
+            : text;
     }
 
     private void RefreshPreviews()
@@ -1829,6 +1914,18 @@ public sealed partial class IniEditorViewModel(
     {
         MarkDirty();
         ScheduleDeferred(ref _previewCts, IniConstants.Editor.PreviewRefreshDebounceMs, RefreshPreviews);
+    }
+
+    private void SyncDirtyAfterHistory()
+    {
+        if (_undoStack.Count == _savedUndoDepth)
+        {
+            MarkSaved();
+        }
+        else
+        {
+            MarkDirty();
+        }
     }
 
     private void PushUndo(IniEditAction action)
@@ -1866,12 +1963,12 @@ public sealed partial class IniEditorViewModel(
             Localization.GetString("Tools.IniEditor.History.EditField"),
             () =>
             {
-                SetFieldValueByKey(fields, key, newValue);
+                SetFieldValue(fields, fieldIndex, key, newValue);
                 RebuildAll();
             },
             () =>
             {
-                SetFieldValueByKey(fields, key, oldValue);
+                SetFieldValue(fields, fieldIndex, key, oldValue);
                 RebuildAll();
             },
             (fields, fieldIndex)));
@@ -2065,7 +2162,7 @@ public sealed partial class IniEditorViewModel(
     {
         try
         {
-            await OpenFileAsync(node.FullPath).ConfigureAwait(false);
+            await OpenFileAsync(node.FullPath, CancellationToken.None).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -2427,13 +2524,14 @@ public sealed partial class IniEditorViewModel(
                 Directory.CreateDirectory(directory);
             }
 
-            await AtomicFile.WriteAllTextAsync(filePath, canonical, cancellationToken).ConfigureAwait(false);
+            await AtomicFile.WriteAllTextAsync(filePath, canonical, _document.SourceEncoding, cancellationToken).ConfigureAwait(false);
             await InvokeOnUIThreadAsync(() =>
             {
                 FilePath = filePath;
                 UpdateExplorerForFile(filePath);
             }).ConfigureAwait(false);
             MarkSaved();
+            _savedUndoDepth = _undoStack.Count;
             Notifications.ShowSuccess(
                 Localization.GetString("Tools.IniEditor.Save.SuccessTitle"),
                 Localization.GetString("Tools.IniEditor.Save.SuccessMessage", DocumentTitle),
@@ -2489,27 +2587,16 @@ public sealed partial class IniEditorViewModel(
         slot?.Cancel();
         var cts = new CancellationTokenSource();
         slot = cts;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(delayMs, cts.Token).ConfigureAwait(false);
-                if (cts.IsCancellationRequested)
-                {
-                    return;
-                }
-
-                PostToUIThread(refresh);
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
-            {
-                // Superseded by a newer edit, or the view model was disposed.
-            }
-        });
+        _ = Task.Run(() => RunDeferredRefreshAsync(cts, delayMs, refresh), CancellationToken.None);
     }
 
     partial void OnSelectedNodeChanged(IniTreeNodeViewModel? value)
     {
+        if (_isRebuilding)
+        {
+            return;
+        }
+
         RebuildFieldRows();
         RebuildCanvasSummary();
         RebuildAssembledRows();
