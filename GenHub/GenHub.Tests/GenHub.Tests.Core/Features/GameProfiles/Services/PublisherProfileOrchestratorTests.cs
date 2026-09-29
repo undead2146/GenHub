@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -421,6 +422,305 @@ public sealed class PublisherProfileOrchestratorTests
             Times.Never);
     }
 
+    /// <summary>
+    /// Verifies that skipAcquisition with an empty pool creates the profile from the detected
+    /// client on disk instead of downloading the publisher package.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CreateProfilesForPublisherClientAsync_WhenSkipAcquisitionAndDetectedClientOnDisk_CreatesProfileFromClientWithoutAcquiringAsync()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var executablePath = Path.Combine(directory, GameClientConstants.SuperHackersZeroHourExecutable);
+            await File.WriteAllBytesAsync(executablePath, [0x4D, 0x5A, 0x90, 0x00]);
+            var installation = new GameInstallation(directory, GameInstallationType.Retail, null);
+            var client = CreateSuperHackersClient(executablePath);
+            SetupPool([]);
+            SetupDetectedClientProfile(installation, client);
+
+            var result = await _orchestrator.CreateProfilesForPublisherClientAsync(installation, client, skipAcquisition: true);
+
+            Assert.True(result.Success);
+            Assert.Equal(1, result.Data);
+            VerifyNoAcquisition();
+            _gameClientProfileServiceMock.Verify(
+                s => s.CreateProfileForGameClientAsync(installation, client, null, null, null, It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that on macOS and Linux a native client never pulls the Windows publisher
+    /// package or profiles a pooled Windows manifest, whatever the wizard decided.
+    /// </summary>
+    /// <param name="skipAcquisition">Whether the wizard asked to create a profile only.</param>
+    /// <param name="forceReacquireContent">Whether the wizard asked to update.</param>
+    /// <param name="poolHasWindowsManifest">Whether a Windows package is already pooled.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    public async Task CreateProfilesForPublisherClientAsync_WhenNativeBuildOnNonWindowsHost_CreatesNativeProfileWithoutAcquiringAsync(
+        bool skipAcquisition,
+        bool forceReacquireContent,
+        bool poolHasWindowsManifest)
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var executablePath = Path.Combine(directory, Path.GetFileNameWithoutExtension(GameClientConstants.SuperHackersZeroHourExecutable));
+            await File.WriteAllBytesAsync(executablePath, HostNativeExecutableHeader());
+            var client = CreateSuperHackersClient(executablePath);
+
+            // Windows keeps the publisher package flow; a Mach-O binary is not a client there.
+            if (OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var installation = new GameInstallation(directory, GameInstallationType.Retail, null);
+            var windowsManifest = CreateSuperHackersWindowsManifest();
+            SetupPool(poolHasWindowsManifest ? [windowsManifest] : []);
+            SetupSearchAndAcquire(windowsManifest);
+            SetupDetectedClientProfile(installation, client);
+
+            var result = await _orchestrator.CreateProfilesForPublisherClientAsync(
+                installation,
+                client,
+                forceReacquireContent: forceReacquireContent,
+                skipAcquisition: skipAcquisition);
+
+            Assert.True(result.Success);
+            Assert.Equal(1, result.Data);
+            VerifyNoAcquisition();
+            _gameClientProfileServiceMock.Verify(
+                s => s.CreateProfileFromManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+            _gameClientProfileServiceMock.Verify(
+                s => s.CreateProfileForGameClientAsync(installation, client, null, null, null, It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that every native client of the publisher in the installation gets a profile,
+    /// so a deployment with both Generals and Zero Hour engines yields both.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CreateProfilesForPublisherClientAsync_WhenInstallationHasNativeGeneralsAndZeroHour_CreatesBothProfilesAsync()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var zeroHourPath = Path.Combine(directory, Path.GetFileNameWithoutExtension(GameClientConstants.SuperHackersZeroHourExecutable));
+            var generalsPath = Path.Combine(directory, Path.GetFileNameWithoutExtension(GameClientConstants.SuperHackersGeneralsExecutable));
+            await File.WriteAllBytesAsync(zeroHourPath, HostNativeExecutableHeader());
+            await File.WriteAllBytesAsync(generalsPath, HostNativeExecutableHeader());
+            var zeroHour = CreateSuperHackersClient(zeroHourPath);
+            var generals = CreateSuperHackersClient(generalsPath);
+            generals.Id = "1.108.retail.gameclient.generals";
+            generals.GameType = GameType.Generals;
+            var installation = new GameInstallation(directory, GameInstallationType.Retail, null)
+            {
+                AvailableGameClients = [zeroHour, generals],
+            };
+            SetupPool([]);
+            SetupDetectedClientProfile(installation, zeroHour);
+            SetupDetectedClientProfile(installation, generals);
+
+            var result = await _orchestrator.CreateProfilesForPublisherClientAsync(installation, zeroHour);
+
+            Assert.True(result.Success);
+            Assert.Equal(2, result.Data);
+            VerifyNoAcquisition();
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies how detected-client profile outcomes combine: real failures are propagated
+    /// and an already existing profile is not an error.
+    /// </summary>
+    /// <param name="firstOutcome">The outcome for the Zero Hour client.</param>
+    /// <param name="secondOutcome">The outcome for the Generals client.</param>
+    /// <param name="expectSuccess">Whether the orchestrator should report success.</param>
+    /// <param name="expectedCount">The expected number of created profiles on success.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Theory]
+    [InlineData("fail", "fail", false, 0)]
+    [InlineData("exists", "fail", false, 0)]
+    [InlineData("exists", "exists", true, 0)]
+    [InlineData("created", "fail", true, 1)]
+    public async Task CreateProfilesForPublisherClientAsync_WithDetectedClientOutcomes_PropagatesRealFailuresAsync(
+        string firstOutcome,
+        string secondOutcome,
+        bool expectSuccess,
+        int expectedCount)
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var zeroHourPath = Path.Combine(directory, GameClientConstants.SuperHackersZeroHourExecutable);
+            var generalsPath = Path.Combine(directory, GameClientConstants.SuperHackersGeneralsExecutable);
+            await File.WriteAllBytesAsync(zeroHourPath, [0x4D, 0x5A, 0x90, 0x00]);
+            await File.WriteAllBytesAsync(generalsPath, [0x4D, 0x5A, 0x90, 0x00]);
+            var zeroHour = CreateSuperHackersClient(zeroHourPath);
+            var generals = CreateSuperHackersClient(generalsPath);
+            generals.Id = "1.108.retail.gameclient.generals";
+            generals.GameType = GameType.Generals;
+            var installation = new GameInstallation(directory, GameInstallationType.Retail, null);
+            var clients = new[] { zeroHour, generals };
+            SetupPool([]);
+            SetupProfileOutcome(installation, zeroHour, firstOutcome);
+            SetupProfileOutcome(installation, generals, secondOutcome);
+
+            var result = await _orchestrator.CreateProfilesFromDetectedClientsAsync(
+                installation,
+                clients,
+                PublisherTypeConstants.TheSuperHackers,
+                false,
+                CancellationToken.None);
+
+            Assert.Equal(expectSuccess, result.Success);
+            if (expectSuccess)
+            {
+                Assert.Equal(expectedCount, result.Data);
+            }
+            else
+            {
+                Assert.Contains("disk full", string.Join(" ", result.Errors));
+                Assert.DoesNotContain("already exists", string.Join(" ", result.Errors), StringComparison.OrdinalIgnoreCase);
+            }
+
+            var anyFailure = firstOutcome == "fail" || secondOutcome == "fail";
+            _notificationServiceMock.Verify(
+                n => n.ShowWarning(It.IsAny<string>(), It.Is<string>(m => m.Contains("disk full")), It.IsAny<int?>(), It.IsAny<bool>()),
+                anyFailure ? Times.Once() : Times.Never());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that skipAcquisition with a failing profile creation returns a failure with the reason.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CreateProfilesForPublisherClientAsync_WhenSkipAcquisitionAndProfileCreationFails_ReturnsFailureAsync()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var executablePath = Path.Combine(directory, GameClientConstants.SuperHackersZeroHourExecutable);
+            await File.WriteAllBytesAsync(executablePath, [0x4D, 0x5A, 0x90, 0x00]);
+            var installation = new GameInstallation(directory, GameInstallationType.Retail, null);
+            var client = CreateSuperHackersClient(executablePath);
+            SetupPool([]);
+            SetupProfileOutcome(installation, client, "fail");
+
+            var result = await _orchestrator.CreateProfilesForPublisherClientAsync(installation, client, skipAcquisition: true);
+
+            Assert.False(result.Success);
+            Assert.Contains("disk full", string.Join(" ", result.Errors));
+            VerifyNoAcquisition();
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies which detected clients count as native on this host. Flatpak bundles, AppImages
+    /// and ELF binaries are native on Linux; app bundles and Mach-O binaries are native on macOS.
+    /// Windows binaries, non-executables and missing files are not, and nothing is native on Windows.
+    /// </summary>
+    /// <param name="relativePath">The client path under a temporary directory.</param>
+    /// <param name="kind">What to create at that path.</param>
+    /// <param name="nativeOn">The host it is native to: "linux", "macos" or "none".</param>
+    [Theory]
+    [InlineData("generalszh.flatpak", "text", "linux")]
+    [InlineData("GeneralsZH.AppImage", "elf", "linux")]
+    [InlineData("generalszh", "elf", "linux")]
+    [InlineData("generalszh", "macho", "macos")]
+    [InlineData("Zero Hour.app", "directory", "macos")]
+    [InlineData("generalszh.exe", "pe", "none")]
+    [InlineData("generalszh", "pe", "none")]
+    [InlineData("generalszh", "text", "none")]
+    [InlineData("generalszh", "missing", "none")]
+    [InlineData("Data", "directory", "none")]
+    public void HostPlatformCheck_ClassifiesClientsByPlatform(string relativePath, string kind, string nativeOn)
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, relativePath);
+            switch (kind)
+            {
+                case "directory":
+                    Directory.CreateDirectory(path);
+                    break;
+                case "text":
+                    File.WriteAllText(path, "not a binary");
+                    break;
+                case "elf":
+                    File.WriteAllBytes(path, [0x7F, 0x45, 0x4C, 0x46, 0x02, 0x01, 0x01, 0x00]);
+                    break;
+                case "macho":
+                    File.WriteAllBytes(path, [0xCF, 0xFA, 0xED, 0xFE, 0x0C, 0x00, 0x00, 0x01]);
+                    break;
+                case "pe":
+                    File.WriteAllBytes(path, [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00]);
+                    break;
+                default:
+                    break;
+            }
+
+            var client = CreateSuperHackersClient(path);
+
+            var expected = nativeOn switch
+            {
+                "linux" => OperatingSystem.IsLinux(),
+                "macos" => OperatingSystem.IsMacOS(),
+                _ => false,
+            };
+            Assert.Equal(expected, PublisherProfileOrchestrator.IsHostNativeClient(client));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static byte[] HostNativeExecutableHeader() => OperatingSystem.IsLinux()
+        ? [0x7F, 0x45, 0x4C, 0x46, 0x02, 0x01, 0x01, 0x00]
+        : [0xCF, 0xFA, 0xED, 0xFE, 0x0C, 0x00, 0x00, 0x01];
+
     private static GameInstallation CreateInstallation() => new(@"C:\Games\ZeroHour", GameInstallationType.Steam, null);
 
     private static GameClient CreateGameClient() => new()
@@ -452,4 +752,97 @@ public sealed class PublisherProfileOrchestratorTests
             },
         ],
     };
+
+    private static string CreateTemporaryDirectory() =>
+        Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"GenHub.PublisherProfile.{Guid.NewGuid():N}")).FullName;
+
+    private static GameClient CreateSuperHackersClient(string executablePath) => new()
+    {
+        Id = "1.104.retail.gameclient.zerohour",
+        Name = $"{SuperHackersConstants.PublisherName} - {SuperHackersConstants.ZeroHourDisplayName}",
+        PublisherType = PublisherTypeConstants.TheSuperHackers,
+        GameType = GameType.ZeroHour,
+        ExecutablePath = executablePath,
+        WorkingDirectory = Path.GetDirectoryName(executablePath)!,
+    };
+
+    private static ContentManifest CreateSuperHackersWindowsManifest() => new()
+    {
+        Id = ManifestId.Create("1.20260925.thesuperhackers.gameclient.generalszh"),
+        Name = "TheSuperHackers - Zero Hour",
+        Version = "weekly-2026-09-25",
+        ContentType = ContentType.GameClient,
+        TargetGame = GameType.ZeroHour,
+        Publisher = new PublisherInfo { PublisherType = PublisherTypeConstants.TheSuperHackers },
+        Files =
+        [
+            new ManifestFile
+            {
+                RelativePath = GameClientConstants.SuperHackersZeroHourExecutable,
+                SourceType = ContentSourceType.ContentAddressable,
+                Hash = "hash",
+            },
+        ],
+    };
+
+    private void SetupPool(IEnumerable<ContentManifest> manifests)
+    {
+        _manifestPoolMock
+            .Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess(manifests));
+    }
+
+    private void SetupSearchAndAcquire(ContentManifest acquiredManifest)
+    {
+        var searchResult = new ContentSearchResult
+        {
+            Id = "generalszh-weekly-2026-09-25.zip",
+            Name = "TheSuperHackers weekly-2026-09-25",
+            Version = "weekly-2026-09-26",
+            ContentType = ContentType.GameClient,
+            ProviderName = PublisherTypeConstants.TheSuperHackers,
+        };
+        _contentOrchestratorMock
+            .Setup(o => o.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess([searchResult]));
+        _contentOrchestratorMock
+            .Setup(o => o.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(acquiredManifest));
+        _versionComparerMock
+            .Setup(c => c.Compare(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(1);
+        _gameClientProfileServiceMock
+            .Setup(s => s.CreateProfileFromManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = "windows", Name = "Windows" }));
+    }
+
+    private void SetupDetectedClientProfile(GameInstallation installation, GameClient client)
+    {
+        _gameClientProfileServiceMock
+            .Setup(s => s.CreateProfileForGameClientAsync(installation, client, null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = "native", Name = client.Name, GameClient = client }));
+    }
+
+    private void VerifyNoAcquisition()
+    {
+        _contentOrchestratorMock.Verify(
+            o => o.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _contentOrchestratorMock.Verify(
+            o => o.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private void SetupProfileOutcome(GameInstallation installation, GameClient client, string outcome)
+    {
+        var result = outcome switch
+        {
+            "created" => ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = client.ExecutablePath, Name = client.Name, GameClient = client }),
+            "exists" => ProfileOperationResult<GameProfile>.CreateFailure("Profile already exists", ProfileConstants.ProfileAlreadyExistsErrorCode),
+            _ => ProfileOperationResult<GameProfile>.CreateFailure("disk full"),
+        };
+        _gameClientProfileServiceMock
+            .Setup(s => s.CreateProfileForGameClientAsync(installation, client, null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(result);
+    }
 }

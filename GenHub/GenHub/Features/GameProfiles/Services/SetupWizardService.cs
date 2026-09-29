@@ -6,6 +6,7 @@ using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
@@ -53,38 +54,46 @@ public class SetupWizardService(
             : [];
 
         // 2. Determine Scenarios for each component across all installations
+        static bool IsCpRetailClient(GameClient c) =>
+            c.PublisherType == CommunityOutpostConstants.PublisherType &&
+            !CommunityOutpostConstants.IsBaseGameIdentifier(c.Id) &&
+            !CommunityOutpostConstants.IsBaseGameIdentifier(c.Name) &&
+            !CommunityOutpostConstants.IsNonRetailIdentifier(c.Id) &&
+            !CommunityOutpostConstants.IsNonRetailIdentifier(c.Name);
+
+        static bool IsCpNonRetClient(GameClient c) =>
+            c.PublisherType == CommunityOutpostConstants.PublisherType &&
+            !CommunityOutpostConstants.IsBaseGameIdentifier(c.Id) &&
+            !CommunityOutpostConstants.IsBaseGameIdentifier(c.Name) &&
+            (CommunityOutpostConstants.IsNonRetailIdentifier(c.Id) ||
+             CommunityOutpostConstants.IsNonRetailIdentifier(c.Name));
+
+        static bool IsGeneralsOnlineClient(GameClient c) => c.PublisherType == PublisherTypeConstants.GeneralsOnline;
+
+        static bool IsSuperHackersClient(GameClient c) => c.PublisherType == PublisherTypeConstants.TheSuperHackers;
+
         var cpRetailGlobal = installationsList.Select(inst => new
         {
             Inst = inst,
-            Client = inst.AvailableGameClients.FirstOrDefault(c =>
-                c.PublisherType == CommunityOutpostConstants.PublisherType &&
-                !CommunityOutpostConstants.IsBaseGameIdentifier(c.Id) &&
-                !CommunityOutpostConstants.IsBaseGameIdentifier(c.Name) &&
-                !CommunityOutpostConstants.IsNonRetailIdentifier(c.Id) &&
-                !CommunityOutpostConstants.IsNonRetailIdentifier(c.Name)),
+            Client = SelectClient(inst, IsCpRetailClient),
         }).Where(x => x.Client != null).ToList();
 
         var cpNonRetGlobal = installationsList.Select(inst => new
         {
             Inst = inst,
-            Client = inst.AvailableGameClients.FirstOrDefault(c =>
-                c.PublisherType == CommunityOutpostConstants.PublisherType &&
-                !CommunityOutpostConstants.IsBaseGameIdentifier(c.Id) &&
-                !CommunityOutpostConstants.IsBaseGameIdentifier(c.Name) &&
-                (CommunityOutpostConstants.IsNonRetailIdentifier(c.Id) ||
-                 CommunityOutpostConstants.IsNonRetailIdentifier(c.Name))),
+            Client = SelectClient(inst, IsCpNonRetClient),
         }).Where(x => x.Client != null).ToList();
 
         var goGlobal = installationsList.Select(inst => new
         {
             Inst = inst,
-            Client = inst.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.GeneralsOnline),
+            Client = SelectClient(inst, IsGeneralsOnlineClient),
         }).Where(x => x.Client != null).ToList();
 
         var shGlobal = installationsList.Select(inst => new
         {
             Inst = inst,
-            Client = inst.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.TheSuperHackers),
+            Client = SelectClient(inst, IsSuperHackersClient),
         }).Where(x => x.Client != null).ToList();
 
         // 3. Collection Phase: Build Wizard Items
@@ -102,9 +111,51 @@ public class SetupWizardService(
         result.SuperHackersAction = GameClientConstants.WizardActionTypes.Decline;
 
         // Helper to check for managed/up-to-date client for a specific global list
-        async Task<(bool SkipWizard, string FinalAction)> ProcessComponentAsync(WizardComponentConfig config)
+        async Task<(bool SkipWizard, string FinalAction, bool IsNative, SetupWizardItemViewModel? Item)> ProcessComponentAsync(WizardComponentConfig config)
         {
             var componentGlobal = config.ComponentGlobal.Cast<dynamic>().ToList();
+
+            // A native client on macOS or Linux is profiled as it is: the publisher package is a
+            // Windows build, so there is nothing to download or update for it. This runs before the
+            // up-to-date checks, which look at Windows packages and would otherwise hide it.
+            // Every native build matching this component counts, not only the client selected per
+            // installation, so a profiled Zero Hour build does not hide an unprofiled Generals build
+            // beside it.
+            var nativeClients = componentGlobal
+                .Select(x => x.Inst as GameInstallation)
+                .OfType<GameInstallation>()
+                .SelectMany(inst => inst.AvailableGameClients)
+                .Where(c => config.ClientFilter(c) && PublisherProfileOrchestrator.IsHostNativeClient(c))
+                .ToList();
+            if (nativeClients.Count > 0)
+            {
+                // Only profiles for the native builds themselves count; one for a Windows build of
+                // the same publisher (for example under Wine) still leaves a native build unprofiled.
+                foreach (var (nativeClientId, nativeVersion) in nativeClients.Select(c => (c.Id, c.Version)))
+                {
+                    if (string.IsNullOrEmpty(nativeClientId) ||
+                        !await gameClientProfileService.ProfileExistsForGameClientAsync(nativeClientId, cancellationToken))
+                    {
+                        var nativeItem = new SetupWizardItemViewModel
+                        {
+                            Title = config.Title,
+                            Status = GameClientConstants.WizardStatuses.Detected,
+                            Description = FormatCreateProfileDescription(config.Title, nativeVersion) + (config.DescriptionSuffix ?? string.Empty),
+                            Version = nativeVersion == GameClientConstants.UnknownVersion ? string.Empty : nativeVersion,
+                            ActionLabel = GameClientConstants.WizardActionLabels.CreateProfile,
+                            ActionType = GameClientConstants.WizardActionTypes.CreateProfile,
+                            IsSelected = true,
+                            IconPath = config.IconPath,
+                            Metadata = config.Metadata,
+                        };
+                        wizardItems.Add(nativeItem);
+                        return (false, nativeItem.ActionType, true, nativeItem);
+                    }
+                }
+
+                logger.LogInformation("[SetupWizard] Native client and profile found for {Title}, nothing to update", config.Title);
+                return (true, GameClientConstants.WizardActionTypes.Decline, true, null);
+            }
 
             // 1. Identify managed clients in the manifest pool
             var managedManifests = allPoolManifests
@@ -125,7 +176,7 @@ public class SetupWizardService(
                 if (profileExists)
                 {
                     logger.LogInformation("[SetupWizard] Managed up-to-date manifest and profile found for {Title} ({Version})", config.Title, config.LatestVersion);
-                    return (true, GameClientConstants.WizardActionTypes.Decline);
+                    return (true, GameClientConstants.WizardActionTypes.Decline, false, null);
                 }
 
                 logger.LogInformation("[SetupWizard] Managed up-to-date manifest found for {Title} ({Version}), but profile missing. Showing in wizard to create profile.", config.Title, config.LatestVersion);
@@ -142,7 +193,7 @@ public class SetupWizardService(
                     Version = config.LatestVersion,
                 };
                 wizardItems.Add(downloadedItem);
-                return (false, downloadedItem.ActionType);
+                return (false, downloadedItem.ActionType, false, downloadedItem);
             }
 
             // Also check unmanaged clients from installations in case an unmanaged client is managed/has ID
@@ -161,7 +212,7 @@ public class SetupWizardService(
                 if (profileExists)
                 {
                     logger.LogInformation("[SetupWizard] Up-to-date client and profile found in installations for {Title} ({Version})", config.Title, config.LatestVersion);
-                    return (true, GameClientConstants.WizardActionTypes.Decline);
+                    return (true, GameClientConstants.WizardActionTypes.Decline, false, null);
                 }
 
                 logger.LogInformation("[SetupWizard] Up-to-date client found in installations for {Title} ({Version}), profile missing. Showing in wizard to create profile.", config.Title, config.LatestVersion);
@@ -178,7 +229,7 @@ public class SetupWizardService(
                     Version = config.LatestVersion,
                 };
                 wizardItems.Add(detectedItem);
-                return (false, detectedItem.ActionType);
+                return (false, detectedItem.ActionType, false, detectedItem);
             }
 
             // 3. Check if any profiles exist for this component (managed or unmanaged)
@@ -258,7 +309,7 @@ public class SetupWizardService(
             }
 
             wizardItems.Add(item);
-            return (false, item.ActionType);
+            return (false, item.ActionType, false, item);
         }
 
         var cpRetailCleanVersion = CleanVersionString(cpRetailLatestVersion);
@@ -291,6 +342,7 @@ public class SetupWizardService(
         {
             PublisherType = CommunityOutpostConstants.PublisherType,
             ComponentGlobal = cpRetailGlobal,
+            ClientFilter = IsCpRetailClient,
             LatestVersion = cpRetailCleanVersion,
             Title = "Community Patch (Retail)",
             MissingDescription = cpRetailDescription,
@@ -306,6 +358,7 @@ public class SetupWizardService(
         {
             PublisherType = CommunityOutpostConstants.PublisherType,
             ComponentGlobal = cpNonRetGlobal,
+            ClientFilter = IsCpNonRetClient,
             LatestVersion = cpNonRetCleanVersion,
             Title = "Community Patch (Non-Retail)",
             MissingDescription = cpNonRetDescription,
@@ -318,10 +371,23 @@ public class SetupWizardService(
         var cpNonRetRes = await ProcessComponentAsync(cpNonRetConfig);
         result.CommunityPatchNonRetAction = cpNonRetRes.FinalAction;
 
+        // A native non-retail build is profiled as it is. Leave the Windows retail package unselected
+        // so confirming the wizard does not also download it next to the non-retail build.
+        if (cpNonRetRes.IsNative && !cpRetailRes.IsNative)
+        {
+            if (cpRetailRes.Item != null)
+            {
+                cpRetailRes.Item.IsSelected = false;
+            }
+
+            result.CommunityPatchAction = GameClientConstants.WizardActionTypes.Decline;
+        }
+
         var goConfig = new WizardComponentConfig
         {
             PublisherType = PublisherTypeConstants.GeneralsOnline,
             ComponentGlobal = goGlobal,
+            ClientFilter = IsGeneralsOnlineClient,
             LatestVersion = goCleanVersion,
             Title = "Generals Online",
             MissingDescription = string.IsNullOrEmpty(goCleanVersion) ? "Download and install Generals Online." : $"Download and install Generals Online {goCleanVersion}.",
@@ -336,6 +402,7 @@ public class SetupWizardService(
         {
             PublisherType = PublisherTypeConstants.TheSuperHackers,
             ComponentGlobal = shGlobal,
+            ClientFilter = IsSuperHackersClient,
             LatestVersion = shCleanVersion,
             Title = "TheSuperHackers",
             MissingDescription = string.IsNullOrEmpty(shCleanVersion) ? "Download and install TheSuperHackers." : $"Download and install TheSuperHackers {shCleanVersion}.",
@@ -397,6 +464,16 @@ public class SetupWizardService(
 
         return result;
     }
+
+    /// <summary>
+    /// Selects the installation's client that matches <paramref name="predicate"/>, preferring a
+    /// build native to this host so a Windows build of the same publisher does not hide it.
+    /// </summary>
+    private static GameClient? SelectClient(GameInstallation installation, Func<GameClient, bool> predicate) =>
+        installation.AvailableGameClients
+            .Where(predicate)
+            .OrderBy(c => PublisherProfileOrchestrator.IsHostNativeClient(c) ? 0 : 1)
+            .FirstOrDefault();
 
     private static string FormatCreateProfileDescription(string title, string? version) =>
         string.IsNullOrEmpty(version) || version == GameClientConstants.UnknownVersion
@@ -542,6 +619,9 @@ public class SetupWizardService(
 
         /// <summary>Gets the collection of globally available clients for this component.</summary>
         public required System.Collections.IEnumerable ComponentGlobal { get; init; }
+
+        /// <summary>Gets the predicate that selects this component's clients in an installation.</summary>
+        public required Func<GameClient, bool> ClientFilter { get; init; }
 
         /// <summary>Gets the latest discovered version string.</summary>
         public required string LatestVersion { get; init; }

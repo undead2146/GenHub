@@ -60,7 +60,7 @@ public class GameClientProfileService(
                     "Profile already exists for {InstallationType} {GameClientName}",
                     installation.InstallationType,
                     gameClient.Name);
-                return ProfileOperationResult<GameProfile>.CreateFailure("Profile already exists");
+                return ProfileOperationResult<GameProfile>.CreateFailure("Profile already exists", ProfileConstants.ProfileAlreadyExistsErrorCode);
             }
 
             var preferredStrategy = configService.GetDefaultWorkspaceStrategy();
@@ -199,7 +199,7 @@ public class GameClientProfileService(
             if (await ProfileExistsForGameClientAsync(manifest.Id.Value, cancellationToken))
             {
                 logger.LogDebug("Profile already exists for manifest {ManifestId}", manifest.Id);
-                return ProfileOperationResult<GameProfile>.CreateFailure("Profile already exists for this manifest");
+                return ProfileOperationResult<GameProfile>.CreateFailure("Profile already exists for this manifest", ProfileConstants.ProfileAlreadyExistsErrorCode);
             }
 
             var installationsResult = await installationService.GetAllInstallationsAsync(cancellationToken);
@@ -225,14 +225,13 @@ public class GameClientProfileService(
 
             // Create a GameClient object from the manifest
             // Extract executable path from manifest files
-            var executableFile = manifest.Files?.FirstOrDefault(f =>
-                f.RelativePath?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true);
+            var executableFile = SelectClientExecutable(manifest, OperatingSystem.IsWindows(), out var entryPointError);
 
             if (executableFile == null)
             {
-                logger.LogWarning("Manifest {ManifestId} has no executable file", manifest.Id);
+                logger.LogWarning("Manifest {ManifestId} has no usable executable file: {Reason}", manifest.Id, entryPointError);
                 return ProfileOperationResult<GameProfile>.CreateFailure(
-                    "Manifest does not contain an executable file");
+                    entryPointError ?? "Manifest does not contain an executable file");
             }
 
             // Derive installation path from matching installation based on target game
@@ -251,6 +250,18 @@ public class GameClientProfileService(
                     $"Installation path not found for {manifest.TargetGame}");
             }
 
+            var resolvedPath = ContentPathPolicy.ResolveContainedFile(installationPath, executableFile.RelativePath);
+            if (!resolvedPath.Success || resolvedPath.Data == null)
+            {
+                logger.LogWarning(
+                    "Executable path {RelativePath} of manifest {ManifestId} does not resolve inside installation path {InstallationPath}: {Errors}",
+                    executableFile.RelativePath,
+                    manifest.Id,
+                    installationPath,
+                    string.Join("; ", resolvedPath.Errors));
+                return ProfileOperationResult<GameProfile>.CreateFailure(string.Join("; ", resolvedPath.Errors));
+            }
+
             var gameClient = new GameClient
             {
                 Id = manifest.Id.Value,
@@ -259,7 +270,7 @@ public class GameClientProfileService(
                 GameType = manifest.TargetGame,
                 SourceType = ContentType.GameClient,
                 PublisherType = manifest.Publisher?.PublisherType,
-                ExecutablePath = Path.Combine(installationPath, executableFile.RelativePath),
+                ExecutablePath = resolvedPath.Data,
                 WorkingDirectory = installationPath,
                 InstallationId = matchingInstallation.Id,
             };
@@ -306,6 +317,96 @@ public class GameClientProfileService(
             logger.LogWarning(ex, "Error checking if profile exists for game client {GameClientId}", gameClientId);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Selects the client executable of a manifest. A declared entry point wins, resolved
+    /// through <see cref="ManifestVariantResolver"/> so the host's variant applies. Without
+    /// one, a single known game executable in the host's form is used: the extensionless
+    /// native binary on macOS and Linux, the <c>.exe</c> on Windows. On Windows that shortcut
+    /// is skipped when the manifest also carries another known launch target such as
+    /// <c>game.dat</c> or <c>generals.ctr</c>, so the resolver keeps deciding those layouts.
+    /// Otherwise the resolver decides, and an ambiguous manifest fails instead of taking the
+    /// first match.
+    /// </summary>
+    /// <param name="manifest">The GameClient manifest.</param>
+    /// <param name="isWindowsHost">Whether the host runs Windows executables natively.</param>
+    /// <param name="error">Why no executable could be selected, if none could.</param>
+    /// <returns>The executable file, or <see langword="null"/> when none can be selected.</returns>
+    internal static ManifestFile? SelectClientExecutable(ContentManifest manifest, bool isWindowsHost, out string? error)
+    {
+        error = null;
+        var files = ManifestVariantResolver.ResolveFiles(manifest);
+        var declared = manifest.Variants.Count == 0
+            ? manifest.EntryPoint
+            : ManifestVariantResolver.ResolveVariant(manifest)?.EntryPoint;
+
+        if (string.IsNullOrWhiteSpace(declared) &&
+            !(isWindowsHost && files.Any(f => IsOtherKnownLaunchTarget(f.RelativePath))))
+        {
+            var hostGameExecutables = files
+                .Where(f => IsHostFormGameExecutable(f.RelativePath, isWindowsHost))
+                .ToList();
+            if (hostGameExecutables.Count == 1)
+            {
+                return hostGameExecutables[0];
+            }
+        }
+
+        var resolution = ManifestVariantResolver.ResolveEntryPoint(manifest);
+        if (!resolution.Success)
+        {
+            error = resolution.Reason;
+            return null;
+        }
+
+        var resolved = files.FirstOrDefault(f => ManifestVariantResolver.PathsMatch(f.RelativePath, resolution.RelativePath!));
+        if (resolved == null)
+        {
+            error = $"Resolved entry point '{resolution.RelativePath}' is not among the manifest's files.";
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// Determines whether a manifest path names a known game executable in the host's form:
+    /// with the <c>.exe</c> extension on Windows, extensionless on macOS and Linux.
+    /// </summary>
+    private static bool IsHostFormGameExecutable(string? relativePath, bool isWindowsHost)
+    {
+        if (string.IsNullOrEmpty(relativePath))
+        {
+            return false;
+        }
+
+        var fileName = Path.GetFileName(relativePath.Replace('\\', '/'));
+        var isWindowsForm = fileName.EndsWith(GameClientConstants.ExeExtension, StringComparison.OrdinalIgnoreCase);
+        if (isWindowsForm != isWindowsHost || (!isWindowsForm && Path.HasExtension(fileName)))
+        {
+            return false;
+        }
+
+        var stem = Path.GetFileNameWithoutExtension(fileName);
+        return GameClientConstants.ValidGameExecutableNames
+            .Any(name => string.Equals(Path.GetFileNameWithoutExtension(name), stem, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Determines whether a manifest path names a known launch target that is not an <c>.exe</c>,
+    /// such as the Steam <c>game.dat</c> or a Contra <c>generals.ctr</c>.
+    /// </summary>
+    private static bool IsOtherKnownLaunchTarget(string? relativePath)
+    {
+        if (string.IsNullOrEmpty(relativePath))
+        {
+            return false;
+        }
+
+        var fileName = Path.GetFileName(relativePath.Replace('\\', '/'));
+        return Path.HasExtension(fileName) &&
+               !fileName.EndsWith(GameClientConstants.ExeExtension, StringComparison.OrdinalIgnoreCase) &&
+               GameClientConstants.ValidGameExecutableNames.Contains(fileName, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
