@@ -1817,7 +1817,7 @@ public partial class ContentDetailViewModel(
     /// </summary>
     private static void RunOnUiThread(Action action)
     {
-        if (Dispatcher.UIThread.CheckAccess() || Avalonia.Application.Current == null)
+        if (Avalonia.Application.Current == null || Dispatcher.UIThread.CheckAccess())
         {
             action();
             return;
@@ -1831,7 +1831,7 @@ public partial class ContentDetailViewModel(
     /// </summary>
     private static async Task RunOnUiThreadAsync(Action action)
     {
-        if (Dispatcher.UIThread.CheckAccess() || Avalonia.Application.Current == null)
+        if (Avalonia.Application.Current == null || Dispatcher.UIThread.CheckAccess())
         {
             action();
             return;
