@@ -19,7 +19,7 @@ public static class GameProcessSelector
     /// against that truncated value, so asking for a longer name finds nothing at all. Windows
     /// reports names in full and is asked for them unchanged.
     /// </summary>
-    /// <param name="processName">The expected process name, without extension.</param>
+    /// <param name="processName">The expected process name, which may include its file extension.</param>
     /// <returns>The name to ask the operating system for.</returns>
     public static string GetDiscoveryName(string processName)
     {
@@ -32,13 +32,28 @@ public static class GameProcessSelector
     }
 
     /// <summary>
+    /// Gets every name to enumerate by when looking for <paramref name="processName"/>. A Unix
+    /// kernel keeps a truncated name, but .NET may report the full name from the command line
+    /// instead, so both spellings are asked for.
+    /// </summary>
+    /// <param name="processName">The expected process name.</param>
+    /// <returns>The distinct names to ask the operating system for.</returns>
+    public static IReadOnlyList<string> GetDiscoveryNames(string processName)
+    {
+        var discoveryName = GetDiscoveryName(processName);
+        return discoveryName.Equals(processName, StringComparison.Ordinal)
+            ? [processName]
+            : [processName, discoveryName];
+    }
+
+    /// <summary>
     /// Selects the process matching <paramref name="processName"/> that this launch spawned, with
     /// no launcher of ours to date the launch by — the storefront started the game itself. A
     /// recency window is all that separates the new process from an instance of the same game that
     /// was already running, so it is this path's only bound on age.
     /// </summary>
     /// <param name="candidates">The processes currently observed on the machine. Each candidate's <see cref="GameProcessCandidate.StartTime"/> must be a UTC <see cref="DateTime"/> with <see cref="DateTimeKind.Utc"/>.</param>
-    /// <param name="processName">The expected process name, without extension.</param>
+    /// <param name="processName">The expected process name, which may include its file extension.</param>
     /// <param name="workingDirectory">The directory the game must run from, or <see langword="null"/> to skip the check.</param>
     /// <param name="now">The current time, used to apply the recency window. Must be a UTC <see cref="DateTime"/> with <see cref="DateTimeKind.Utc"/>.</param>
     /// <returns>The selected candidate, or <see langword="null"/> when none qualifies.</returns>
@@ -48,16 +63,33 @@ public static class GameProcessSelector
         string? workingDirectory,
         DateTime now)
     {
+        return SelectSpawnedGameProcess(candidates, [new GameProcessIdentity(processName, workingDirectory)], now);
+    }
+
+    /// <summary>
+    /// Selects the process this launch spawned when it may present itself under any of several
+    /// identities, such as a game started through a symbolic link that one platform reports under
+    /// the link and another under its target. A candidate qualifies only when its name and its
+    /// residence both match the same identity.
+    /// </summary>
+    /// <param name="candidates">The processes currently observed on the machine. Each candidate's <see cref="GameProcessCandidate.StartTime"/> must be a UTC <see cref="DateTime"/> with <see cref="DateTimeKind.Utc"/>.</param>
+    /// <param name="identities">The identities the game may present, in order of preference.</param>
+    /// <param name="now">The current time, used to apply the recency window. Must be a UTC <see cref="DateTime"/> with <see cref="DateTimeKind.Utc"/>.</param>
+    /// <returns>The selected candidate, or <see langword="null"/> when none qualifies.</returns>
+    public static GameProcessCandidate? SelectSpawnedGameProcess(
+        IEnumerable<GameProcessCandidate> candidates,
+        IReadOnlyCollection<GameProcessIdentity> identities,
+        DateTime now)
+    {
         return Select(
             candidates,
-            processName,
-            workingDirectory,
+            identities,
             candidate => (now - candidate.StartTime).TotalSeconds < ProcessConstants.EarlyExitThresholdSeconds);
     }
 
     /// <summary>
     /// Selects the process a launcher spawned, to be tracked and eventually terminated in the
-    /// launcher's place. Unlike <see cref="SelectSpawnedGameProcess"/> this refuses to answer at all
+    /// launcher's place. Unlike <see cref="SelectSpawnedGameProcess(IEnumerable{GameProcessCandidate}, string, string?, DateTime)"/> this refuses to answer at all
     /// when the launcher's start time is unknown: without it, a process that started before this
     /// launch and merely shares the name and the workspace cannot be told apart from the child, and
     /// adopting it means killing somebody else's game when this launch is stopped.
@@ -71,7 +103,7 @@ public static class GameProcessSelector
     /// </para>
     /// </summary>
     /// <param name="candidates">The processes currently observed on the machine. Each candidate's <see cref="GameProcessCandidate.StartTime"/> must be a UTC <see cref="DateTime"/> with <see cref="DateTimeKind.Utc"/>.</param>
-    /// <param name="processName">The expected process name, without extension.</param>
+    /// <param name="processName">The expected process name, which may include its file extension.</param>
     /// <param name="workingDirectory">The directory the game must run from, or <see langword="null"/> to skip the check.</param>
     /// <param name="launcherStartTime">The start time of the launcher process. Must be a UTC <see cref="DateTime"/> with <see cref="DateTimeKind.Utc"/> when supplied.</param>
     /// <returns>The candidate to adopt, or <see langword="null"/> when none qualifies or the launcher's start time is unknown.</returns>
@@ -88,8 +120,7 @@ public static class GameProcessSelector
 
         return Select(
             candidates,
-            processName,
-            workingDirectory,
+            [new GameProcessIdentity(processName, workingDirectory)],
             candidate => candidate.StartTime >= launcherStartTime.Value);
     }
 
@@ -98,31 +129,46 @@ public static class GameProcessSelector
     /// a candidate belongs to this launch.
     /// </summary>
     /// <param name="candidates">The processes currently observed on the machine.</param>
-    /// <param name="processName">The expected process name, without extension.</param>
-    /// <param name="workingDirectory">The directory the game must run from, or <see langword="null"/> to skip the check.</param>
+    /// <param name="identities">The identities the game may present.</param>
     /// <param name="startedWithThisLaunch">The caller's test for a candidate having started as part of this launch.</param>
     /// <returns>The selected candidate, or <see langword="null"/> when none qualifies.</returns>
     private static GameProcessCandidate? Select(
         IEnumerable<GameProcessCandidate> candidates,
-        string processName,
-        string? workingDirectory,
+        IReadOnlyCollection<GameProcessIdentity> identities,
         Func<GameProcessCandidate, bool> startedWithThisLaunch)
     {
-        var matches = candidates
-            .Where(candidate => NameMatches(candidate, processName))
-            .Where(startedWithThisLaunch);
-
-        // Residence is required whenever a working directory is known, including for a lone match:
-        // a same-named process elsewhere on the machine is somebody else's.
-        if (!string.IsNullOrEmpty(workingDirectory))
-        {
-            matches = matches.Where(candidate => ResidesIn(candidate, workingDirectory));
-        }
-
-        return matches
-            .OrderByDescending(candidate => candidate.StartTime)
+        // Residence is required whenever a directory is known, including for a lone match:
+        // a same-named process elsewhere on the machine is somebody else's. Earlier identities are
+        // preferred, so a match through a workspace link beats one through a shared target.
+        return candidates
+            .Where(startedWithThisLaunch)
+            .Select(candidate => (Candidate: candidate, Rank: FindFirstMatch(candidate, identities)))
+            .Where(match => match.Rank >= 0)
+            .OrderBy(match => match.Rank)
+            .ThenByDescending(match => match.Candidate.StartTime)
+            .Select(match => match.Candidate)
             .FirstOrDefault();
     }
+
+    private static int FindFirstMatch(GameProcessCandidate candidate, IReadOnlyCollection<GameProcessIdentity> identities)
+    {
+        var rank = 0;
+        foreach (var identity in identities)
+        {
+            if (Matches(candidate, identity))
+            {
+                return rank;
+            }
+
+            rank++;
+        }
+
+        return -1;
+    }
+
+    private static bool Matches(GameProcessCandidate candidate, GameProcessIdentity identity) =>
+        NameMatches(candidate, identity.ProcessName) &&
+        (string.IsNullOrEmpty(identity.Directory) || ResidesIn(candidate, identity.Directory));
 
     /// <summary>
     /// Decides whether a candidate is the client the caller asked for. The image path is the
@@ -131,7 +177,7 @@ public static class GameProcessSelector
     /// The reported name is the fallback for a process whose image path cannot be read.
     /// </summary>
     /// <param name="candidate">The candidate to test.</param>
-    /// <param name="processName">The expected process name, without extension.</param>
+    /// <param name="processName">The expected process name, which may include its file extension.</param>
     /// <returns><see langword="true"/> when the candidate carries the expected name.</returns>
     private static bool NameMatches(GameProcessCandidate candidate, string processName)
     {
@@ -139,10 +185,13 @@ public static class GameProcessSelector
 
         if (!string.IsNullOrEmpty(imageName))
         {
-            // A Unix binary carries no extension and may legitimately contain dots, so both
-            // spellings of the file name have to be offered before the candidate is rejected.
+            // Preserve distinct executable suffixes and dotted native names. Only an extensionless
+            // native image may match the Windows .exe spelling of the same client.
             return imageName.Equals(processName, StringComparison.OrdinalIgnoreCase)
-                || Path.GetFileNameWithoutExtension(imageName).Equals(processName, StringComparison.OrdinalIgnoreCase);
+                || Path.GetFileNameWithoutExtension(imageName).Equals(processName, StringComparison.OrdinalIgnoreCase)
+                || (!Path.HasExtension(imageName)
+                    && Path.GetExtension(processName).Equals(".exe", StringComparison.OrdinalIgnoreCase)
+                    && imageName.Equals(Path.GetFileNameWithoutExtension(processName), StringComparison.OrdinalIgnoreCase));
         }
 
         return candidate.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase)

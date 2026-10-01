@@ -65,4 +65,16 @@ public static class LaunchMessageConstants
 
     /// <summary>English fallback for the Steam non-Windows executable message ({0} executable filename).</summary>
     public const string SteamNonWindowsExecutable = "Steam Proxy Launcher cannot run non-Windows executable format '{0}'. Steam integration requires a Windows executable.";
+
+    /// <summary>Resource key for the unresolved bootstrapper child message.</summary>
+    public const string BootstrapperChildUnresolvedKey = "Launch.Monitoring.BootstrapperChildUnresolved";
+
+    /// <summary>English fallback for the unresolved bootstrapper child message ({0} entry point, {1} child process).</summary>
+    public const string BootstrapperChildUnresolved = "Cannot launch '{0}': it starts '{1}', which is missing from the selected content or the workspace, so GenHub cannot track the game. Update or reinstall the game client, or switch this profile to a workspace strategy other than SymlinkOnly.";
+
+    /// <summary>Resource key for the missing entry point hash message.</summary>
+    public const string EntryPointHashMissingKey = "Launch.Monitoring.EntryPointHashMissing";
+
+    /// <summary>English fallback for the missing entry point hash message ({0} entry point).</summary>
+    public const string EntryPointHashMissing = "Cannot launch '{0}': the selected content has no content hash for it, so GenHub cannot track the game. Update or reinstall the game client, or switch this profile to a workspace strategy other than SymlinkOnly.";
 }

@@ -68,6 +68,55 @@ public class GameProcessSelectorTests
     }
 
     /// <summary>
+    /// An identity named with an extension matches an extensionless image of the same stem, such
+    /// as a native build of a client that ships as game.exe on Windows.
+    /// </summary>
+    [Fact]
+    public void SelectSpawnedGameProcess_MatchesAnExtensionlessImageForANameWithAnExtension()
+    {
+        var candidates = new[] { new GameProcessCandidate(1, "game", Now, Path.Combine(Workspace, "game")) };
+
+        var selected = GameProcessSelector.SelectSpawnedGameProcess(
+            candidates, [new GameProcessIdentity("game.exe", Workspace)], Now);
+
+        Assert.Equal(1, selected?.ProcessId);
+    }
+
+    /// <summary>
+    /// Distinct executable suffixes and dotted native names must not collapse to one identity.
+    /// </summary>
+    /// <param name="imageName">The observed executable file name.</param>
+    /// <param name="expectedName">The requested executable identity.</param>
+    [Theory]
+    [InlineData("game.dat", "game.exe")]
+    [InlineData("game.exe", "game.dat")]
+    [InlineData("client.v1", "client.v2")]
+    [InlineData("client", "client.v1")]
+    public void SelectSpawnedGameProcess_RejectsDifferentExecutableSuffixes(string imageName, string expectedName)
+    {
+        var candidates = new[] { new GameProcessCandidate(1, imageName, Now, Path.Combine(Workspace, imageName)) };
+
+        var selected = GameProcessSelector.SelectSpawnedGameProcess(
+            candidates, [new GameProcessIdentity(expectedName, Workspace)], Now);
+
+        Assert.Null(selected);
+    }
+
+    /// <summary>
+    /// Matching stems never stands in for residence: the same image elsewhere is rejected.
+    /// </summary>
+    [Fact]
+    public void SelectSpawnedGameProcess_RejectsAStemMatchOutsideTheIdentityDirectory()
+    {
+        var candidates = new[] { new GameProcessCandidate(1, "game", Now, Path.Combine("/somewhere/else", "game")) };
+
+        var selected = GameProcessSelector.SelectSpawnedGameProcess(
+            candidates, [new GameProcessIdentity("game.exe", Workspace)], Now);
+
+        Assert.Null(selected);
+    }
+
+    /// <summary>
     /// Residence cannot be proven for a process whose image path is unreadable, so it is not
     /// accepted while a working directory is being enforced.
     /// </summary>
