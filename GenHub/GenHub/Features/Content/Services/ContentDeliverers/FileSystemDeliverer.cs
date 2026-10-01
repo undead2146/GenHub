@@ -44,13 +44,13 @@ public class FileSystemDeliverer(
     /// <inheritdoc />
     public bool CanDeliver(ContentManifest manifest)
     {
-        if (manifest?.Files == null || manifest.Files.Count == 0)
+        if (manifest == null)
         {
             return false;
         }
 
-        return manifest.Files.All(f =>
-            f.SourceType == ContentSourceType.ContentAddressable);
+        var files = ManifestVariantResolver.ResolveFiles(manifest);
+        return files.Count > 0 && files.All(f => f.SourceType == ContentSourceType.ContentAddressable);
     }
 
     /// <inheritdoc />
@@ -62,11 +62,18 @@ public class FileSystemDeliverer(
     {
         try
         {
+            if (!ManifestVariantResolver.SupportsRuntime(packageManifest))
+            {
+                return OperationResult<ContentManifest>.CreateFailure(
+                    $"Manifest {packageManifest.Id} has no variant for runtime {ManifestVariantResolver.CurrentRuntimeIdentifier}.");
+            }
+
             var deliveredFiles = new List<ManifestFile>();
-            var totalFiles = packageManifest.Files.Count;
+            var files = ManifestVariantResolver.ResolveFiles(packageManifest);
+            var totalFiles = files.Count;
             var processedFiles = 0;
 
-            foreach (var file in packageManifest.Files)
+            foreach (var file in files)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -156,6 +163,14 @@ public class FileSystemDeliverer(
                     permissions: file.Permissions);
             }
 
+            // The delivered manifest is flat, so it carries the resolved variant's declared
+            // entry point in place of the variant list.
+            var variantEntryPoint = ManifestVariantResolver.ResolveVariant(packageManifest)?.EntryPoint;
+            if (!string.IsNullOrWhiteSpace(variantEntryPoint))
+            {
+                manifestBuilder.WithEntryPoint(variantEntryPoint);
+            }
+
             // Add required directories
             manifestBuilder.AddRequiredDirectories([.. packageManifest.RequiredDirectories]);
 
@@ -186,7 +201,12 @@ public class FileSystemDeliverer(
     {
         try
         {
-            foreach (var file in manifest.Files.Where(f => f.IsRequired))
+            if (!ManifestVariantResolver.SupportsRuntime(manifest))
+            {
+                return Task.FromResult(OperationResult<bool>.CreateSuccess(false));
+            }
+
+            foreach (var file in ManifestVariantResolver.ResolveFiles(manifest).Where(f => f.IsRequired))
             {
                 var sourcePath = ResolveLocalPath(file, manifest.Id);
                 if (!File.Exists(sourcePath))
