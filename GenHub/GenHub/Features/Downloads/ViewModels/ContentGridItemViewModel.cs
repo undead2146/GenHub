@@ -23,6 +23,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GenHub.Features.Downloads.ViewModels;
@@ -48,6 +49,13 @@ public sealed partial class ContentGridItemViewModel(
 
     private readonly ILocalizationService? _localizationService = localizationService ?? LocalizationConverterHelper.ResolveLocalizationService();
     private bool _disposed;
+    private int _iconLoadVersion;
+    private string? _loadedPublisherLogoUrl;
+    private string? _loadedThumbnailUrl;
+    private Action? _cancelIconLoad;
+    private Task? _activeIconLoadTask;
+    private string? _inFlightPublisherLogoUrl;
+    private string? _inFlightThumbnailUrl;
 
     /// <summary>
     /// Gets the underlying content search result.
@@ -150,6 +158,10 @@ public sealed partial class ContentGridItemViewModel(
         }
 
         LoadBundleComponents();
+
+        // Check memory cache synchronously first so there is no visual flash on refresh
+        HydrateBitmapsFromMemoryCache();
+
         _ = LoadIconAsync();
         _ = RefreshBundleComponentStatesAsync();
     }
@@ -547,8 +559,9 @@ public sealed partial class ContentGridItemViewModel(
                 component.PropertyChanged -= OnBundleComponentPropertyChanged;
             }
 
-            IconBitmap = null;
-            PublisherLogoBitmap = null;
+            var cancelIconLoad = Interlocked.Exchange(ref _cancelIconLoad, null);
+            cancelIconLoad?.Invoke();
+            _activeIconLoadTask = null;
 
             _disposed = true;
             GC.SuppressFinalize(this);
@@ -615,6 +628,46 @@ public sealed partial class ContentGridItemViewModel(
         else
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(action);
+        }
+    }
+
+    private static async Task AwaitIconLoadTasksAsync(Task? task1, Task? task2)
+    {
+        try
+        {
+            if (task1 != null && task2 != null)
+            {
+                await Task.WhenAll(task1, task2);
+            }
+            else if (task1 != null)
+            {
+                await task1;
+            }
+            else if (task2 != null)
+            {
+                await task2;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected cancellation from supersession or disposal
+        }
+    }
+
+    private async Task<Bitmap?> SafeGetBitmapAsync(string url, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ImageCacheService.Instance.GetBitmapAsync(url, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to load bitmap from {Url}", url);
+            return null;
         }
     }
 
@@ -953,7 +1006,60 @@ public sealed partial class ContentGridItemViewModel(
         });
     }
 
-    private int _iconLoadVersion;
+    private void HydrateBitmapsFromMemoryCache()
+    {
+        var publisherLogoUrl = ContentCardBadgeHelper.GetPublisherLogoUrl(SearchResult);
+        if (string.Equals(publisherLogoUrl, ThumbnailUrl, StringComparison.Ordinal))
+        {
+            publisherLogoUrl = null;
+        }
+
+        SynchronizeCardUrls(publisherLogoUrl, ThumbnailUrl);
+    }
+
+    private void SynchronizeCardUrls(string? publisherLogoUrl, string? thumbnailUrl)
+    {
+        if (!string.Equals(_loadedPublisherLogoUrl, publisherLogoUrl, StringComparison.Ordinal))
+        {
+            _loadedPublisherLogoUrl = publisherLogoUrl;
+            PublisherLogoBitmap = !string.IsNullOrEmpty(publisherLogoUrl)
+                ? ImageCacheService.Instance.GetBitmapFromMemory(publisherLogoUrl)
+                : null;
+        }
+
+        if (!string.Equals(_loadedThumbnailUrl, thumbnailUrl, StringComparison.Ordinal))
+        {
+            _loadedThumbnailUrl = thumbnailUrl;
+            IconBitmap = !string.IsNullOrEmpty(thumbnailUrl)
+                ? ImageCacheService.Instance.GetBitmapFromMemory(thumbnailUrl)
+                : null;
+        }
+    }
+
+    private void ApplyLoadedIconBitmaps(
+        int version,
+        Task<Bitmap?>? logoTask,
+        string? publisherLogoUrl,
+        Task<Bitmap?>? thumbTask,
+        string? thumbnailUrl)
+    {
+        if (version != _iconLoadVersion)
+        {
+            return;
+        }
+
+        if (logoTask is { IsCompletedSuccessfully: true, Result: { } logoResult } &&
+            string.Equals(_loadedPublisherLogoUrl, publisherLogoUrl, StringComparison.Ordinal))
+        {
+            PublisherLogoBitmap = logoResult;
+        }
+
+        if (thumbTask is { IsCompletedSuccessfully: true, Result: { } thumbResult } &&
+            string.Equals(_loadedThumbnailUrl, thumbnailUrl, StringComparison.Ordinal))
+        {
+            IconBitmap = thumbResult;
+        }
+    }
 
     private async Task LoadIconAsync()
     {
@@ -962,52 +1068,88 @@ public sealed partial class ContentGridItemViewModel(
             return;
         }
 
-        var currentVersion = ++_iconLoadVersion;
+        HydrateBitmapsFromMemoryCache();
 
-        // 1. Load publisher logo if available
-        var publisherLogoUrl = ContentCardBadgeHelper.GetPublisherLogoUrl(SearchResult);
-        if (string.Equals(publisherLogoUrl, ThumbnailUrl, StringComparison.OrdinalIgnoreCase))
-        {
-            publisherLogoUrl = null;
-        }
+        var publisherLogoUrl = _loadedPublisherLogoUrl;
+        var thumbnailUrl = _loadedThumbnailUrl;
 
-        if (!string.IsNullOrEmpty(publisherLogoUrl) && PublisherLogoBitmap == null)
+        // If an in-flight load is already fetching the exact same URLs, await it instead of aborting and restarting.
+        if (_activeIconLoadTask is { IsCompleted: false } inFlightTask &&
+            string.Equals(_inFlightPublisherLogoUrl, publisherLogoUrl, StringComparison.Ordinal) &&
+            string.Equals(_inFlightThumbnailUrl, thumbnailUrl, StringComparison.Ordinal))
         {
             try
             {
-                PublisherLogoBitmap = await ImageCacheService.Instance.GetBitmapAsync(publisherLogoUrl);
+                await inFlightTask;
             }
-            catch
+            catch (OperationCanceledException)
             {
-                // ignore load failure for publisher logo
-            }
-        }
-
-        // 2. Load primary thumbnail bitmap
-        var thumbnailUrl = ThumbnailUrl;
-        if (string.IsNullOrEmpty(thumbnailUrl))
-        {
-            if (currentVersion == _iconLoadVersion)
-            {
-                IconBitmap = null;
+                // Expected cancellation from supersession or disposal
             }
 
             return;
         }
 
-        try
+        using var cts = new CancellationTokenSource();
+        void CancelAction()
         {
-            var loadedBitmap = await ImageCacheService.Instance.GetBitmapAsync(thumbnailUrl);
-            if (currentVersion == _iconLoadVersion)
+            try
             {
-                IconBitmap = loadedBitmap;
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore if CTS is already disposed
             }
         }
-        catch
+
+        var oldCancel = Interlocked.Exchange(ref _cancelIconLoad, CancelAction);
+        oldCancel?.Invoke();
+
+        var token = cts.Token;
+        var currentVersion = ++_iconLoadVersion;
+        _inFlightPublisherLogoUrl = publisherLogoUrl;
+        _inFlightThumbnailUrl = thumbnailUrl;
+
+        var logoTask = (!string.IsNullOrEmpty(publisherLogoUrl) && PublisherLogoBitmap == null)
+            ? SafeGetBitmapAsync(publisherLogoUrl, token)
+            : null;
+
+        var thumbTask = (!string.IsNullOrEmpty(thumbnailUrl) && IconBitmap == null)
+            ? SafeGetBitmapAsync(thumbnailUrl, token)
+            : null;
+
+        if (logoTask == null && thumbTask == null)
         {
-            if (currentVersion == _iconLoadVersion)
+            Interlocked.CompareExchange(ref _cancelIconLoad, null, CancelAction);
+            return;
+        }
+
+        var loadTask = AwaitIconLoadTasksAsync(logoTask, thumbTask);
+        _activeIconLoadTask = loadTask;
+
+        try
+        {
+            await loadTask;
+            if (!token.IsCancellationRequested)
             {
-                IconBitmap = null;
+                ApplyLoadedIconBitmaps(currentVersion, logoTask, publisherLogoUrl, thumbTask, thumbnailUrl);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposed or superseded by a newer icon load
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to load icons for {ContentId}", SearchResult.Id);
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _cancelIconLoad, null, CancelAction);
+            if (ReferenceEquals(_activeIconLoadTask, loadTask))
+            {
+                _activeIconLoadTask = null;
             }
         }
     }
@@ -1317,15 +1459,31 @@ public sealed partial class ContentGridItemViewModel(
     /// <summary>
     /// Loads icon and logo bitmaps if not already loaded.
     /// </summary>
+    /// <param name="cancellationToken">An optional token to cancel waiting for or loading the icons.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task EnsureIconsLoadedAsync()
+    public async Task EnsureIconsLoadedAsync(CancellationToken cancellationToken = default)
     {
-        if (_disposed)
+        if (_disposed || cancellationToken.IsCancellationRequested)
         {
             return;
         }
 
-        if (PublisherLogoBitmap == null || (IconBitmap == null && !string.IsNullOrEmpty(ThumbnailUrl)))
+        if (_activeIconLoadTask is { IsCompleted: false } inFlightTask)
+        {
+            try
+            {
+                await inFlightTask.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Consumed
+            }
+
+            return;
+        }
+
+        // Note: ThumbnailUrl is guaranteed non-empty via ContentCardBadgeHelper.OrDefaultImage fallback.
+        if (PublisherLogoBitmap == null || IconBitmap == null)
         {
             await LoadIconAsync();
         }
