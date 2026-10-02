@@ -47,7 +47,7 @@ public sealed class RmlImageResolverTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ResolveAsync_ParentTraversal_Blocked()
+    public async Task ResolveAsync_ParentTraversal_BlockedAsync()
     {
         var secret = Path.Combine(_root, "secret.png");
         await File.WriteAllBytesAsync(secret, MinimalPng);
@@ -62,7 +62,7 @@ public sealed class RmlImageResolverTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ResolveAsync_AbsoluteOutsideRoots_Blocked()
+    public async Task ResolveAsync_AbsoluteOutsideRoots_BlockedAsync()
     {
         var secret = Path.Combine(_root, "secret.png");
         await File.WriteAllBytesAsync(secret, MinimalPng);
@@ -77,7 +77,7 @@ public sealed class RmlImageResolverTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task ResolveAsync_InsideDocument_Resolves()
+    public async Task ResolveAsync_InsideDocument_ResolvesAsync()
     {
         await File.WriteAllBytesAsync(Path.Combine(_documentDirectory, "ok.png"), MinimalPng);
 

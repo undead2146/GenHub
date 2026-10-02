@@ -1111,7 +1111,7 @@ public sealed partial class RmlEditorViewModel(
         var parent = _nodeParents.GetValueOrDefault(node.Id);
         var siblings = parent?.Children ?? [];
         var index = siblings.IndexOf(node);
-        _copiedNode = node;
+        _copiedNode = CloneNode(node);
         _isCut = true;
         siblings.Remove(node);
         PushUndo(new RmlEditAction(
@@ -1653,7 +1653,23 @@ public sealed partial class RmlEditorViewModel(
                 continue;
             }
 
-            var path = Path.Combine(directory, href.Trim());
+            string path;
+            try
+            {
+                path = Path.GetFullPath(Path.Combine(directory, href.Trim()));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException or ArgumentException)
+            {
+                logger.LogDebug(ex, "Ignoring style sheet reference with unusable path: {Href}", href.Trim());
+                continue;
+            }
+
+            if (!PathHelper.IsPathWithinDirectory(directory, path))
+            {
+                logger.LogDebug("Ignoring style sheet reference escaping the document folder: {Href}", href.Trim());
+                continue;
+            }
+
             if (File.Exists(path) && !_sheets.Any(s => string.Equals(s.FilePath, path, StringComparison.OrdinalIgnoreCase)))
             {
                 TryAddStyleSheetFile(path, href.Trim());

@@ -79,7 +79,7 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
         {
             Width = options.SurfaceWidth,
             MinHeight = DefaultSurfaceHeight,
-            Background = body.Background ?? new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
+            Background = body.Background ?? ThemeBrush(ThemeResourceKeys.SurfaceBackgroundBrush, new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14))),
             Child = bodyFrame,
         };
 
@@ -88,7 +88,7 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
             panel.Children.Add(new TextBlock
             {
                 Text = localization.GetString("Tools.RmlEditor.Preview.EmptyBody"),
-                Foreground = new SolidColorBrush(Colors.Gray),
+                Foreground = ThemeBrush(ThemeResourceKeys.TextSecondary, new SolidColorBrush(Colors.Gray)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 32),
@@ -126,7 +126,7 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
             Background = Brushes.Transparent,
             Padding = new Thickness(0),
             BorderThickness = new Thickness(1),
-            BorderBrush = selected ? new SolidColorBrush(Color.FromRgb(0xE8, 0x6C, 0x1A)) : Brushes.Transparent,
+            BorderBrush = selected ? ThemeBrush(ThemeResourceKeys.AccentBrush, new SolidColorBrush(Color.FromRgb(0xE8, 0x6C, 0x1A))) : Brushes.Transparent,
             Child = control,
             Cursor = new Cursor(StandardCursorType.Hand),
             Focusable = false,
@@ -787,6 +787,16 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
         return Math.Clamp(value, 0, RmlConstants.Editor.MaxPreviewDimension);
     }
 
+    private static IBrush ThemeBrush(string key, IBrush fallback)
+    {
+        if (Avalonia.Application.Current?.TryGetResource(key, theme: null, out var resource) == true && resource is IBrush brush)
+        {
+            return brush;
+        }
+
+        return fallback;
+    }
+
     private static ImageBrush? ExtractBackgroundImage(string shorthand, RmlComputedStyle style, BuildContext? context)
     {
         var start = shorthand.IndexOf(RmlConstants.CssFunctions.UrlPrefix, StringComparison.OrdinalIgnoreCase);
@@ -1265,7 +1275,7 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
         span.TextDecorations = TextDecorations.Underline;
         if (style.GetProperty(RmlConstants.StyleProperties.Color) == null)
         {
-            span.Foreground = new SolidColorBrush(Color.FromRgb(0x4D, 0xA3, 0xFF));
+            span.Foreground = ThemeBrush(ThemeResourceKeys.AccentBrush, new SolidColorBrush(Color.FromRgb(0x4D, 0xA3, 0xFF)));
         }
 
         var nested = new List<RmlElement>(ancestors) { element };
@@ -1393,7 +1403,7 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
         {
             Text = label,
             FontSize = Math.Max(10, fontSize * 0.75),
-            Foreground = new SolidColorBrush(Colors.Gray),
+            Foreground = ThemeBrush(ThemeResourceKeys.TextSecondary, new SolidColorBrush(Colors.Gray)),
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -1403,8 +1413,8 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
         var border = new Border
         {
             Child = text,
-            Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Background = ThemeBrush(ThemeResourceKeys.SurfaceElevatedBrush, new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A))),
+            BorderBrush = ThemeBrush(ThemeResourceKeys.BorderBrush, new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55))),
             BorderThickness = new Thickness(1),
             Width = ResolveImageDimension(element.GetAttribute(RmlConstants.Attributes.Width), style.GetProperty(RmlConstants.StyleProperties.Width), fontSize, MissingImageWidth),
             Height = ResolveImageDimension(element.GetAttribute(RmlConstants.Attributes.Height), style.GetProperty(RmlConstants.StyleProperties.Height), fontSize, MissingImageHeight),
@@ -1565,7 +1575,7 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
             Child = panel,
             Background = ResolveBackground(cellStyle, context),
             Padding = ResolvePadding(cellStyle, cellFontSize),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            BorderBrush = ThemeBrush(ThemeResourceKeys.BorderBrush, new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55))),
             BorderThickness = new Thickness(0.5),
         };
         if (panel.Children.Count == 0)
@@ -1587,14 +1597,14 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
         return new Border
         {
             Height = HiddenPlaceholderHeight,
-            Background = new SolidColorBrush(Color.FromArgb(0x33, 0x88, 0x88, 0x88)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            Background = ThemeBrush(ThemeResourceKeys.SurfaceElevatedBrush, new SolidColorBrush(Color.FromArgb(0x33, 0x88, 0x88, 0x88))),
+            BorderBrush = ThemeBrush(ThemeResourceKeys.BorderBrush, new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88))),
             BorderThickness = new Thickness(1),
             Child = new TextBlock
             {
                 Text = localization.GetString("Tools.RmlEditor.Preview.HiddenElement", label),
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Colors.Gray),
+                Foreground = ThemeBrush(ThemeResourceKeys.TextSecondary, new SolidColorBrush(Colors.Gray)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             },
@@ -1625,8 +1635,8 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
     {
         var border = new Border
         {
-            Background = ResolveBackground(style, context) ?? new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Background = ResolveBackground(style, context) ?? ThemeBrush(ThemeResourceKeys.SurfaceElevatedBrush, new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22))),
+            BorderBrush = ThemeBrush(ThemeResourceKeys.BorderBrush, new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55))),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(12),
             MinHeight = 64,
@@ -1634,7 +1644,7 @@ public sealed class RmlPreviewBuilder(IRcssDocumentService rcssService, ILocaliz
             {
                 Text = string.IsNullOrEmpty(element.ElementId) ? caption : $"{caption} #{element.ElementId}",
                 FontSize = Math.Max(11, fontSize * 0.85),
-                Foreground = new SolidColorBrush(Colors.Gray),
+                Foreground = ThemeBrush(ThemeResourceKeys.TextSecondary, new SolidColorBrush(Colors.Gray)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             },

@@ -208,7 +208,7 @@ public sealed class RcssDocumentServiceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task FormatFileAsync_RoundTrips()
+    public async Task FormatFileAsync_RoundTripsAsync()
     {
         var path = Path.Combine(Path.GetTempPath(), "genhub-format-screen.rcss");
         await File.WriteAllTextAsync(path, SampleSheet);

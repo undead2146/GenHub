@@ -35,7 +35,7 @@ public sealed class RmlImageResolver(TextureBitmapService bitmapService, ILogger
         lock (_sync)
         {
             _searchFolders = folders;
-            _cache.Clear();
+            ClearCacheLocked();
         }
     }
 
@@ -46,12 +46,7 @@ public sealed class RmlImageResolver(TextureBitmapService bitmapService, ILogger
     {
         lock (_sync)
         {
-            foreach (var bitmap in _cache.Values)
-            {
-                bitmap?.Dispose();
-            }
-
-            _cache.Clear();
+            ClearCacheLocked();
         }
     }
 
@@ -90,6 +85,16 @@ public sealed class RmlImageResolver(TextureBitmapService bitmapService, ILogger
 
         lock (_sync)
         {
+            if (_cache.TryGetValue(key, out var existing))
+            {
+                if (!ReferenceEquals(existing, bitmap))
+                {
+                    bitmap?.Dispose();
+                }
+
+                return existing;
+            }
+
             _cache[key] = bitmap;
         }
 
@@ -119,6 +124,16 @@ public sealed class RmlImageResolver(TextureBitmapService bitmapService, ILogger
         }
 
         return false;
+    }
+
+    private void ClearCacheLocked()
+    {
+        foreach (var bitmap in _cache.Values)
+        {
+            bitmap?.Dispose();
+        }
+
+        _cache.Clear();
     }
 
     private string? FindCandidate(string reference, string? documentDirectory)

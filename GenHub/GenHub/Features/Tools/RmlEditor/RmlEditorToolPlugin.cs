@@ -98,7 +98,7 @@ public sealed class RmlEditorToolPlugin : IToolPlugin, IFileOpenTarget
     {
         const string fallback = "Error loading RML Editor";
         var localization = _serviceProvider?.GetService<ILocalizationService>();
-        if (localization != null && localization.TryGetString("Tools.RmlEditor.Plugin.LoadError", out var text))
+        if (localization?.TryGetString("Tools.RmlEditor.Plugin.LoadError", out var text) == true)
         {
             return text;
         }

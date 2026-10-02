@@ -76,7 +76,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task OpenFileAsync_BuildsTree()
+    public async Task OpenFileAsync_BuildsTreeAsync()
     {
         var opened = await _viewModel.OpenFileAsync(_samplePath);
 
@@ -91,7 +91,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task CommitAttribute_UndoRedo_RestoresValue()
+    public async Task CommitAttribute_UndoRedo_RestoresValueAsync()
     {
         await _viewModel.OpenFileAsync(_samplePath);
         var panel = _viewModel.RootNodes.SelectMany(r => r.Children).First(n => n.DisplayName.Contains("panel"));
@@ -111,7 +111,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task DeleteCommand_RemovesSelectedNode()
+    public async Task DeleteCommand_RemovesSelectedNodeAsync()
     {
         await _viewModel.OpenFileAsync(_samplePath);
         var button = FindNode("start");
@@ -129,7 +129,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task AddAndDeleteRule_UpdatesStyleRules()
+    public async Task AddAndDeleteRule_UpdatesStyleRulesAsync()
     {
         var sheetPath = Path.Combine(_tempDirectory, "common.rcss");
         await File.WriteAllTextAsync(sheetPath, ".screen { color: white; }\n");
@@ -148,7 +148,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task SaveCommand_WritesEditedDocument()
+    public async Task SaveCommand_WritesEditedDocumentAsync()
     {
         await _viewModel.OpenFileAsync(_samplePath);
         var panel = FindNode("panel");
@@ -166,7 +166,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task ApplySourceCommand_EnablesUndo()
+    public async Task ApplySourceCommand_EnablesUndoAsync()
     {
         await _viewModel.OpenFileAsync(_samplePath);
         _viewModel.CanUndo.Should().BeFalse();
@@ -185,7 +185,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task CommitRuleSelectors_UpdatesRuleWithUndo()
+    public async Task CommitRuleSelectors_UpdatesRuleWithUndoAsync()
     {
         var sheetPath = Path.Combine(_tempDirectory, "common.rcss");
         await File.WriteAllTextAsync(sheetPath, ".screen { color: white; }\n");
@@ -203,11 +203,62 @@ public sealed class RmlEditorViewModelTests : IDisposable
     }
 
     /// <summary>
+    /// Tests that cut followed by undo followed by paste inserts a distinct copy.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task CutUndoPasteAsync_InsertsDistinctCopy()
+    {
+        await _viewModel.OpenFileAsync(_samplePath);
+        _viewModel.SelectNode(FindNode("start").Node.Id);
+        _viewModel.CutCommand.Execute(null);
+        _viewModel.UndoCommand.Execute(null);
+        _viewModel.SelectNode(FindNode("panel").Node.Id);
+
+        await _viewModel.PasteCommand.ExecuteAsync(null);
+
+        var matches = _viewModel.RootNodes
+            .SelectMany(r => new[] { r }.Concat(r.Children.SelectMany(Flatten)))
+            .Select(n => n.Node)
+            .OfType<RmlElement>()
+            .Where(e => e.ElementId == "start")
+            .ToList();
+        matches.Should().HaveCount(2);
+        matches.Distinct().Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Tests that style sheet links escaping the document folder are ignored.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [AvaloniaFact]
+    public async Task OpenFileAsync_StylesheetTraversal_BlockedAsync()
+    {
+        var outside = Path.Combine(_tempDirectory, "outside.rcss");
+        await File.WriteAllTextAsync(outside, ".evil { color: red; }\n");
+        var screenDirectory = Path.Combine(_tempDirectory, "screens");
+        Directory.CreateDirectory(screenDirectory);
+        var screenPath = Path.Combine(screenDirectory, "Menu.rml");
+        var content = "<rml>\n" +
+            "  <head>\n" +
+            "    <link type=\"text/rcss\" href=\"../outside.rcss\" />\n" +
+            $"    <link type=\"text/rcss\" href=\"{outside}\" />\n" +
+            "  </head>\n" +
+            "  <body><div /></body>\n" +
+            "</rml>\n";
+        await File.WriteAllTextAsync(screenPath, content);
+
+        await _viewModel.OpenFileAsync(screenPath);
+
+        _viewModel.StyleRules.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// Tests that validation reports success for the sample document.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task ValidateCommand_ReportsSuccess()
+    public async Task ValidateCommand_ReportsSuccessAsync()
     {
         await _viewModel.OpenFileAsync(_samplePath);
 

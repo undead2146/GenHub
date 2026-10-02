@@ -47,7 +47,7 @@ public sealed class RmlEditorViewsTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task RmlEditorView_Loads_WithToolbarAndCanvas()
+    public async Task RmlEditorView_Loads_WithToolbarAndCanvasAsync()
     {
         var samplePath = Path.Combine(_tempDirectory, "Menu.rml");
         await File.WriteAllTextAsync(samplePath, SampleDocument);
@@ -77,7 +77,7 @@ public sealed class RmlEditorViewsTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task RmlEditorView_AddElementMenu_ShowsTagNames()
+    public async Task RmlEditorView_AddElementMenu_ShowsTagNamesAsync()
     {
         var samplePath = Path.Combine(_tempDirectory, "Menu.rml");
         await File.WriteAllTextAsync(samplePath, SampleDocument);

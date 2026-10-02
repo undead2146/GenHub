@@ -210,7 +210,7 @@ public sealed class RmlDocumentServiceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ParseFileAsync_MissingFile_Fails()
+    public async Task ParseFileAsync_MissingFile_FailsAsync()
     {
         var missing = Path.Combine(Path.GetTempPath(), "genhub-missing-screen.rml");
 
@@ -224,7 +224,7 @@ public sealed class RmlDocumentServiceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task FormatFileAsync_RoundTrips()
+    public async Task FormatFileAsync_RoundTripsAsync()
     {
         var path = Path.Combine(Path.GetTempPath(), "genhub-format-screen.rml");
         await File.WriteAllTextAsync(path, SampleDocument);
