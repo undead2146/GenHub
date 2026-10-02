@@ -92,7 +92,7 @@ public readonly record struct RmlLength(double Value, RmlLengthUnit Unit)
             return false;
         }
 
-        text = text.Substring(0, text.Length - unit.Length);
+        text = text[..^unit.Length];
         return true;
     }
 

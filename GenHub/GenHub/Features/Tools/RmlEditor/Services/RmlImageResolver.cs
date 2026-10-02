@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -161,12 +160,12 @@ public sealed class RmlImageResolver(TextureBitmapService bitmapService, ILogger
 
         foreach (var folder in folders)
         {
-            string candidate;
+            string candidate = string.Empty;
             try
             {
-                candidate = Path.GetFullPath(Path.Combine(folder, reference));
+                candidate = Path.Combine(folder, reference);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException or ArgumentException)
+            catch (ArgumentException)
             {
                 continue;
             }

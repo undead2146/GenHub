@@ -1525,20 +1525,7 @@ public sealed partial class RmlEditorViewModel(
 
     private static bool IsSubPathOf(string path, string basePath)
     {
-        try
-        {
-            var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
-            var normalizedPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var normalizedBase = Path.GetFullPath(basePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            return normalizedPath.StartsWith(normalizedBase + Path.DirectorySeparatorChar, comparison)
-                || string.Equals(normalizedPath, normalizedBase, comparison);
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or SecurityException)
-        {
-            return false;
-        }
+        return PathHelper.IsPathWithinDirectory(basePath, path);
     }
 
     private static RmlTreeNodeViewModel? FindTreeNode(IEnumerable<RmlTreeNodeViewModel> nodes, Guid nodeId)
@@ -1575,11 +1562,13 @@ public sealed partial class RmlEditorViewModel(
 
     private FileExplorerViewModel CreateFileExplorer()
     {
-        var explorer = new FileExplorerViewModel(logger);
-        explorer.FilePatterns = [RmlConstants.File.Pattern, RmlConstants.File.RcssPattern];
-        explorer.ShowFileExtensions = true;
-        explorer.BrowseFolderAsync = PickFolderAsync;
-        explorer.DirectoryAdoptedAsync = (folder, cancellationToken) => AdoptExplorerDirectoryAsync(folder, cancellationToken);
+        var explorer = new FileExplorerViewModel(logger)
+        {
+            FilePatterns = [RmlConstants.File.Pattern, RmlConstants.File.RcssPattern],
+            ShowFileExtensions = true,
+            BrowseFolderAsync = PickFolderAsync,
+            DirectoryAdoptedAsync = (folder, cancellationToken) => AdoptExplorerDirectoryAsync(folder, cancellationToken),
+        };
         explorer.FileActivated += OnExplorerFileActivated;
         return explorer;
     }
@@ -1653,12 +1642,12 @@ public sealed partial class RmlEditorViewModel(
                 continue;
             }
 
-            string path;
+            string path = string.Empty;
             try
             {
-                path = Path.GetFullPath(Path.Combine(directory, href.Trim()));
+                path = Path.Combine(directory, href.Trim());
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException or ArgumentException)
+            catch (ArgumentException ex)
             {
                 logger.LogDebug(ex, "Ignoring style sheet reference with unusable path: {Href}", href.Trim());
                 continue;
@@ -1670,7 +1659,7 @@ public sealed partial class RmlEditorViewModel(
                 continue;
             }
 
-            if (File.Exists(path) && !_sheets.Any(s => string.Equals(s.FilePath, path, StringComparison.OrdinalIgnoreCase)))
+            if (File.Exists(path) && _sheets.All(s => !string.Equals(s.FilePath, path, StringComparison.OrdinalIgnoreCase)))
             {
                 TryAddStyleSheetFile(path, href.Trim());
             }
@@ -1785,8 +1774,10 @@ public sealed partial class RmlEditorViewModel(
                     continue;
                 }
 
-                var node = new RmlTreeNodeViewModel(root, null, NodeDetail);
-                node.IsExpanded = expanded.Count == 0 || expanded.Contains(root.Id) || !string.IsNullOrEmpty(filter);
+                var node = new RmlTreeNodeViewModel(root, null, NodeDetail)
+                {
+                    IsExpanded = expanded.Count == 0 || expanded.Contains(root.Id) || !string.IsNullOrEmpty(filter),
+                };
                 BuildTreeChildren(node, root, filter, expanded);
                 RootNodes.Add(node);
             }
@@ -1815,8 +1806,10 @@ public sealed partial class RmlEditorViewModel(
                 continue;
             }
 
-            var node = new RmlTreeNodeViewModel(child, parent, NodeDetail);
-            node.IsExpanded = expanded.Count == 0 || expanded.Contains(child.Id) || !string.IsNullOrEmpty(filter);
+            var node = new RmlTreeNodeViewModel(child, parent, NodeDetail)
+            {
+                IsExpanded = expanded.Count == 0 || expanded.Contains(child.Id) || !string.IsNullOrEmpty(filter),
+            };
             if (child is RmlElement nested)
             {
                 BuildTreeChildren(node, nested, filter, expanded);

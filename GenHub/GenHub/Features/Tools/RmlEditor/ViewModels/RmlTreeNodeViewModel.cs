@@ -124,7 +124,7 @@ public sealed partial class RmlTreeNodeViewModel : ObservableObject
         var collapsed = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (collapsed.Length > MaxTextPreviewLength)
         {
-            collapsed = collapsed.Substring(0, MaxTextPreviewLength) + "...";
+            collapsed = collapsed[..MaxTextPreviewLength] + "...";
         }
 
         return collapsed;

@@ -37,7 +37,7 @@ public sealed class RmlDocumentService(ILogger<RmlDocumentService> logger) : IRm
             return OperationResult<RmlDocument>.CreateFailure("Interface document is empty.", stopwatch.Elapsed);
         }
 
-        XDocument xml;
+        XDocument? xml = null;
         try
         {
             xml = XDocument.Parse(content, LoadOptions.SetLineInfo | LoadOptions.PreserveWhitespace);
@@ -291,7 +291,7 @@ public sealed class RmlDocumentService(ILogger<RmlDocumentService> logger) : IRm
         ValidateDataBinding(element, label, validatedTargetId, issues);
 
         if (string.Equals(element.Tag, RmlConstants.Elements.Select, StringComparison.OrdinalIgnoreCase)
-            && !element.Elements.Any(e => string.Equals(e.Tag, RmlConstants.Elements.Option, StringComparison.OrdinalIgnoreCase)))
+            && element.Elements.All(e => !string.Equals(e.Tag, RmlConstants.Elements.Option, StringComparison.OrdinalIgnoreCase)))
         {
             issues.Add(new ValidationIssue($"{label} declares no options.", ValidationSeverity.Warning, validatedTargetId));
         }
@@ -495,6 +495,7 @@ public sealed class RmlDocumentService(ILogger<RmlDocumentService> logger) : IRm
                     element.Children.Add(new RmlComment { Text = comment.Value });
                     break;
                 default:
+                    // Processing instructions and document type nodes carry no editable content.
                     break;
             }
         }
@@ -558,6 +559,7 @@ public sealed class RmlDocumentService(ILogger<RmlDocumentService> logger) : IRm
                     WriteComment(builder, comment.Text, depth + 1);
                     break;
                 default:
+                    // Unknown node kinds are skipped so writing never fails on future extensions.
                     break;
             }
         }
