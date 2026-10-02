@@ -207,7 +207,7 @@ public sealed class RmlEditorViewModelTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [AvaloniaFact]
-    public async Task CutUndoPasteAsync_InsertsDistinctCopy()
+    public async Task CutUndoPaste_InsertsDistinctCopyAsync()
     {
         await _viewModel.OpenFileAsync(_samplePath);
         _viewModel.SelectNode(FindNode("start").Node.Id);
